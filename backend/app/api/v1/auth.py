@@ -19,6 +19,10 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+def _is_google_photo(url: str | None) -> bool:
+    return bool(url and "googleusercontent.com" in url)
+
+
 @router.post("/google", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate or register via Google OAuth."""
@@ -73,6 +77,13 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
             )
             db.add(user)
             await db.flush()
+
+    if full_name and not user.full_name:
+        user.full_name = full_name
+    if picture and (not user.profile_photo_url or _is_google_photo(user.profile_photo_url)):
+        user.profile_photo_url = picture
+    user.google_id = google_id
+    user.is_verified = True
 
     access_token, refresh_token = create_token_pair(user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
