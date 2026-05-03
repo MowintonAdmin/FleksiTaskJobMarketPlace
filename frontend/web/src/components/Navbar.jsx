@@ -33,7 +33,7 @@ export default function Navbar() {
               </Link>
               <Link to="/profile">
                 {user?.profile_photo_url ? (
-                  <img src={user.profile_photo_url} alt="Profile" className="w-8 h-8 rounded-full object-cover border-2 border-primary-500" />
+                  <img src={user.profile_photo_url} alt="Profile" referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover border-2 border-primary-500" />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-sm">
                     {user?.full_name?.[0] ?? 'U'}

@@ -17,6 +17,7 @@ from app.config import get_settings
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
+GOOGLE_TOKEN_CLOCK_SKEW_SECONDS = 60
 
 
 def _is_google_photo(url: str | None) -> bool:
@@ -31,7 +32,7 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
             payload.id_token,
             google_requests.Request(),
             None,
-            clock_skew_in_seconds=10,
+            clock_skew_in_seconds=GOOGLE_TOKEN_CLOCK_SKEW_SECONDS,
         )
     except ValueError as exc:
         logger.warning("Google token verification failed before audience check: %s", exc)

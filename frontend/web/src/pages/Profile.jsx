@@ -76,7 +76,7 @@ export default function Profile() {
       <div className="card mb-6 flex items-center gap-4">
         <div className="relative">
           {user?.profile_photo_url ? (
-            <img src={user.profile_photo_url} alt="Profile" className="w-20 h-20 rounded-full object-cover border-2 border-primary-500" />
+            <img src={user.profile_photo_url} alt="Profile" referrerPolicy="no-referrer" className="w-20 h-20 rounded-full object-cover border-2 border-primary-500" />
           ) : (
             <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-2xl">
               {user?.full_name?.[0] ?? 'U'}

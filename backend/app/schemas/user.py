@@ -2,6 +2,22 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator
 import json
+from urllib.parse import quote, urlparse
+
+
+def normalize_profile_photo_url(url: str | None) -> str | None:
+    if not url or url.startswith("/"):
+        return url
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or not host:
+        return url
+
+    if host.endswith("googleusercontent.com") or host == "google.com" or host.endswith(".google.com"):
+        return f"/api/v1/users/photo-proxy?url={quote(url, safe='')}"
+
+    return url
 
 
 class UserBase(BaseModel):
@@ -44,6 +60,11 @@ class UserResponse(UserBase):
     is_verified: bool
     created_at: datetime
 
+    @field_validator("profile_photo_url", mode="before")
+    @classmethod
+    def normalize_profile_photo(cls, value):
+        return normalize_profile_photo_url(value)
+
     model_config = {"from_attributes": True}
 
 
@@ -60,6 +81,11 @@ class UserPublic(BaseModel):
         if isinstance(v, str):
             return json.loads(v)
         return v
+
+    @field_validator("profile_photo_url", mode="before")
+    @classmethod
+    def normalize_profile_photo(cls, value):
+        return normalize_profile_photo_url(value)
 
     model_config = {"from_attributes": True}
 

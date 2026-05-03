@@ -81,7 +81,7 @@ export default function ActiveWorkers() {
               {/* Worker info */}
               <div className="flex items-center gap-3 mb-4">
                 {w.worker_photo
-                  ? <img src={w.worker_photo} alt="" className="w-12 h-12 rounded-full object-cover" />
+                  ? <img src={w.worker_photo} alt="" referrerPolicy="no-referrer" className="w-12 h-12 rounded-full object-cover" />
                   : <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-xl font-bold text-green-600">
                       {(w.worker_name || w.worker_email || '?')[0].toUpperCase()}
                     </div>

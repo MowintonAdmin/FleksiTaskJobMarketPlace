@@ -2,7 +2,11 @@ import os
 import uuid
 import json
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -15,6 +19,45 @@ router = APIRouter(prefix="/users", tags=["Users"])
 settings = get_settings()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_EXTERNAL_PHOTO_HOSTS = ("googleusercontent.com", "google.com")
+PHOTO_PROXY_TIMEOUT_SECONDS = 10
+PHOTO_PROXY_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _is_allowed_external_photo_url(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme in {"http", "https"} and bool(host) and any(
+        host == allowed_host or host.endswith(f".{allowed_host}")
+        for allowed_host in ALLOWED_EXTERNAL_PHOTO_HOSTS
+    )
+
+
+@router.get("/photo-proxy")
+async def proxy_profile_photo(url: str = Query(..., min_length=1)):
+    if not _is_allowed_external_photo_url(url):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid external photo URL")
+
+    request = Request(url, headers={"User-Agent": "FleksiTask/1.0"})
+    try:
+        with urlopen(request, timeout=PHOTO_PROXY_TIMEOUT_SECONDS) as upstream:
+            content_type = upstream.headers.get_content_type()
+            if not content_type.startswith("image/"):
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Invalid external photo content type")
+
+            content = upstream.read(PHOTO_PROXY_MAX_BYTES + 1)
+            if len(content) > PHOTO_PROXY_MAX_BYTES:
+                raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="External photo exceeds size limit")
+
+            return Response(
+                content=content,
+                media_type=content_type,
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
+    except HTTPException:
+        raise
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch external photo") from exc
 
 
 @router.get("/me", response_model=UserResponse)

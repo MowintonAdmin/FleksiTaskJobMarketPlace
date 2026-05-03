@@ -128,7 +128,7 @@ function WorkerDrawer({ user, onClose, onMessage }) {
           {/* Avatar + info */}
           <div className="flex items-center gap-4">
             {user.profile_photo_url
-              ? <img src={user.profile_photo_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+              ? <img src={user.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-16 h-16 rounded-full object-cover" />
               : <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-600">
                   {(user.full_name || user.email || '?')[0].toUpperCase()}
                 </div>
@@ -266,7 +266,7 @@ export default function Users() {
                   <button onClick={() => setSelectedUser(u)}
                     className="flex items-center gap-3 hover:text-blue-600 transition-colors text-left">
                     {u.profile_photo_url
-                      ? <img src={u.profile_photo_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      ? <img src={u.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover" />
                       : <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
                           {(u.full_name || u.email || '?')[0].toUpperCase()}
                         </div>

@@ -97,7 +97,7 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
           {/* Profile */}
           <div className="flex items-center gap-4">
             {worker.profile_photo_url
-              ? <img src={worker.profile_photo_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+              ? <img src={worker.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-16 h-16 rounded-full object-cover" />
               : <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-600">{worker.full_name?.[0]}</div>
             }
             <div>
@@ -242,7 +242,7 @@ export default function Applications() {
                 <td className="px-4 py-3">
                   <button onClick={() => setSelectedWorker(app.worker)} className="flex items-center gap-2 hover:text-blue-600 text-left">
                     {app.worker?.profile_photo_url
-                      ? <img src={app.worker.profile_photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      ? <img src={app.worker.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover" />
                       : <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">{app.worker?.full_name?.[0] ?? '?'}</div>
                     }
                     <span className="font-medium text-gray-900">{app.worker?.full_name ?? '—'}</span>
