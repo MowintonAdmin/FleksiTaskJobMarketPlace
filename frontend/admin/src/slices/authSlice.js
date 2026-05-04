@@ -1,6 +1,32 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../api/client'
 
+function extractErrorMessage(err, fallbackMessage) {
+  const detail = err.response?.data?.detail
+  if (Array.isArray(detail)) {
+    return detail.map((entry) => entry.msg).join(', ')
+  }
+
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail
+  }
+
+  const contentType = err.response?.headers?.['content-type'] || ''
+  if (err.response?.status === 404 && contentType.includes('text/html')) {
+    return 'API route not reachable. Check VITE_API_BASE_URL and the admin-to-API domain routing.'
+  }
+
+  if (err.code === 'ERR_NETWORK') {
+    return 'Cannot reach the API. Check the backend domain, ALLOWED_ORIGINS, and VITE_API_BASE_URL.'
+  }
+
+  if (typeof err.response?.data === 'string' && err.response.data.includes('Not Found')) {
+    return 'API route not reachable. Check VITE_API_BASE_URL and the admin-to-API domain routing.'
+  }
+
+  return fallbackMessage
+}
+
 export const adminLogin = createAsyncThunk('auth/login', async ({ email, password }, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/login', { email, password })
@@ -10,7 +36,7 @@ export const adminLogin = createAsyncThunk('auth/login', async ({ email, passwor
     if (!me.data.is_admin) throw new Error('Not an admin account')
     return { tokens: data, user: me.data }
   } catch (err) {
-    return rejectWithValue(err.response?.data?.detail || err.message || 'Login failed')
+    return rejectWithValue(extractErrorMessage(err, err.message || 'Login failed'))
   }
 })
 
@@ -18,8 +44,8 @@ export const fetchAdminUser = createAsyncThunk('auth/fetchMe', async (_, { rejec
   try {
     const { data } = await api.get('/users/me')
     return data
-  } catch {
-    return rejectWithValue('Session expired')
+  } catch (err) {
+    return rejectWithValue(extractErrorMessage(err, 'Session expired'))
   }
 })
 
