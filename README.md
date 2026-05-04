@@ -254,6 +254,20 @@ curl http://localhost:8000/health
 docker compose ps
 ```
 
+### 4a. Create the First Admin Account
+
+Run the backend bootstrap command inside the running backend container:
+
+```bash
+docker compose --env-file deploy/.env.prod -f docker-compose.yml -f deploy/docker-compose.prod.yml exec backend \
+	python -m app.scripts.create_admin \
+	--email admin@example.com \
+	--password 'ChangeThisNow123!' \
+	--full-name 'Platform Admin'
+```
+
+This command creates the user if it does not exist, or upgrades an existing user to admin and resets its password.
+
 ### 5. Configure Caddy on the VPS Host
 
 Use `deploy/Caddyfile` as the starting point. Export the three host variables before reloading Caddy:
