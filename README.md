@@ -249,6 +249,14 @@ Update the hostnames, API URL values, and `POSTGRES_PASSWORD` in `deploy/.env.pr
 If host port `8000` is already in use on the VPS, also set an alternate backend port in `deploy/.env.prod`:
 - `BACKEND_HOST_PORT=8001`
 
+If you want to reach the web app directly by server IP for testing, set:
+- `WEB_BIND_HOST=0.0.0.0`
+- `WEB_HOST_PORT=3000`
+
+That will expose the web container on `http://SERVER_IP:3000`.
+
+If host port `3000` is already in use on the VPS, change `WEB_HOST_PORT` to another value such as `3002` and reload Caddy with the same variable.
+
 If you use Caddy on the host, export the same value before reloading so the API proxy target stays aligned.
 
 ### 3. Start the Stack

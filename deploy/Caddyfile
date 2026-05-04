@@ -1,5 +1,5 @@
 {$WEB_HOST} {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:{$WEB_HOST_PORT:3000}
 }
 
 {$ADMIN_HOST} {
