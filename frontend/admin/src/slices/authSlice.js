@@ -10,7 +10,7 @@ export const adminLogin = createAsyncThunk('auth/login', async ({ email, passwor
     if (!me.data.is_admin) throw new Error('Not an admin account')
     return { tokens: data, user: me.data }
   } catch (err) {
-    return rejectWithValue(err.message || err.response?.data?.detail || 'Login failed')
+    return rejectWithValue(err.response?.data?.detail || err.message || 'Login failed')
   }
 })
 

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.api.v1 import router as api_router
+from app.core.admin_bootstrap import bootstrap_admin_account
 from app.core.firebase import init_firebase
 from app.core.redis_client import close_redis
 from app.database import init_db
@@ -17,6 +18,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
+    await bootstrap_admin_account(
+        settings.BOOTSTRAP_ADMIN_EMAIL,
+        settings.BOOTSTRAP_ADMIN_PASSWORD,
+        settings.BOOTSTRAP_ADMIN_FULL_NAME,
+    )
     init_firebase()
     Path(settings.MEDIA_DIR).mkdir(parents=True, exist_ok=True)
     yield

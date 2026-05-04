@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
 
+    # Admin bootstrap
+    BOOTSTRAP_ADMIN_EMAIL: str | None = None
+    BOOTSTRAP_ADMIN_PASSWORD: str | None = None
+    BOOTSTRAP_ADMIN_FULL_NAME: str = "Platform Admin"
+
     # File Storage
     MEDIA_DIR: str = "media"
     MAX_UPLOAD_SIZE_MB: int = 5

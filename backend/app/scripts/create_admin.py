@@ -1,40 +1,7 @@
 import argparse
 import asyncio
 
-from sqlalchemy import select
-
-import app.models  # noqa: F401
-from app.core.security import hash_password
-from app.database import AsyncSessionLocal
-from app.models.user import User
-
-
-async def create_or_update_admin(email: str, password: str, full_name: str) -> None:
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-
-        if user is None:
-            user = User(
-                email=email,
-                full_name=full_name,
-                hashed_password=hash_password(password),
-                is_admin=True,
-                is_verified=True,
-                is_active=True,
-            )
-            session.add(user)
-            action = "created"
-        else:
-            user.full_name = full_name or user.full_name
-            user.hashed_password = hash_password(password)
-            user.is_admin = True
-            user.is_active = True
-            user.is_verified = True
-            action = "updated"
-
-        await session.commit()
-        print(f"Admin account {action}: {email}")
+from app.core.admin_bootstrap import create_or_update_admin
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,7 +14,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    asyncio.run(create_or_update_admin(args.email.strip().lower(), args.password, args.full_name.strip()))
+    action = asyncio.run(
+        create_or_update_admin(
+            email=args.email,
+            password=args.password,
+            full_name=args.full_name,
+            reset_password=True,
+        )
+    )
+    print(f"Admin account {action}: {args.email.strip().lower()}")
 
 
 if __name__ == "__main__":

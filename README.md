@@ -229,6 +229,11 @@ Set at least:
 - `GOOGLE_CLIENT_SECRET`
 - `ALLOWED_ORIGINS=["https://yourdomain.com","https://admin.yourdomain.com"]`
 
+Optional first-admin bootstrap values in `backend/.env`:
+- `BOOTSTRAP_ADMIN_EMAIL=enghoo2004@gmail.com`
+- `BOOTSTRAP_ADMIN_PASSWORD=Admin@123`
+- `BOOTSTRAP_ADMIN_FULL_NAME=Eng Hoo`
+
 Place your Firebase service account file at `backend/firebase-credentials.json`.
 
 ### 2. Build for Production API Hosts
@@ -256,17 +261,27 @@ docker compose ps
 
 ### 4a. Create the First Admin Account
 
-Run the backend bootstrap command inside the running backend container:
+If `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` are set in `backend/.env`, the backend will auto-create the first admin account on startup.
+
+For the requested account:
+
+```env
+BOOTSTRAP_ADMIN_EMAIL=enghoo2004@gmail.com
+BOOTSTRAP_ADMIN_PASSWORD=Admin@123
+BOOTSTRAP_ADMIN_FULL_NAME=Eng Hoo
+```
+
+After the first successful deploy, remove or rotate `BOOTSTRAP_ADMIN_PASSWORD` so later restarts do not keep bootstrap credentials around in your deployment configuration.
+
+You can still run the manual bootstrap command if needed:
 
 ```bash
 docker compose --env-file deploy/.env.prod -f docker-compose.yml -f deploy/docker-compose.prod.yml exec backend \
 	python -m app.scripts.create_admin \
-	--email admin@example.com \
-	--password 'ChangeThisNow123!' \
-	--full-name 'Platform Admin'
+	--email enghoo2004@gmail.com \
+	--password 'Admin@123' \
+	--full-name 'Eng Hoo'
 ```
-
-This command creates the user if it does not exist, or upgrades an existing user to admin and resets its password.
 
 ### 5. Configure Caddy on the VPS Host
 
