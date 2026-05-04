@@ -15,6 +15,10 @@ function extractErrorMessage(err, fallbackMessage) {
     return 'API route not reachable. Check that the backend is running and VITE_API_BASE_URL points to it.'
   }
 
+  if (err.code === 'ERR_NETWORK') {
+    return 'Cannot reach the API. Check the backend domain, ALLOWED_ORIGINS, and VITE_API_BASE_URL.'
+  }
+
   if (typeof err.response?.data === 'string' && err.response.data.includes('Not Found')) {
     return 'API route not reachable. Check that the backend is running and VITE_API_BASE_URL points to it.'
   }
