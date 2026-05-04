@@ -246,6 +246,11 @@ cp deploy/.env.prod.example deploy/.env.prod
 
 Update the hostnames, API URL values, and `POSTGRES_PASSWORD` in `deploy/.env.prod`.
 
+If host port `8000` is already in use on the VPS, also set an alternate backend port in `deploy/.env.prod`:
+- `BACKEND_HOST_PORT=8001`
+
+If you use Caddy on the host, export the same value before reloading so the API proxy target stays aligned.
+
 ### 3. Start the Stack
 
 ```bash
@@ -286,6 +291,8 @@ docker compose --env-file deploy/.env.prod -f docker-compose.yml -f deploy/docke
 ### 5. Configure Caddy on the VPS Host
 
 Use `deploy/Caddyfile` as the starting point. Export the three host variables before reloading Caddy:
+
+If you changed `BACKEND_HOST_PORT`, export that too.
 
 ```bash
 export WEB_HOST=yourdomain.com
