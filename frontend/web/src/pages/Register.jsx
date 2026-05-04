@@ -5,10 +5,16 @@ import { toast } from 'react-toastify'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import { loginWithGoogle, registerUser } from '../store/authSlice'
 
+function hasGoogleClientId() {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim()
+  return Boolean(clientId && !clientId.includes('your-google-client-id'))
+}
+
 export default function Register() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { loading } = useSelector((s) => s.auth)
+  const showGoogleSignIn = hasGoogleClientId()
 
   const [form, setForm] = useState({
     full_name: '',
@@ -72,19 +78,23 @@ export default function Register() {
             <p className="text-gray-500 text-sm mt-1">Start finding flexible work today</p>
           </div>
 
-          <div className="space-y-3 mb-5">
-            <GoogleSignInButton onCredential={handleGoogleSignIn} disabled={loading} />
-            <p className="text-xs text-center text-gray-500">Create your account instantly with Google, or use email below.</p>
-          </div>
+          {showGoogleSignIn && (
+            <>
+              <div className="space-y-3 mb-5">
+                <GoogleSignInButton onCredential={handleGoogleSignIn} disabled={loading} />
+                <p className="text-xs text-center text-gray-500">Create your account instantly with Google, or use email below.</p>
+              </div>
 
-          <div className="relative mb-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase tracking-wide text-gray-400">
-              <span className="bg-white px-3">Or register with email</span>
-            </div>
-          </div>
+              <div className="relative mb-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase tracking-wide text-gray-400">
+                  <span className="bg-white px-3">Or register with email</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name */}

@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 
 let googleScriptPromise
 
+function normalizeGoogleClientId(value) {
+  if (!value) return ''
+
+  const normalized = value.trim()
+  return normalized.includes('your-google-client-id') ? '' : normalized
+}
+
 function loadGoogleIdentityScript() {
   if (window.google?.accounts?.id) return Promise.resolve()
   if (googleScriptPromise) return googleScriptPromise
@@ -30,13 +37,13 @@ function loadGoogleIdentityScript() {
 export default function GoogleSignInButton({ onCredential, disabled = false }) {
   const buttonRef = useRef(null)
   const [loadError, setLoadError] = useState(null)
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim()
+  const clientId = normalizeGoogleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID)
 
   useEffect(() => {
     let cancelled = false
 
     if (!clientId) {
-      setLoadError('Google Sign-In is not configured. Set VITE_GOOGLE_CLIENT_ID in the web app env file.')
+      setLoadError(null)
       return () => {}
     }
 
@@ -72,6 +79,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
       cancelled = true
     }
   }, [clientId, disabled, onCredential])
+
+  if (!clientId) {
+    return null
+  }
 
   return (
     <div className={disabled ? 'pointer-events-none opacity-60' : ''}>
