@@ -257,6 +257,11 @@ That will expose the web container on `http://SERVER_IP:3000`.
 
 If host port `3000` is already in use on the VPS, change `WEB_HOST_PORT` to another value such as `3002` and reload Caddy with the same variable.
 
+For the admin app, use the equivalent settings if you need direct host or IP access:
+- `ADMIN_BIND_HOST=127.0.0.1` for domain-only access through Caddy
+- `ADMIN_BIND_HOST=0.0.0.0` for direct IP access
+- `ADMIN_HOST_PORT=3001` or another free port such as `3003`
+
 If you use Caddy on the host, export the same value before reloading so the API proxy target stays aligned.
 
 ### 3. Start the Stack
