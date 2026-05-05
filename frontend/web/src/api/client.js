@@ -6,28 +6,8 @@ function normalizeApiHost(value) {
   return normalized.includes('yourdomain.com') ? '' : normalized
 }
 
-function getRuntimeApiHost() {
-  if (typeof window === 'undefined' || import.meta.env.DEV) return ''
-
-  const { protocol, hostname, origin } = window.location
-
-  if (hostname.startsWith('api.')) {
-    return origin
-  }
-
-  if (hostname.startsWith('www.')) {
-    return `${protocol}//api.${hostname.slice('www.'.length)}`
-  }
-
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname === 'localhost') {
-    return origin
-  }
-
-  return hostname.includes('.') ? `${protocol}//api.${hostname}` : origin
-}
-
 const configuredApiHost = normalizeApiHost(import.meta.env.VITE_API_BASE_URL?.trim())
-const apiHost = configuredApiHost || getRuntimeApiHost() || (import.meta.env.DEV ? 'http://localhost:8000' : '')
+const apiHost = configuredApiHost || (import.meta.env.DEV ? 'http://localhost:8000' : '')
 const apiBaseUrl = `${apiHost}/api/v1`
 
 const api = axios.create({
