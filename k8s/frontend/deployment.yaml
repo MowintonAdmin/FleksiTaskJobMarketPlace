@@ -16,6 +16,12 @@ spec:
       containers:
         - name: frontend-web
           image: fleksitask/frontend-web:latest
+          env:
+            - name: VITE_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: fleksitask-secrets
+                  key: GOOGLE_CLIENT_ID
           ports:
             - containerPort: 80
           resources:

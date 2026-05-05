@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { getPublicConfig } from '../config/runtime'
 
 let googleScriptPromise
 
@@ -37,7 +38,7 @@ function loadGoogleIdentityScript() {
 export default function GoogleSignInButton({ onCredential, disabled = false }) {
   const buttonRef = useRef(null)
   const [loadError, setLoadError] = useState(null)
-  const clientId = normalizeGoogleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID)
+  const clientId = normalizeGoogleClientId(getPublicConfig('VITE_GOOGLE_CLIENT_ID', import.meta.env.VITE_GOOGLE_CLIENT_ID))
 
   useEffect(() => {
     let cancelled = false

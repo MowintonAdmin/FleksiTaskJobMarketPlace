@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getPublicConfig } from '../config/runtime'
 
 function normalizeApiHost(value) {
   if (!value) return ''
@@ -6,7 +7,7 @@ function normalizeApiHost(value) {
   return normalized.includes('yourdomain.com') ? '' : normalized
 }
 
-const configuredApiHost = normalizeApiHost(import.meta.env.VITE_API_BASE_URL?.trim())
+const configuredApiHost = normalizeApiHost(getPublicConfig('VITE_API_BASE_URL', import.meta.env.VITE_API_BASE_URL?.trim()))
 const apiHost = configuredApiHost || (import.meta.env.DEV ? 'http://localhost:8000' : '')
 const apiBaseUrl = `${apiHost}/api/v1`
 

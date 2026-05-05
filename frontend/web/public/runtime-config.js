@@ -1,0 +1,1 @@
+window.__FLEKSI_CONFIG__ = window.__FLEKSI_CONFIG__ || {};
