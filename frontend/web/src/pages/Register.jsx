@@ -3,10 +3,11 @@ import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import GoogleSignInButton from '../components/GoogleSignInButton'
+import { getPublicConfig } from '../config/runtime'
 import { loginWithGoogle, registerUser } from '../store/authSlice'
 
 function hasGoogleClientId() {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim()
+  const clientId = getPublicConfig('VITE_GOOGLE_CLIENT_ID', import.meta.env.VITE_GOOGLE_CLIENT_ID).trim()
   return Boolean(clientId && !clientId.includes('your-google-client-id'))
 }
 
