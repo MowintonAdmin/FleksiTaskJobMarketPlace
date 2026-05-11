@@ -118,7 +118,7 @@ function TaskCostPanel({ costs, loading }) {
   const totalLive = costs.reduce((s, t) => s + t.live_cost, 0)
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
       {/* Summary bar */}
       <div className="grid grid-cols-3 divide-x divide-gray-100 bg-gray-50 border-b border-gray-100">
         {[
@@ -265,7 +265,7 @@ export default function TimeLogs() {
             </select>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
                 <tr>

@@ -207,7 +207,7 @@ function MonthlyTab() {
             <BarChart data={chartData} />
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
@@ -266,7 +266,7 @@ function CompletionTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
         <div className="px-4 py-3 border-b border-gray-100">
           <p className="font-semibold text-gray-700">By Category</p>
         </div>
