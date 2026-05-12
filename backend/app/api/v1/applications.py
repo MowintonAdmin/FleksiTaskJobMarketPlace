@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from app.database import get_db
 from app.models.application import Application, ApplicationStatus
@@ -77,7 +77,6 @@ async def get_my_applications(
         app_data = ApplicationWithDetails(**app_base.model_dump())
         if task:
             from app.schemas.task import TaskResponse
-            from sqlalchemy import func
             count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
             task_data = TaskResponse.model_validate(task)
             task_data.application_count = count_result.scalar_one()
@@ -137,10 +136,26 @@ async def update_application_status(
     application.reviewed_at = datetime.now(timezone.utc)
     db.add(application)
 
-    # When an application is approved, mark the task as in_progress so it
-    # no longer appears in the public task listing.
+    # When an application is approved, check if the task has filled all its
+    # required slots. Only mark it IN_PROGRESS (hiding it from the main page)
+    # once the number of approved applications reaches max_applicants.
     if payload.status == ApplicationStatus.APPROVED:
-        task.status = TaskStatus.IN_PROGRESS
+        approved_count_result = await db.execute(
+            select(func.count()).select_from(Application).where(
+                Application.task_id == task.id,
+                Application.status == ApplicationStatus.APPROVED,
+            )
+        )
+        # +1 because the current application's status change isn't flushed yet
+        approved_count = approved_count_result.scalar_one() + 1
+        if approved_count >= task.max_applicants:
+            task.status = TaskStatus.IN_PROGRESS
+            db.add(task)
+
+    # If a previously-approved application is rejected, reopen the task so it
+    # appears on the main page again (a slot has freed up).
+    elif payload.status == ApplicationStatus.REJECTED and task.status == TaskStatus.IN_PROGRESS:
+        task.status = TaskStatus.OPEN
         db.add(task)
 
     await db.flush()
