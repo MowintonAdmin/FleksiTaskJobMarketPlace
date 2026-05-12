@@ -230,23 +230,31 @@ export default function TaskTracking() {
                 <label className="block text-xs font-medium text-gray-700 mb-2">
                   Photo Proof <span className="text-gray-400">(optional)</span>
                 </label>
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer hover:border-primary-400 transition-colors">
-                  {photoPreview ? (
-                    <img src={photoPreview} alt="proof" className="max-h-40 rounded-lg object-cover" />
-                  ) : (
-                    <>
-                      <span className="text-3xl mb-1">📷</span>
-                      <span className="text-sm text-gray-500">Tap to upload photo</span>
-                      <span className="text-xs text-gray-400">JPG, PNG, WebP · max 5MB</span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                </label>
+                {photoPreview ? (
+                  <div className="relative">
+                    <img src={photoPreview} alt="proof" className="w-full max-h-40 rounded-xl object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => { setProofPhoto(null); setPhotoPreview(null) }}
+                      className="absolute top-2 right-2 bg-white bg-opacity-90 hover:bg-red-50 text-red-500 rounded-full w-7 h-7 flex items-center justify-center shadow text-sm font-bold leading-none"
+                      title="Remove photo"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer hover:border-primary-400 transition-colors">
+                    <span className="text-3xl mb-1">📷</span>
+                    <span className="text-sm text-gray-500">Tap to upload photo</span>
+                    <span className="text-xs text-gray-400">JPG, PNG, WebP · max 5MB</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
+                )}
               </div>
 
               {/* Notes */}
