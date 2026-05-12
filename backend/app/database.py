@@ -27,14 +27,18 @@ async def init_db() -> None:
     """Create all tables (idempotent – skips existing tables/types)."""
     import app.models  # noqa: F401 – ensure all models are registered
 
-    # ALTER TYPE … ADD VALUE must run outside a transaction (autocommit).
-    async with engine.connect() as conn:
-        await conn.execution_options(isolation_level="AUTOCOMMIT").execute(
-            sa.text("ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'")
-        )
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # ALTER TYPE … ADD VALUE must run outside a transaction (autocommit).
+    # Adds 'paused' to the sessionstatus enum for existing deployments.
+    try:
+        async with engine.connect() as conn:
+            await conn.execution_options(isolation_level="AUTOCOMMIT").execute(
+                sa.text("ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'")
+            )
+    except Exception:
+        pass  # enum value already exists or type not yet created via alembic
 
 
 async def get_db():
