@@ -57,6 +57,9 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${WEB_VITE_GOOGLE_CLIENT_ID:-}
     container_name: fleksitask-web
     restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ${WEB_VITE_API_BASE_URL:-}
+      VITE_GOOGLE_CLIENT_ID: ${WEB_VITE_GOOGLE_CLIENT_ID:-}
     ports:
       - "3000:80"
     depends_on:

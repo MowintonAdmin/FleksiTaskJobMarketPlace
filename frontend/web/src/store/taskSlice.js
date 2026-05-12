@@ -5,7 +5,10 @@ export const fetchTasks = createAsyncThunk('tasks/fetchAll', async (params, { re
   try {
     return await tasksApi.list(params)
   } catch (err) {
-    return rejectWithValue(err.response?.data?.detail || 'Failed to load tasks')
+    const detail = err.response?.data?.detail
+    if (detail) return rejectWithValue(typeof detail === 'string' ? detail : JSON.stringify(detail))
+    if (err.code === 'ERR_NETWORK' || !err.response) return rejectWithValue('Cannot reach the server. Check your connection or try again.')
+    return rejectWithValue(`Server error (${err.response.status}). Please try again.`)
   }
 })
 

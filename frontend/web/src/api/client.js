@@ -63,6 +63,7 @@ api.interceptors.response.use(
           window.location.href = '/login'
         }
       }
+      // No refresh token — reject without redirect so public requests are unaffected
     }
     return Promise.reject(error)
   }
