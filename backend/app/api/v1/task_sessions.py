@@ -1,4 +1,5 @@
 import uuid
+import logging
 import os
 import shutil
 from datetime import datetime, timezone, timedelta
@@ -16,6 +17,7 @@ from app.models.user import User
 from app.models.wallet import Wallet, Transaction, TransactionType
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/task-sessions", tags=["Task Tracking"])
 settings = get_settings()
 
@@ -302,13 +304,17 @@ async def my_sessions(
     db: AsyncSession = Depends(get_db),
 ):
     """List all task sessions for the current worker."""
-    result = await db.execute(
-        select(TaskSession)
-        .where(TaskSession.worker_id == current_user.id)
-        .order_by(TaskSession.created_at.desc())
-    )
-    sessions = result.scalars().all()
-    return [TaskSessionResponse.model_validate(s) for s in sessions]
+    try:
+        result = await db.execute(
+            select(TaskSession)
+            .where(TaskSession.worker_id == current_user.id)
+            .order_by(TaskSession.created_at.desc())
+        )
+        sessions = result.scalars().all()
+        return [TaskSessionResponse.model_validate(s) for s in sessions]
+    except Exception as e:
+        logger.error("my_sessions error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sessions: {e}")
 
 
 @router.get("/active", response_model=TaskSessionResponse | None)
@@ -317,16 +323,20 @@ async def get_active_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Get the current worker's active session, if any."""
-    result = await db.execute(
-        select(TaskSession).where(
-            TaskSession.worker_id == current_user.id,
-            TaskSession.status == SessionStatus.ACTIVE,
+    try:
+        result = await db.execute(
+            select(TaskSession).where(
+                TaskSession.worker_id == current_user.id,
+                TaskSession.status == SessionStatus.ACTIVE,
+            )
         )
-    )
-    session = result.scalar_one_or_none()
-    if not session:
-        return None
-    return TaskSessionResponse.model_validate(session)
+        session = result.scalar_one_or_none()
+        if not session:
+            return None
+        return TaskSessionResponse.model_validate(session)
+    except Exception as e:
+        logger.error("get_active_session error: %s", e, exc_info=True)
+        return None  # Non-critical — return null instead of crashing the page load
 
 
 # ── History & Performance ─────────────────────────────────────────────────────

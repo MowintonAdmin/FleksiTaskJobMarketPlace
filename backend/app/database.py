@@ -1,8 +1,10 @@
+import logging
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 engine = create_async_engine(
@@ -36,11 +38,17 @@ async def init_db() -> None:
                 "ALTER TABLE task_sessions "
                 "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
             ))
-    except Exception:
-        pass  # already varchar, or table doesn't exist yet — create_all handles it
+        logger.info("init_db: status column migrated to VARCHAR(20)")
+    except Exception as e:
+        logger.info("init_db: ALTER TABLE skipped (%s)", e)
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("init_db: create_all completed successfully")
+    except Exception as e:
+        logger.error("init_db: create_all FAILED: %s", e)
+        raise
 
 
 async def get_db():

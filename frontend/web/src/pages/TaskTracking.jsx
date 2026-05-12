@@ -47,15 +47,25 @@ export default function TaskTracking() {
         const app = apps.find((a) => a.id === applicationId)
         if (!app) { navigate('/my-applications'); return }
 
-        const taskData = await tasksApi.getById(app.task_id)
+        // Use embedded task data if available, otherwise fetch separately
+        let taskData = app.task || null
+        if (!taskData) {
+          taskData = await tasksApi.getById(app.task_id)
+        }
         setTask(taskData)
 
-        const activeSession = await taskSessionsApi.getActiveSession()
+        // Fetch sessions — getActiveSession may return null; handle gracefully
+        let activeSession = null
+        try {
+          activeSession = await taskSessionsApi.getActiveSession()
+        } catch {
+          // Non-critical — ignore if no active session endpoint fails
+        }
         if (activeSession && activeSession.application_id !== applicationId) {
           setOtherActiveSession(activeSession)
         }
 
-        // Check for existing active session on this application
+        // Check for existing session on this application
         const sessions = await taskSessionsApi.getMySessions()
         const existing = sessions.find((s) => s.application_id === applicationId)
         if (existing) {
@@ -68,7 +78,7 @@ export default function TaskTracking() {
         }
       } catch (err) {
         console.error('Task tracking load error:', err?.response?.data || err?.message || err)
-        toast.error(err?.response?.data?.detail || 'Failed to load task tracking info')
+        toast.error(err?.response?.data?.detail || err?.message || 'Failed to load task tracking info')
       } finally {
         setLoading(false)
       }
