@@ -1,3 +1,4 @@
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.config import get_settings
@@ -27,6 +28,11 @@ async def init_db() -> None:
     import app.models  # noqa: F401 – ensure all models are registered
 
     async with engine.begin() as conn:
+        # Ensure the 'paused' value exists in the sessionstatus enum (idempotent).
+        await conn.execute(sa.text(
+            "DO $$ BEGIN ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'; "
+            "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
+        ))
         await conn.run_sync(Base.metadata.create_all)
 
 
