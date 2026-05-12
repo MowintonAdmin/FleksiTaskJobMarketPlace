@@ -66,8 +66,9 @@ export default function TaskTracking() {
             startTimer(existing.checked_in_at)
           }
         }
-      } catch {
-        toast.error('Failed to load task tracking info')
+      } catch (err) {
+        console.error('Task tracking load error:', err?.response?.data || err?.message || err)
+        toast.error(err?.response?.data?.detail || 'Failed to load task tracking info')
       } finally {
         setLoading(false)
       }

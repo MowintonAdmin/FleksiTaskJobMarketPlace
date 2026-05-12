@@ -27,17 +27,19 @@ async def init_db() -> None:
     """Create all tables (idempotent – skips existing tables/types)."""
     import app.models  # noqa: F401 – ensure all models are registered
 
-    async with engine.begin() as conn:
-        # For existing deployments: convert status from PostgreSQL enum to varchar
-        # so new values (e.g. 'paused') don't require DDL enum migrations.
-        try:
+    # Run the column-type migration in its own connection so that if it fails
+    # (e.g. column is already VARCHAR, or table doesn't exist yet) the error
+    # does NOT abort the create_all transaction that follows.
+    try:
+        async with engine.begin() as conn:
             await conn.execute(sa.text(
                 "ALTER TABLE task_sessions "
                 "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
             ))
-        except Exception:
-            pass  # already varchar, or table doesn't exist yet
+    except Exception:
+        pass  # already varchar, or table doesn't exist yet — create_all handles it
 
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
