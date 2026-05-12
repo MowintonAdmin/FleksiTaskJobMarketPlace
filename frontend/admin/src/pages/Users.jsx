@@ -37,16 +37,24 @@ function MessageModal({ worker, onClose }) {
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
           {messages.length === 0 && <p className="text-center text-gray-400 text-sm mt-8">No messages yet. Start the conversation!</p>}
-          {messages.map(m => (
-            <div key={m.id} className={`flex ${m.sender_id !== worker.id ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${m.sender_id !== worker.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+          {messages.map(m => {
+            const isMine = m.sender_id !== worker.id
+            return (
+            <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${isMine ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
                 {m.body}
-                <p className={`text-xs mt-1 ${m.sender_id !== worker.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                <p className={`text-xs mt-1 flex items-center gap-1 ${isMine ? 'justify-end text-blue-200' : 'text-gray-400'}`}>
                   {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {isMine && (
+                    m.is_read
+                      ? <span title="Read" className="text-blue-200 font-bold tracking-tighter">✓✓</span>
+                      : <span title="Sent" className="text-blue-300 tracking-tighter">✓</span>
+                  )}
                 </p>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
           <input
