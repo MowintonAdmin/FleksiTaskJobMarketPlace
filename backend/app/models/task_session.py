@@ -9,6 +9,7 @@ from app.database import Base
 
 class SessionStatus(str, Enum):
     ACTIVE = "active"
+    PAUSED = "paused"
     COMPLETED = "completed"
 
 

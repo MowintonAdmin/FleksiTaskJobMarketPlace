@@ -83,4 +83,8 @@ export const taskSessionsApi = {
     const { data } = await api.get('/task-sessions/active')
     return data
   },
+  pause: async (sessionId) => {
+    const { data } = await api.post(`/task-sessions/${sessionId}/pause`)
+    return data
+  },
 }

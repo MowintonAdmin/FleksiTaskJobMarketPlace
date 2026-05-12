@@ -130,24 +130,23 @@ async def check_in(
         .order_by(TaskSession.created_at.desc())
     )
     previous_session = previous_result.scalars().first()
-    if previous_session and previous_session.status == SessionStatus.COMPLETED:
+    if previous_session and previous_session.status == SessionStatus.PAUSED:
+        # Resume a paused session — preserve time worked so far
         worked_minutes = get_worked_minutes(previous_session)
-        if worked_minutes >= task.estimated_duration_minutes:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="This task session has already met the minimum duration",
-            )
-
         previous_session.checked_in_at = datetime.now(timezone.utc) - timedelta(minutes=worked_minutes)
         previous_session.checked_out_at = None
         previous_session.earnings = None
         previous_session.status = SessionStatus.ACTIVE
-        previous_session.proof_notes = None
-        previous_session.proof_photo_url = None
         db.add(previous_session)
         await db.flush()
         await db.refresh(previous_session)
         return TaskSessionResponse.model_validate(previous_session)
+
+    if previous_session and previous_session.status == SessionStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This task session has already been completed",
+        )
 
     session = TaskSession(
         task_id=application.task_id,
@@ -203,6 +202,38 @@ async def check_out(
         photo_url = f"/media/{filename}"
 
     return await finalize_checkout(session, task, current_user, db, proof_notes, photo_url)
+
+
+@router.post("/{session_id}/pause", response_model=TaskSessionResponse)
+async def pause_session(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Worker pauses an active task. Time worked is preserved for resumption."""
+    result = await db.execute(
+        select(TaskSession).where(
+            TaskSession.id == session_id,
+            TaskSession.worker_id == current_user.id,
+            TaskSession.status == SessionStatus.ACTIVE,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active session not found")
+
+    task_result = await db.execute(select(Task).where(Task.id == session.task_id))
+    task = task_result.scalar_one()
+
+    now = datetime.now(timezone.utc)
+    elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+    session.checked_out_at = now
+    session.earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
+    session.status = SessionStatus.PAUSED
+
+    await db.flush()
+    await db.refresh(session)
+    return TaskSessionResponse.model_validate(session)
 
 
 @router.post("/{session_id}/checkout-simple", response_model=TaskSessionResponse)

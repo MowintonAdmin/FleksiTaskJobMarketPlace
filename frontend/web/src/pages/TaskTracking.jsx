@@ -31,12 +31,6 @@ export default function TaskTracking() {
   const [showCheckout, setShowCheckout] = useState(false)
 
   const minimumDurationSeconds = (task?.estimated_duration_minutes ?? 0) * 60
-  const completedDurationSeconds = session?.checked_out_at
-    ? Math.floor((new Date(session.checked_out_at) - new Date(session.checked_in_at)) / 1000)
-    : 0
-  const isResumableCompletion = Boolean(
-    session && session.status === 'completed' && minimumDurationSeconds > 0 && completedDurationSeconds < minimumDurationSeconds
-  )
 
   const startTimer = useCallback((checkedInAt) => {
     clearInterval(timerRef.current)
@@ -84,7 +78,7 @@ export default function TaskTracking() {
 
   const handleCheckIn = async () => {
     setActionLoading(true)
-    const resuming = isResumableCompletion
+    const resuming = session?.status === 'paused'
     try {
       const newSession = await taskSessionsApi.checkIn(applicationId)
       setSession(newSession)
@@ -107,17 +101,24 @@ export default function TaskTracking() {
       setSession(completed)
       setElapsed(0)
       setShowCheckout(false)
-      const completedSeconds = completed.checked_out_at
-        ? Math.floor((new Date(completed.checked_out_at) - new Date(completed.checked_in_at)) / 1000)
-        : 0
-      const resumable = minimumDurationSeconds > 0 && completedSeconds < minimumDurationSeconds
-      if (resumable) {
-        toast.info('Checked out early. You can resume this task later to finish the minimum duration.')
-      } else {
-        toast.success(`Checked out! You earned RM ${completed.earnings?.toFixed(2)}`)
-      }
+      toast.success(`Checked out! You earned RM ${completed.earnings?.toFixed(2)}`)
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Check-out failed')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handlePause = async () => {
+    setActionLoading(true)
+    try {
+      const paused = await taskSessionsApi.pause(session.id)
+      clearInterval(timerRef.current)
+      setSession(paused)
+      setElapsed(0)
+      toast.info('Task paused. You can resume anytime.')
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Pause failed')
     } finally {
       setActionLoading(false)
     }
@@ -137,7 +138,7 @@ export default function TaskTracking() {
   )
 
   const payRate = task?.pay_rate_per_minute ?? 0
-  const currentEarnings = session?.status === 'completed'
+  const currentEarnings = (session?.status === 'completed' || session?.status === 'paused')
     ? session.earnings
     : (elapsed / 60) * payRate
 
@@ -215,12 +216,22 @@ export default function TaskTracking() {
 
           {/* Check-out section */}
           {!showCheckout ? (
-            <button
-              onClick={() => setShowCheckout(true)}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
-            >
-              🏁 Check Out
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handlePause}
+                disabled={actionLoading}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+              >
+                ⏸ Pause
+              </button>
+              <button
+                onClick={() => setShowCheckout(true)}
+                disabled={actionLoading}
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+              >
+                🏁 Check Out
+              </button>
+            </div>
           ) : (
             <div className="card space-y-4">
               <h2 className="font-semibold text-gray-900">Submit Completion Proof</h2>
@@ -289,35 +300,59 @@ export default function TaskTracking() {
             </div>
           )}
         </div>
+      ) : session.status === 'paused' ? (
+        /* Paused */
+        <div className="card text-center space-y-4">
+          <p className="text-5xl">⏸</p>
+          <h2 className="text-xl font-bold text-gray-900">Task Paused</h2>
+
+          <div className="bg-amber-50 rounded-xl p-4 space-y-2">
+            <p className="text-sm text-gray-500">Earnings so far</p>
+            <p className="text-3xl font-bold text-amber-700">RM {session.earnings?.toFixed(2)}</p>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-amber-600">Worked so far</p>
+                <p className="text-sm font-semibold text-amber-800">
+                  {formatDuration(Math.floor((new Date(session.checked_out_at) - new Date(session.checked_in_at)) / 1000))}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-amber-600">Minimum required</p>
+                <p className="text-sm font-semibold text-amber-800">{formatDuration(minimumDurationSeconds)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-amber-700 pt-1">Resume to continue tracking from where you stopped.</p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={handleCheckIn}
+              disabled={actionLoading}
+              className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              {actionLoading ? 'Resuming…' : '▶ Resume Task Tracking'}
+            </button>
+            <button
+              onClick={() => navigate('/my-applications')}
+              className="w-full py-2.5 border border-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50"
+            >
+              ← Back to My Applications
+            </button>
+          </div>
+        </div>
       ) : (
         /* Completed */
         <div className="card text-center space-y-4">
           <p className="text-5xl">🎉</p>
-          <h2 className="text-xl font-bold text-gray-900">{isResumableCompletion ? 'Session Paused' : 'Work Completed!'}</h2>
+          <h2 className="text-xl font-bold text-gray-900">Work Completed!</h2>
 
           <div className="bg-green-50 rounded-xl p-4 space-y-2">
-            <p className="text-sm text-gray-500">{isResumableCompletion ? 'Current Progress' : 'Total Earnings'}</p>
+            <p className="text-sm text-gray-500">Total Earnings</p>
             <p className="text-3xl font-bold text-green-700">RM {session.earnings?.toFixed(2)}</p>
           </div>
-
-          {isResumableCompletion && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
-              <p className="text-sm font-semibold text-amber-800">Minimum duration not reached yet</p>
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-amber-600">Worked so far</p>
-                  <p className="text-sm font-semibold text-amber-800">{formatDuration(completedDurationSeconds)}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-amber-600">Minimum required</p>
-                  <p className="text-sm font-semibold text-amber-800">{formatDuration(minimumDurationSeconds)}</p>
-                </div>
-              </div>
-              <p className="text-xs text-amber-700">
-                Resume this task to continue tracking from where you stopped.
-              </p>
-            </div>
-          )}
 
           <div className="text-left space-y-2 border-t border-gray-100 pt-3">
             <div className="flex justify-between text-sm">
@@ -350,30 +385,12 @@ export default function TaskTracking() {
             />
           )}
 
-          {isResumableCompletion ? (
-            <div className="space-y-3">
-              <button
-                onClick={handleCheckIn}
-                disabled={actionLoading}
-                className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                {actionLoading ? 'Resuming…' : '▶ Resume Task Tracking'}
-              </button>
-              <button
-                onClick={() => navigate('/my-applications')}
-                className="w-full py-2.5 border border-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50"
-              >
-                ← Back to My Applications
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => navigate('/my-applications')}
-              className="w-full py-2.5 border border-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50"
-            >
-              ← Back to My Applications
-            </button>
-          )}
+          <button
+            onClick={() => navigate('/my-applications')}
+            className="w-full py-2.5 border border-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50"
+          >
+            ← Back to My Applications
+          </button>
         </div>
       )}
     </div>
