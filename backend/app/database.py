@@ -28,17 +28,17 @@ async def init_db() -> None:
     import app.models  # noqa: F401 – ensure all models are registered
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # For existing deployments: convert status from PostgreSQL enum to varchar
+        # so new values (e.g. 'paused') don't require DDL enum migrations.
+        try:
+            await conn.execute(sa.text(
+                "ALTER TABLE task_sessions "
+                "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
+            ))
+        except Exception:
+            pass  # already varchar, or table doesn't exist yet
 
-    # ALTER TYPE … ADD VALUE must run outside a transaction (autocommit).
-    # Adds 'paused' to the sessionstatus enum for existing deployments.
-    try:
-        async with engine.connect() as conn:
-            await conn.execution_options(isolation_level="AUTOCOMMIT").execute(
-                sa.text("ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'")
-            )
-    except Exception:
-        pass  # enum value already exists or type not yet created via alembic
+        await conn.run_sync(Base.metadata.create_all)
 
 
 async def get_db():

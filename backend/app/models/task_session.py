@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Float, DateTime, ForeignKey, Text, String, func, Enum as SAEnum
+from sqlalchemy import Float, DateTime, ForeignKey, Text, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -23,7 +23,7 @@ class TaskSession(Base):
     checked_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     checked_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     earnings: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[SessionStatus] = mapped_column(SAEnum(SessionStatus, name="sessionstatus"), default=SessionStatus.ACTIVE, nullable=False)
+    status: Mapped[SessionStatus] = mapped_column(String(20), default=SessionStatus.ACTIVE, nullable=False)
     proof_photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     proof_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)        # 1.0 – 5.0
