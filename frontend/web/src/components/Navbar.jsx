@@ -1,7 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { logoutUser } from '../store/authSlice'
+import { messagesApi } from '../api/messages'
+
+function UnreadBadge({ count }) {
+  if (!count) return null
+  return (
+    <span className="absolute -top-1 -right-2 min-w-[16px] h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold px-0.5">
+      {count > 9 ? '9+' : count}
+    </span>
+  )
+}
 
 export default function Navbar() {
   const dispatch = useDispatch()
@@ -9,8 +19,26 @@ export default function Navbar() {
   const location = useLocation()
   const { user, accessToken } = useSelector((s) => s.auth)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unread, setUnread] = useState(0)
 
   const close = () => setMenuOpen(false)
+
+  // Poll unread count every 30 s while logged in
+  useEffect(() => {
+    if (!accessToken) { setUnread(0); return }
+    let cancelled = false
+    const fetch = () => {
+      messagesApi.getUnreadCount().then((n) => { if (!cancelled) setUnread(n) }).catch(() => {})
+    }
+    fetch()
+    const id = setInterval(fetch, 30000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [accessToken])
+
+  // Clear badge when user navigates to /messages
+  useEffect(() => {
+    if (location.pathname === '/messages') setUnread(0)
+  }, [location.pathname])
 
   const handleLogout = async () => {
     close()
@@ -41,6 +69,10 @@ export default function Navbar() {
               <Link to="/wallet" className="text-sm text-gray-600 hover:text-primary-600 font-medium">💰 Wallet</Link>
               <Link to="/history" className="text-sm text-gray-600 hover:text-primary-600 font-medium">📊 History</Link>
               <Link to="/my-applications" className="text-sm text-gray-600 hover:text-primary-600 font-medium">My Applications</Link>
+              <Link to="/messages" className="relative text-sm text-gray-600 hover:text-primary-600 font-medium">
+                💬 Messages
+                <UnreadBadge count={unread} />
+              </Link>
               <Link to="/profile">{avatar}</Link>
               <button onClick={handleLogout} className="btn-secondary text-xs px-3 py-1.5">Logout</button>
             </>
@@ -94,6 +126,14 @@ export default function Navbar() {
                 </Link>
                 <Link to="/my-applications" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">
                   <span>📋</span> My Applications
+                </Link>
+                <Link to="/messages" onClick={close} className="flex items-center justify-between px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">
+                  <span className="flex items-center gap-3"><span>💬</span> Messages</span>
+                  {unread > 0 && (
+                    <span className="min-w-[20px] h-5 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold px-1">
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  )}
                 </Link>
                 <Link to="/profile" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-lg text-gray-700 hover:bg-gray-50 text-sm font-medium">
                   <span>👤</span> Profile

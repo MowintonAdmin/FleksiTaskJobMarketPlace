@@ -9,6 +9,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ResetPassword from './pages/ResetPassword'
+import Messages from './pages/Messages'
 import Profile from './pages/Profile'
 import TaskDetail from './pages/TaskDetail'
 import MyApplications from './pages/MyApplications'
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/my-applications" element={<PrivateRoute><MyApplications /></PrivateRoute>} />
+            <Route path="/messages" element={<PrivateRoute><Messages /></PrivateRoute>} />
             <Route path="/track/:applicationId" element={<PrivateRoute><TaskTracking /></PrivateRoute>} />
             <Route path="/wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
             <Route path="/history" element={<PrivateRoute><History /></PrivateRoute>} />
