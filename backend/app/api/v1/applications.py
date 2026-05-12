@@ -136,6 +136,13 @@ async def update_application_status(
     application.status = payload.status
     application.reviewed_at = datetime.now(timezone.utc)
     db.add(application)
+
+    # When an application is approved, mark the task as in_progress so it
+    # no longer appears in the public task listing.
+    if payload.status == ApplicationStatus.APPROVED:
+        task.status = TaskStatus.IN_PROGRESS
+        db.add(task)
+
     await db.flush()
     await db.refresh(application)
 
