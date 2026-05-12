@@ -8,6 +8,7 @@ import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ResetPassword from './pages/ResetPassword'
 import Profile from './pages/Profile'
 import TaskDetail from './pages/TaskDetail'
 import MyApplications from './pages/MyApplications'
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/my-applications" element={<PrivateRoute><MyApplications /></PrivateRoute>} />

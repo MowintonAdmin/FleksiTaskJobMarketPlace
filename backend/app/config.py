@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Frontend (used for password reset links in emails/logs)
+    FRONTEND_URL: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

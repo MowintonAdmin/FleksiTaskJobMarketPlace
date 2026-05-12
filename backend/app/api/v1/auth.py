@@ -1,4 +1,5 @@
 import logging
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,10 +8,13 @@ from google.auth.transport import requests as google_requests
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import TokenResponse, GoogleAuthRequest, LoginRequest, RefreshTokenRequest
+from app.schemas.auth import (
+    TokenResponse, GoogleAuthRequest, LoginRequest, RefreshTokenRequest,
+    ForgotPasswordRequest, ResetPasswordRequest,
+)
 from app.schemas.user import UserCreate
 from app.core.security import verify_password, create_token_pair, decode_token, hash_password
-from app.core.redis_client import invalidate_token, is_token_blacklisted
+from app.core.redis_client import invalidate_token, is_token_blacklisted, set_session, get_session, delete_session
 from app.core.deps import oauth2_scheme
 from app.config import get_settings
 
@@ -18,6 +22,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
 GOOGLE_TOKEN_CLOCK_SKEW_SECONDS = 60
+PWD_RESET_TTL = 3600  # 1 hour
 
 
 def _is_google_photo(url: str | None) -> bool:
@@ -152,3 +157,43 @@ async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends
 async def logout(token: str = Depends(oauth2_scheme)):
     """Blacklist the current access token."""
     await invalidate_token(token, ttl=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Request a password reset link. Always returns 204 to avoid leaking account existence."""
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalar_one_or_none()
+
+    # Only issue a token for accounts that have a hashed_password (email/password accounts).
+    # Google-only accounts have no password to reset.
+    if user and user.hashed_password:
+        token = secrets.token_urlsafe(32)
+        redis_key = f"pwd_reset:{token}"
+        await set_session(redis_key, str(user.id), ttl=PWD_RESET_TTL)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        # Log the URL so admins can see it in `docker compose logs backend` until
+        # an email transport is wired up.
+        logger.info("PASSWORD RESET LINK for %s: %s", payload.email, reset_url)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Consume a password reset token and update the user's password."""
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password must be at least 8 characters")
+
+    redis_key = f"pwd_reset:{payload.token}"
+    user_id_str = await get_session(redis_key)
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    import uuid as _uuid
+    result = await db.execute(select(User).where(User.id == _uuid.UUID(user_id_str)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    user.hashed_password = hash_password(payload.new_password)
+    await delete_session(redis_key)
+    logger.info("Password reset completed for user %s", user.id)
