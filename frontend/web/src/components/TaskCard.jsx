@@ -28,8 +28,8 @@ export default function TaskCard({ task }) {
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-primary-600">${totalPay}</p>
-          <p className="text-xs text-gray-500">${task.pay_rate_per_minute}/min</p>
+          <p className="text-lg font-bold text-primary-600">RM {totalPay}</p>
+          <p className="text-xs text-gray-500">RM {task.pay_rate_per_minute}/min</p>
         </div>
       </div>
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">

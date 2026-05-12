@@ -114,7 +114,7 @@ export default function TaskTracking() {
       if (resumable) {
         toast.info('Checked out early. You can resume this task later to finish the minimum duration.')
       } else {
-        toast.success(`Checked out! You earned $${completed.earnings?.toFixed(2)}`)
+        toast.success(`Checked out! You earned RM ${completed.earnings?.toFixed(2)}`)
       }
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Check-out failed')
@@ -149,7 +149,7 @@ export default function TaskTracking() {
         <h1 className="text-xl font-bold text-gray-900">{task?.title}</h1>
         <p className="text-sm text-gray-500 mt-1">📍 {task?.location}</p>
         <p className="text-sm text-primary-600 font-medium mt-1">
-          ${payRate.toFixed(4)}/min &nbsp;·&nbsp; Est. {task?.estimated_duration_minutes} min
+          RM {payRate.toFixed(4)}/min &nbsp;·&nbsp; Est. {task?.estimated_duration_minutes} min
         </p>
         <p className="text-xs text-gray-500 mt-2">
           Minimum required: {formatDuration(minimumDurationSeconds)}
@@ -192,7 +192,7 @@ export default function TaskTracking() {
           {/* Live earnings ticker */}
           <div className="card bg-green-50 border border-green-200 text-center space-y-2">
             <p className="text-xs text-green-600 uppercase tracking-wide font-semibold">Live Earnings</p>
-            <p className="text-4xl font-bold text-green-700">${currentEarnings.toFixed(2)}</p>
+            <p className="text-4xl font-bold text-green-700">RM {currentEarnings.toFixed(2)}</p>
             <p className="text-sm text-green-600">⏱ {formatDuration(elapsed)} elapsed</p>
             <div className="grid grid-cols-2 gap-3 text-left text-xs text-green-700 bg-white/70 rounded-xl p-3 border border-green-100">
               <div>
@@ -210,7 +210,7 @@ export default function TaskTracking() {
                 style={{ width: `${Math.min(100, (elapsed / (task.estimated_duration_minutes * 60)) * 100)}%` }}
               />
             </div>
-            <p className="text-xs text-green-500">Est. total: ${(payRate * task.estimated_duration_minutes).toFixed(2)}</p>
+            <p className="text-xs text-green-500">Est. total: RM {(payRate * task.estimated_duration_minutes).toFixed(2)}</p>
           </div>
 
           {/* Check-out section */}
@@ -289,7 +289,7 @@ export default function TaskTracking() {
 
           <div className="bg-green-50 rounded-xl p-4 space-y-2">
             <p className="text-sm text-gray-500">{isResumableCompletion ? 'Current Progress' : 'Total Earnings'}</p>
-            <p className="text-3xl font-bold text-green-700">${session.earnings?.toFixed(2)}</p>
+            <p className="text-3xl font-bold text-green-700">RM {session.earnings?.toFixed(2)}</p>
           </div>
 
           {isResumableCompletion && (

@@ -66,8 +66,8 @@ export default function TaskDetail() {
             <p className="text-gray-500 mt-1 flex items-center gap-1">📍 {task.location}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-3xl font-bold text-primary-600">${totalPay}</p>
-            <p className="text-sm text-gray-500">${task.pay_rate_per_minute}/min × {task.estimated_duration_minutes} min</p>
+            <p className="text-3xl font-bold text-primary-600">RM {totalPay}</p>
+            <p className="text-sm text-gray-500">RM {task.pay_rate_per_minute}/min × {task.estimated_duration_minutes} min</p>
           </div>
         </div>
 
