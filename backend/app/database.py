@@ -27,12 +27,13 @@ async def init_db() -> None:
     """Create all tables (idempotent – skips existing tables/types)."""
     import app.models  # noqa: F401 – ensure all models are registered
 
+    # ALTER TYPE … ADD VALUE must run outside a transaction (autocommit).
+    async with engine.connect() as conn:
+        await conn.execution_options(isolation_level="AUTOCOMMIT").execute(
+            sa.text("ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'")
+        )
+
     async with engine.begin() as conn:
-        # Ensure the 'paused' value exists in the sessionstatus enum (idempotent).
-        await conn.execute(sa.text(
-            "DO $$ BEGIN ALTER TYPE sessionstatus ADD VALUE IF NOT EXISTS 'paused'; "
-            "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
-        ))
         await conn.run_sync(Base.metadata.create_all)
 
 
