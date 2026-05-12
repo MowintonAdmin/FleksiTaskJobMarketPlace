@@ -14,7 +14,9 @@ export const messagesApi = {
     return data
   },
   getUnreadCount: async () => {
-    const { data } = await api.get('/messages/unread-count')
+    // _skipRedirect prevents the global 401 interceptor from doing a hard
+    // redirect to /login when this background poll fires with expired tokens.
+    const { data } = await api.get('/messages/unread-count', { _skipRedirect: true })
     return data.count
   },
 }

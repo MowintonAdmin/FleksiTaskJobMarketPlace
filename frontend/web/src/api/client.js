@@ -25,18 +25,34 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Prevent concurrent refresh attempts: only one refresh runs at a time.
+let _refreshPromise = null
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config
+
+    // Requests with _skipRedirect:true (e.g. background polls) should not
+    // trigger a hard redirect; just reject so the caller can handle it.
+    if (error.response?.status === 401 && original._skipRedirect) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
       const refreshToken = localStorage.getItem('refresh_token')
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${apiBaseUrl}/auth/refresh`, { refresh_token: refreshToken }, {
-            headers: { 'Content-Type': 'application/json' },
-          })
+          // Coalesce concurrent refresh attempts into a single request.
+          if (!_refreshPromise) {
+            _refreshPromise = axios
+              .post(`${apiBaseUrl}/auth/refresh`, { refresh_token: refreshToken }, {
+                headers: { 'Content-Type': 'application/json' },
+              })
+              .finally(() => { _refreshPromise = null })
+          }
+          const { data } = await _refreshPromise
           localStorage.setItem('access_token', data.access_token)
           localStorage.setItem('refresh_token', data.refresh_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
