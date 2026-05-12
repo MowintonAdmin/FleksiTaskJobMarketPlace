@@ -95,6 +95,7 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
   const submit = async () => {
     const val = parseFloat(amount)
     if (!val || val <= 0) { setError('Enter a valid amount'); return }
+    if (val < 10) { setError('Minimum withdrawal amount is RM 10.00'); return }
     if (val > maxAmount) { setError(`Maximum available is RM ${maxAmount.toFixed(2)}`); return }
     setSubmitting(true)
     setError('')
@@ -126,7 +127,7 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
           <label className="block text-xs font-semibold text-gray-600 mb-1">Amount (RM)</label>
           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-primary-500">
             <span className="px-3 py-2 bg-gray-100 text-gray-600 text-sm font-medium border-r border-gray-300">RM</span>
-            <input type="number" min="0.01" step="0.01" max={maxAmount}
+            <input type="number" min="10" step="0.01" max={maxAmount}
               value={amount} onChange={e => setAmount(e.target.value)}
               placeholder={`Max ${maxAmount.toFixed(2)}`}
               className="flex-1 px-3 py-2 text-sm focus:outline-none" />

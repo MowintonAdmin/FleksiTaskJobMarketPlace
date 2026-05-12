@@ -161,8 +161,8 @@ async def request_withdrawal(
     db: AsyncSession = Depends(get_db),
 ):
     """Request a withdrawal. Deducts from available_balance immediately (held pending)."""
-    if payload.amount <= 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Amount must be positive")
+    if payload.amount < 10:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Minimum withdrawal amount is RM 10.00")
 
     wallet = await get_or_create_wallet(current_user.id, db)
     if payload.amount > wallet.available_balance:
