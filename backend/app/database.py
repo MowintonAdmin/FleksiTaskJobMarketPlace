@@ -38,7 +38,12 @@ async def init_db() -> None:
                 "ALTER TABLE task_sessions "
                 "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
             ))
-        logger.info("init_db: status column migrated to VARCHAR(20)")
+            # Normalize legacy uppercase enum values (e.g. 'ACTIVE' → 'active')
+            await conn.execute(sa.text(
+                "UPDATE task_sessions SET status = LOWER(status) "
+                "WHERE status != LOWER(status)"
+            ))
+        logger.info("init_db: status column migrated to VARCHAR(20) and values normalized")
     except Exception as e:
         logger.info("init_db: ALTER TABLE skipped (%s)", e)
 
