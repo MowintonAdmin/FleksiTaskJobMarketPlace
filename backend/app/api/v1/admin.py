@@ -454,6 +454,59 @@ async def admin_adjust_session_time(
     }
 
 
+import math
+
+# ── Task Listing (Admin) ──────────────────────────────────────────────────────
+
+@router.get("/tasks")
+async def admin_list_tasks(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(15, ge=1, le=100),
+    task_status: str | None = Query(None, alias="status"),
+    search: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """List all tasks regardless of status, with optional status/search filter."""
+    from app.models.task import TaskStatus
+    from app.schemas.task import TaskListResponse
+    filters = []
+    if task_status:
+        filters.append(Task.status == task_status)
+    if search:
+        filters.append(Task.title.ilike(f"%{search}%"))
+
+    q = select(Task).order_by(Task.created_at.desc())
+    if filters:
+        q = q.where(and_(*filters))
+
+    count_q = select(func.count()).select_from(Task)
+    if filters:
+        count_q = count_q.where(and_(*filters))
+    total = (await db.execute(count_q)).scalar_one()
+
+    offset = (page - 1) * page_size
+    result = await db.execute(q.offset(offset).limit(page_size))
+    tasks = result.scalars().all()
+
+    task_responses = []
+    for task in tasks:
+        count_result = await db.execute(
+            select(func.count()).select_from(Application).where(Application.task_id == task.id)
+        )
+        task_data = TaskResponse.model_validate(task)
+        task_data.application_count = count_result.scalar_one()
+        task_responses.append(task_data)
+
+    return TaskListResponse(
+        tasks=task_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=math.ceil(total / page_size) if total else 1,
+    )
+
+
 # ── Task Cost Summary ─────────────────────────────────────────────────────────
 
 @router.get("/tasks/{task_id}/cost")

@@ -297,13 +297,15 @@ export default function Tasks() {
   const load = (p = 1) => {
     setLoading(true)
     const params = new URLSearchParams({ page: p, page_size: 15 })
-    api.get(`/tasks?${params}`)
+    if (filterStatus) params.set('status', filterStatus)
+    api.get(`/admin/tasks?${params}`)
       .then((r) => setData(r.data))
       .catch(() => toast.error('Failed to load tasks'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load(page) }, [page, filterStatus])
+  useEffect(() => { load(1) }, [filterStatus])
+  useEffect(() => { load(page) }, [page])
 
   const displayedTasks = search
     ? data.tasks.filter(t =>
