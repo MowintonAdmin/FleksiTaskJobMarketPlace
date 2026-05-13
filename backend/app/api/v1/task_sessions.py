@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.task_session import TaskSession, SessionStatus
 from app.models.application import Application, ApplicationStatus
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.schemas.task_session import CheckInRequest, CheckOutRequest, TaskSessionResponse, EarningsResponse
 from app.core.deps import get_current_user
 from app.models.user import User
@@ -52,6 +52,10 @@ async def finalize_checkout(
         session.proof_photo_url = photo_url
 
     if minimum_duration_met:
+        # Mark the task itself as completed
+        task.status = TaskStatus.COMPLETED
+        db.add(task)
+
         wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
         wallet = wallet_result.scalar_one_or_none()
         if not wallet:
@@ -156,6 +160,12 @@ async def check_in(
         application_id=payload.application_id,
     )
     db.add(session)
+
+    # Mark task as in_progress when a worker first checks in
+    if task.status == TaskStatus.OPEN:
+        task.status = TaskStatus.IN_PROGRESS
+        db.add(task)
+
     await db.flush()
     return TaskSessionResponse.model_validate(session)
 
