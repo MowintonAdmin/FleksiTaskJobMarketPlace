@@ -315,9 +315,9 @@ function ExportTab() {
   const handleExport = async () => {
     setLoading(true)
     try {
-      const token = JSON.parse(localStorage.getItem('adminToken') || 'null')
+      const token = localStorage.getItem('admin_access_token')
       const res = await fetch(`${apiBaseUrl}/admin/analytics/export/workers`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) throw new Error('Export failed')
       const disposition = res.headers.get('Content-Disposition') || ''
