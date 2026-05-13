@@ -252,6 +252,118 @@ function TaskModal({ task, onClose, onSaved }) {
   )
 }
 
+function RateTaskModal({ task, onClose, onSaved }) {
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [rating, setRating] = useState(0)
+  const [feedback, setFeedback] = useState('')
+  const [saving, setSaving] = useState(null) // session id being saved
+
+  useEffect(() => {
+    api.get(`/admin/time-logs?task_id=${task.id}&status=completed`)
+      .then(r => setSessions(r.data))
+      .catch(() => toast.error('Failed to load sessions'))
+      .finally(() => setLoading(false))
+  }, [task.id])
+
+  const submitRating = async (sessionId) => {
+    if (rating < 1 || rating > 5) { toast.error('Select a rating 1–5'); return }
+    setSaving(sessionId)
+    try {
+      const params = new URLSearchParams({ rating, ...(feedback ? { feedback } : {}) })
+      await api.post(`/task-sessions/${sessionId}/rate?${params}`)
+      toast.success('Rating saved!')
+      setSessions(prev => prev.map(s => s.session_id === sessionId ? { ...s, rating: parseFloat(rating) } : s))
+      setRating(0)
+      setFeedback('')
+      onSaved()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to save rating')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <p className="font-bold text-gray-900">Rate Task</p>
+            <p className="text-xs text-gray-400 truncate max-w-xs">{task.title}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+          {loading ? (
+            <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}</div>
+          ) : sessions.length === 0 ? (
+            <p className="text-center text-gray-400 py-6">No completed sessions for this task</p>
+          ) : sessions.map(s => (
+            <div key={s.session_id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between items-start text-sm">
+                <div>
+                  <p className="font-medium text-gray-800">{s.worker_name}</p>
+                  <p className="text-xs text-gray-400">
+                    {s.checked_in_at ? new Date(s.checked_in_at).toLocaleString() : '—'}
+                    {s.checked_out_at ? ` → ${new Date(s.checked_out_at).toLocaleString()}` : ''}
+                  </p>
+                  {s.elapsed_minutes != null && (
+                    <p className="text-xs text-gray-400">⏱ {s.elapsed_minutes} min</p>
+                  )}
+                </div>
+                <span className="text-green-600 font-semibold text-sm">RM {s.cost?.toFixed(2) ?? '—'}</span>
+              </div>
+
+              {s.rating != null ? (
+                <div className="bg-green-50 rounded-lg px-3 py-2 text-sm">
+                  <span className="font-medium text-green-700">Rated: {'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex gap-1">
+                    {[1,2,3,4,5].map(star => (
+                      <button
+                        key={star}
+                        onClick={() => setRating(star)}
+                        className={`text-2xl transition-colors ${
+                          star <= rating ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'
+                        }`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {rating > 0 && <span className="text-sm text-gray-500 self-center ml-1">{rating}/5</span>}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Feedback (optional)"
+                    value={feedback}
+                    onChange={e => setFeedback(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => submitRating(s.session_id)}
+                    disabled={saving === s.session_id || rating < 1}
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                  >
+                    {saving === s.session_id ? 'Saving…' : 'Submit Rating'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end px-6 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CancelConfirm({ task, onClose, onConfirm }) {
   const [loading, setLoading] = useState(false)
   const confirm = async () => {
@@ -293,6 +405,7 @@ export default function Tasks() {
   const [showCreate, setShowCreate] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [cancelTask, setCancelTask] = useState(null)
+  const [rateTask, setRateTask] = useState(null)
 
   const load = (p = 1) => {
     setLoading(true)
@@ -411,6 +524,12 @@ export default function Tasks() {
                           className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors text-base"
                         >🚫</button>
                       </>
+                    ) : task.status === 'completed' ? (
+                      <button
+                        onClick={() => setRateTask(task)}
+                        title="Rate task"
+                        className="p-1.5 rounded-lg hover:bg-yellow-50 text-yellow-500 transition-colors text-base"
+                      >★ Rate</button>
                     ) : (
                       <span className="text-xs text-gray-300">—</span>
                     )}
@@ -440,6 +559,7 @@ export default function Tasks() {
       {showCreate && <TaskModal onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load(page) }} />}
       {editTask && <TaskModal task={editTask} onClose={() => setEditTask(null)} onSaved={() => { setEditTask(null); load(page) }} />}
       {cancelTask && <CancelConfirm task={cancelTask} onClose={() => setCancelTask(null)} onConfirm={() => load(page)} />}
+      {rateTask && <RateTaskModal task={rateTask} onClose={() => setRateTask(null)} onSaved={() => load(page)} />}
     </div>
   )
 }
