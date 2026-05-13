@@ -32,10 +32,17 @@ export default function TaskTracking() {
 
   const minimumDurationSeconds = (task?.estimated_duration_minutes ?? 0) * 60
 
-  const startTimer = useCallback((checkedInAt) => {
+  const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
     timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - new Date(checkedInAt).getTime()) / 1000))
+      const secs = Math.floor((Date.now() - new Date(checkedInAt).getTime()) / 1000)
+      if (maxSeconds > 0 && secs >= maxSeconds) {
+        setElapsed(maxSeconds)
+        clearInterval(timerRef.current)
+        setShowCheckout(true)
+      } else {
+        setElapsed(secs)
+      }
     }, 1000)
   }, [])
 
@@ -71,9 +78,13 @@ export default function TaskTracking() {
         if (existing) {
           setSession(existing)
           if (existing.status === 'active') {
-            const secs = Math.floor((Date.now() - new Date(existing.checked_in_at).getTime()) / 1000)
+            const maxSecs = (taskData?.estimated_duration_minutes ?? 0) * 60
+            const secs = Math.min(
+              Math.floor((Date.now() - new Date(existing.checked_in_at).getTime()) / 1000),
+              maxSecs || Infinity
+            )
             setElapsed(secs)
-            startTimer(existing.checked_in_at)
+            startTimer(existing.checked_in_at, maxSecs)
           }
         }
       } catch (err) {
@@ -93,9 +104,13 @@ export default function TaskTracking() {
     try {
       const newSession = await taskSessionsApi.checkIn(applicationId)
       setSession(newSession)
-      const secs = Math.floor((Date.now() - new Date(newSession.checked_in_at).getTime()) / 1000)
+      const maxSecs = (task?.estimated_duration_minutes ?? 0) * 60
+      const secs = Math.min(
+        Math.floor((Date.now() - new Date(newSession.checked_in_at).getTime()) / 1000),
+        maxSecs || Infinity
+      )
       setElapsed(secs)
-      startTimer(newSession.checked_in_at)
+      startTimer(newSession.checked_in_at, maxSecs)
       toast.success(resuming ? 'Task tracking resumed.' : 'Checked in! Your time is now being tracked.')
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Check-in failed')
@@ -149,9 +164,10 @@ export default function TaskTracking() {
   )
 
   const payRate = task?.pay_rate_per_minute ?? 0
+  const maxEarnings = payRate * (task?.estimated_duration_minutes ?? 0)
   const currentEarnings = (session?.status === 'completed' || session?.status === 'paused')
     ? session.earnings
-    : (elapsed / 60) * payRate
+    : Math.min((elapsed / 60) * payRate, maxEarnings || Infinity)
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-5">
