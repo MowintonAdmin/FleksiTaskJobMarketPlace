@@ -57,3 +57,5 @@ spec:
         - name: firebase-credentials
           secret:
             secretName: firebase-credentials-secret
+      securityContext:
+        fsGroup: 1000   # ensures PVC is writable by the container user

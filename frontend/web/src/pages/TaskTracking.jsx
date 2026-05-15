@@ -133,7 +133,11 @@ export default function TaskTracking() {
       setShowCheckout(false)
       toast.success(`Checked out! You earned RM ${completed.earnings?.toFixed(2)}`)
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Check-out failed')
+      const detail = e.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map(d => d.msg || JSON.stringify(d)).join(', ')
+        : (detail || e.message || 'Check-out failed')
+      toast.error(msg)
     } finally {
       setActionLoading(false)
     }

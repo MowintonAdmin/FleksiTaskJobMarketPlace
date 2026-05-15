@@ -1,7 +1,7 @@
 import uuid
 import logging
 import os
-import shutil
+import aiofiles
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -198,22 +198,46 @@ async def check_out(
     photo_url = None
     if proof_photo and proof_photo.filename:
         ext = os.path.splitext(proof_photo.filename)[1].lower()
+        if not ext:
+            ext = ".jpg"  # fallback for files without extension (some mobile browsers)
         allowed_ext = {".jpg", ".jpeg", ".png", ".webp"}
         if ext not in allowed_ext:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid image type")
-        size = 0
-        filename = f"proof_{session_id}{ext}"
-        save_path = os.path.join(settings.MEDIA_DIR, filename)
-        os.makedirs(settings.MEDIA_DIR, exist_ok=True)
-        with open(save_path, "wb") as f:
-            while chunk := await proof_photo.read(1024 * 64):
-                size += len(chunk)
-                if size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-                    raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large")
-                f.write(chunk)
-        photo_url = f"/media/{filename}"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid image type '{ext}'. Allowed: jpg, png, webp",
+            )
+        try:
+            content = await proof_photo.read()
+            if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_MB}MB",
+                )
+            filename = f"proof_{session_id}{ext}"
+            save_path = os.path.join(settings.MEDIA_DIR, filename)
+            os.makedirs(settings.MEDIA_DIR, exist_ok=True)
+            async with aiofiles.open(save_path, "wb") as f:
+                await f.write(content)
+            photo_url = f"/media/{filename}"
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Failed to save proof photo for session %s: %s", session_id, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save proof photo: {exc}",
+            )
 
-    return await finalize_checkout(session, task, current_user, db, proof_notes, photo_url)
+    try:
+        return await finalize_checkout(session, task, current_user, db, proof_notes, photo_url)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("finalize_checkout failed for session %s: %s", session_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Check-out processing failed: {exc}",
+        )
 
 
 @router.post("/{session_id}/pause", response_model=TaskSessionResponse)
