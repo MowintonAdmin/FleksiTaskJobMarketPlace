@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar'
 import AdminLogin from './pages/AdminLogin'
 import Dashboard from './pages/Dashboard'
 import Users from './pages/Users'
+import AdminUsers from './pages/AdminUsers'
 import Tasks from './pages/Tasks'
 import Applications from './pages/Applications'
 import ActiveWorkers from './pages/ActiveWorkers'
@@ -48,6 +49,7 @@ function AdminShell() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/admin-users" element={<AdminUsers />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/applications" element={<Applications />} />
             <Route path="/active-workers" element={<ActiveWorkers />} />

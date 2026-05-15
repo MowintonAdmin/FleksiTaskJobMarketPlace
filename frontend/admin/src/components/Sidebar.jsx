@@ -4,7 +4,8 @@ import { logout } from '../slices/authSlice'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/users', label: 'Users', icon: '👥' },
+  { to: '/users', label: 'Workers', icon: '👥' },
+  { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
   { to: '/tasks', label: 'Tasks', icon: '📋' },
   { to: '/applications', label: 'Applications', icon: '📝' },
   { to: '/active-workers', label: 'Active Workers', icon: '🟢' },

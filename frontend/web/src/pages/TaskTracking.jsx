@@ -120,6 +120,10 @@ export default function TaskTracking() {
   }
 
   const handleCheckOut = async () => {
+    if (!proofPhoto) {
+      toast.error('Please attach a proof photo before checking out.')
+      return
+    }
     setActionLoading(true)
     try {
       const completed = await taskSessionsApi.checkOut(session.id, proofNotes, proofPhoto)
@@ -266,7 +270,7 @@ export default function TaskTracking() {
               {/* Photo upload */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Photo Proof <span className="text-gray-400">(optional)</span>
+                  Photo Proof <span className="text-red-500">*</span>
                 </label>
                 {photoPreview ? (
                   <div className="relative">
@@ -318,8 +322,9 @@ export default function TaskTracking() {
                 </button>
                 <button
                   onClick={handleCheckOut}
-                  disabled={actionLoading}
+                  disabled={actionLoading || !proofPhoto}
                   className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+                  title={!proofPhoto ? 'Attach a proof photo to check out' : ''}
                 >
                   {actionLoading ? 'Submitting…' : 'Confirm Check Out'}
                 </button>

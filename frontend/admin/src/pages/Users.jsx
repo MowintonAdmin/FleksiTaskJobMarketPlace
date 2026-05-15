@@ -225,7 +225,7 @@ export default function Users() {
     setLoading(true)
     const params = search ? { search } : {}
     api.get('/admin/users', { params })
-      .then(r => setUsers(r.data))
+      .then(r => setUsers(r.data.filter(u => !u.is_admin)))
       .catch(() => toast.error('Failed to load users'))
       .finally(() => setLoading(false))
   }, [search])
@@ -239,7 +239,7 @@ export default function Users() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
-          Workers / Users <span className="text-gray-400 font-normal text-lg">({users.length})</span>
+          Workers <span className="text-gray-400 font-normal text-lg">({users.length})</span>
         </h1>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
