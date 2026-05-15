@@ -473,6 +473,7 @@ export default function Tasks() {
               <th className="px-4 py-3 text-right">Pay/min</th>
               <th className="px-4 py-3 text-right">Est. Total</th>
               <th className="px-4 py-3 text-center">Workers</th>
+              <th className="px-4 py-3 text-left">Start Date</th>
               <th className="px-4 py-3 text-center">Status</th>
               <th className="px-4 py-3 text-center">Actions</th>
             </tr>
@@ -481,13 +482,13 @@ export default function Tasks() {
             {loading ? (
               [1,2,3,4,5].map(i => (
                 <tr key={i}>
-                  {[1,2,3,4,5,6,7,8,9].map(j => (
+                  {[1,2,3,4,5,6,7,8,9,10].map(j => (
                     <td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                   ))}
                 </tr>
               ))
             ) : displayedTasks.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+              <tr><td colSpan={10} className="text-center py-12 text-gray-400">No tasks found</td></tr>
             ) : displayedTasks.map((task) => (
               <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
@@ -504,6 +505,15 @@ export default function Tasks() {
                   RM {(task.pay_rate_per_minute * task.estimated_duration_minutes).toFixed(2)}
                 </td>
                 <td className="px-4 py-3 text-center text-gray-600">{task.max_applicants}</td>
+                <td className="px-4 py-3 text-sm whitespace-nowrap">
+                  {task.starts_at ? (
+                    <span className={new Date(task.starts_at) < new Date() ? 'text-red-500' : 'text-gray-700'}>
+                      {new Date(task.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-center">
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {task.status.replace('_', ' ')}
