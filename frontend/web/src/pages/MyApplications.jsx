@@ -9,6 +9,12 @@ const STATUS_STYLES = {
   withdrawn: 'bg-gray-100 text-gray-600',
 }
 
+const TASK_STATUS_STYLES = {
+  completed: 'bg-gray-100 text-gray-500',
+  cancelled: 'bg-red-50 text-red-400',
+  in_progress: 'bg-blue-100 text-blue-700',
+}
+
 export default function MyApplications() {
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -47,9 +53,17 @@ export default function MyApplications() {
                 <div className="flex-1 min-w-0">
                   {app.task ? (
                     <>
-                      <Link to={`/tasks/${app.task_id}`} className="font-semibold text-gray-900 hover:text-primary-600 truncate block">
-                        {app.task.title}
-                      </Link>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link to={`/tasks/${app.task_id}`} className="font-semibold text-gray-900 hover:text-primary-600 truncate">
+                          {app.task.title}
+                        </Link>
+                        {app.task.status === 'completed' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">✓ Completed</span>
+                        )}
+                        {app.task.status === 'cancelled' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">Cancelled</span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
                         📍 {app.task.location}
                       </p>
@@ -73,7 +87,7 @@ export default function MyApplications() {
               {app.cover_note && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100 italic">"{app.cover_note}"</p>
               )}
-              {app.status === 'approved' && (
+              {app.status === 'approved' && app.task?.status !== 'completed' && app.task?.status !== 'cancelled' && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <Link
                     to={`/track/${app.id}`}
