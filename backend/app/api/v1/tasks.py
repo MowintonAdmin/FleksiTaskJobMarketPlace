@@ -1,9 +1,10 @@
 import uuid
 import math
 import os
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -27,7 +28,11 @@ async def list_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     """List all open tasks with optional filters."""
-    filters = [Task.status == TaskStatus.OPEN]
+    now = datetime.now(timezone.utc)
+    filters = [
+        Task.status == TaskStatus.OPEN,
+        or_(Task.starts_at == None, Task.starts_at >= now),
+    ]
     if location:
         filters.append(Task.location.ilike(f"%{location}%"))
     if category:

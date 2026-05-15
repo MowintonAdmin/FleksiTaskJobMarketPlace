@@ -42,6 +42,9 @@ async def apply_for_task(
     if not task or task.status != TaskStatus.OPEN:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or not open")
 
+    if task.starts_at and task.starts_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Task start date has passed and is no longer accepting applications")
+
     existing = await db.execute(
         select(Application).where(and_(Application.task_id == payload.task_id, Application.worker_id == current_user.id))
     )

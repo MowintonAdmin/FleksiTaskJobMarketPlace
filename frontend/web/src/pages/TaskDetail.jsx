@@ -21,6 +21,7 @@ export default function TaskDetail() {
   }, [id, dispatch])
 
   const totalPay = task ? (task.pay_rate_per_minute * task.estimated_duration_minutes).toFixed(2) : 0
+  const isExpired = task?.starts_at && new Date(task.starts_at) < new Date()
 
   const handleApply = async () => {
     if (!accessToken) { navigate('/login'); return }
@@ -107,7 +108,7 @@ export default function TaskDetail() {
       )}
 
       {/* Apply Section */}
-      {task.status === 'open' && (
+      {task.status === 'open' && !isExpired && (
         <div className="card">
           <h2 className="font-semibold text-gray-900 mb-3">Apply for this Task</h2>
           {applied ? (
@@ -134,6 +135,14 @@ export default function TaskDetail() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Expired notice */}
+      {task.status === 'open' && isExpired && (
+        <div className="card border border-red-200 bg-red-50">
+          <p className="text-red-700 font-semibold text-sm">⛔ Applications Closed</p>
+          <p className="text-red-500 text-xs mt-1">The start date for this task has passed and it is no longer accepting applications.</p>
         </div>
       )}
     </div>
