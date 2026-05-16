@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.database import get_db
 from app.models.user import User
@@ -117,3 +118,15 @@ async def update_fcm_token(
 ):
     current_user.fcm_token = payload.fcm_token
     db.add(current_user)
+
+
+@router.get("/admins", response_model=list[UserResponse])
+async def list_admin_users(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all admin users so workers can initiate a conversation with support."""
+    result = await db.execute(
+        select(User).where(User.is_admin == True).order_by(User.full_name)  # noqa: E712
+    )
+    return [UserResponse.model_validate(u) for u in result.scalars().all()]

@@ -227,13 +227,18 @@ export default function Messages() {
   const [conversations, setConversations] = useState([])
   const [loadingConvs, setLoadingConvs] = useState(true)
   const [activeConv, setActiveConv] = useState(null)
-  // On mobile, show the chat panel when a conversation is selected
   const [mobileShowChat, setMobileShowChat] = useState(false)
+  const [admins, setAdmins] = useState([])
+  const [showAdminPicker, setShowAdminPicker] = useState(false)
 
   const loadConversations = useCallback(async () => {
     try {
-      const convs = await messagesApi.getConversations()
+      const [convs, adminList] = await Promise.all([
+        messagesApi.getConversations(),
+        messagesApi.getAdmins().catch(() => []),
+      ])
       setConversations(convs)
+      setAdmins(adminList)
       // Auto-select from URL param ?with=<userId>
       const withId = searchParams.get('with')
       if (withId) {
@@ -241,6 +246,12 @@ export default function Messages() {
         if (found) {
           setActiveConv(found)
           setMobileShowChat(true)
+        } else {
+          // withId may be an admin not yet in conversations — open directly
+          const admin = adminList.find((a) => a.id === withId)
+          if (admin) {
+            openAdminChat(admin, convs)
+          }
         }
       }
     } catch {
@@ -249,6 +260,28 @@ export default function Messages() {
       setLoadingConvs(false)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openAdminChat = (admin, convList = conversations) => {
+    // Check if conversation already exists
+    const existing = convList.find((c) => c.user_id === admin.id)
+    if (existing) {
+      handleSelect(existing)
+    } else {
+      // Create a synthetic conversation entry
+      const synth = {
+        user_id: admin.id,
+        user_name: admin.full_name || 'Admin',
+        user_photo: admin.profile_photo_url || null,
+        last_message: '',
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+      }
+      setActiveConv(synth)
+      setMobileShowChat(true)
+      setSearchParams({ with: admin.id })
+    }
+    setShowAdminPicker(false)
+  }
 
   useEffect(() => { loadConversations() }, [loadConversations])
 
@@ -282,8 +315,17 @@ export default function Messages() {
             'w-full md:w-72 lg:w-80 border-r border-gray-100 flex flex-col shrink-0',
             mobileShowChat ? 'hidden md:flex' : 'flex',
           ].join(' ')}>
-            <div className="px-4 py-3 border-b border-gray-100">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
               <p className="font-semibold text-gray-800 text-sm">Conversations</p>
+              {admins.length > 0 && (
+                <button
+                  onClick={() => setShowAdminPicker(true)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg font-medium transition-colors shrink-0"
+                  title="Message an admin"
+                >
+                  🛡️ Message Admin
+                </button>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto">
               <ConversationList
@@ -309,6 +351,39 @@ export default function Messages() {
           </div>
         </div>
       </div>
+
+      {/* Admin picker modal */}
+      {showAdminPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowAdminPicker(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <p className="font-bold text-gray-900">🛡️ Message Admin</p>
+              <button onClick={() => setShowAdminPicker(false)} className="text-gray-400 hover:text-gray-600 font-bold text-lg leading-none">✕</button>
+            </div>
+            <ul className="py-2 max-h-72 overflow-y-auto">
+              {admins.map((admin) => (
+                <li key={admin.id}>
+                  <button
+                    onClick={() => openAdminChat(admin)}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    {admin.profile_photo_url
+                      ? <img src={admin.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                      : <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-sm font-bold text-purple-600 shrink-0">
+                          {(admin.full_name || '?')[0].toUpperCase()}
+                        </div>
+                    }
+                    <div>
+                      <p className="font-medium text-gray-900 text-sm">{admin.full_name || 'Admin'}</p>
+                      <p className="text-xs text-purple-600">Admin · Support</p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

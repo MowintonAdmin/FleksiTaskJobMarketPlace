@@ -19,4 +19,8 @@ export const messagesApi = {
     const { data } = await api.get('/messages/unread-count', { _skipRedirect: true })
     return data.count
   },
+  getAdmins: async () => {
+    const { data } = await api.get('/users/admins')
+    return data
+  },
 }
