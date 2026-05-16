@@ -11,6 +11,8 @@ const STATUS_STYLE = {
   cancelled: 'bg-red-100 text-red-500',
 }
 
+const ALL_STATUSES = ['open', 'in_progress', 'completed', 'cancelled']
+
 const EMPTY_FORM = {
   title: '',
   description: '',
@@ -406,6 +408,24 @@ export default function Tasks() {
   const [editTask, setEditTask] = useState(null)
   const [cancelTask, setCancelTask] = useState(null)
   const [rateTask, setRateTask] = useState(null)
+  const [savingStatus, setSavingStatus] = useState(null) // task id being updated
+
+  const handleStatusChange = async (task, newStatus) => {
+    if (newStatus === task.status) return
+    setSavingStatus(task.id)
+    try {
+      await api.put(`/tasks/${task.id}`, { status: newStatus })
+      setData(prev => ({
+        ...prev,
+        tasks: prev.tasks.map(t => t.id === task.id ? { ...t, status: newStatus } : t),
+      }))
+      toast.success(`Status updated to "${newStatus.replace('_', ' ')}"`)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to update status')
+    } finally {
+      setSavingStatus(null)
+    }
+  }
 
   const load = (p = 1) => {
     setLoading(true)
@@ -515,9 +535,16 @@ export default function Tasks() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {task.status.replace('_', ' ')}
-                  </span>
+                  <select
+                    value={task.status}
+                    disabled={savingStatus === task.id}
+                    onChange={e => handleStatusChange(task, e.target.value)}
+                    className={`text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}
+                  >
+                    {ALL_STATUSES.map(s => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-center gap-1">
