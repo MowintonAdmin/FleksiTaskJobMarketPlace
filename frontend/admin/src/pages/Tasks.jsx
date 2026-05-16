@@ -515,7 +515,7 @@ export default function Tasks() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {task.status.replace('_', ' ')}
                   </span>
                 </td>
