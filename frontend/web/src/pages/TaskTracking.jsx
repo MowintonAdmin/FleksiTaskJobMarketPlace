@@ -10,6 +10,13 @@ function formatDuration(seconds) {
   return [h > 0 ? `${h}h` : null, `${m}m`, `${s}s`].filter(Boolean).join(' ')
 }
 
+/** Parse a datetime string from the backend, always treating it as UTC. */
+function parseUTC(str) {
+  if (!str) return null
+  // If no timezone suffix present, append Z so the browser treats it as UTC
+  return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
+}
+
 export default function TaskTracking() {
   const { applicationId } = useParams()
   const navigate = useNavigate()
@@ -35,7 +42,7 @@ export default function TaskTracking() {
   const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
     timerRef.current = setInterval(() => {
-      const secs = Math.floor((Date.now() - new Date(checkedInAt).getTime()) / 1000)
+      const secs = Math.floor((Date.now() - parseUTC(checkedInAt).getTime()) / 1000)
       if (maxSeconds > 0 && secs >= maxSeconds) {
         setElapsed(maxSeconds)
         clearInterval(timerRef.current)
@@ -80,7 +87,7 @@ export default function TaskTracking() {
           if (existing.status === 'active') {
             const maxSecs = (taskData?.estimated_duration_minutes ?? 0) * 60
             const secs = Math.min(
-              Math.floor((Date.now() - new Date(existing.checked_in_at).getTime()) / 1000),
+              Math.floor((Date.now() - parseUTC(existing.checked_in_at).getTime()) / 1000),
               maxSecs || Infinity
             )
             setElapsed(secs)
@@ -106,7 +113,7 @@ export default function TaskTracking() {
       setSession(newSession)
       const maxSecs = (task?.estimated_duration_minutes ?? 0) * 60
       const secs = Math.min(
-        Math.floor((Date.now() - new Date(newSession.checked_in_at).getTime()) / 1000),
+        Math.floor((Date.now() - parseUTC(newSession.checked_in_at).getTime()) / 1000),
         maxSecs || Infinity
       )
       setElapsed(secs)
@@ -352,7 +359,7 @@ export default function TaskTracking() {
               <div>
                 <p className="text-xs uppercase tracking-wide text-amber-600">Worked so far</p>
                 <p className="text-sm font-semibold text-amber-800">
-                  {formatDuration(Math.floor((new Date(session.checked_out_at) - new Date(session.checked_in_at)) / 1000))}
+                  {formatDuration(Math.floor((parseUTC(session.checked_out_at) - parseUTC(session.checked_in_at)) / 1000))}
                 </p>
               </div>
               <div>
@@ -402,7 +409,7 @@ export default function TaskTracking() {
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Duration</span>
               <span className="text-gray-700">
-                {formatDuration(Math.floor((new Date(session.checked_out_at) - new Date(session.checked_in_at)) / 1000))}
+                {formatDuration(Math.floor((parseUTC(session.checked_out_at) - parseUTC(session.checked_in_at)) / 1000))}
               </span>
             </div>
           </div>
