@@ -400,11 +400,11 @@ export default function TaskTracking() {
           <div className="text-left space-y-2 border-t border-gray-100 pt-3">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Checked in</span>
-              <span className="text-gray-700">{new Date(session.checked_in_at).toLocaleTimeString()}</span>
+              <span className="text-gray-700">{parseUTC(session.checked_in_at).toLocaleTimeString()}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Checked out</span>
-              <span className="text-gray-700">{new Date(session.checked_out_at).toLocaleTimeString()}</span>
+              <span className="text-gray-700">{parseUTC(session.checked_out_at).toLocaleTimeString()}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Duration</span>
