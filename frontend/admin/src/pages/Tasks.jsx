@@ -497,8 +497,8 @@ export default function Tasks() {
                     : <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base">📋</div>
                   }
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">{task.title}</td>
-                <td className="px-4 py-3 text-gray-600 max-w-[120px] truncate">📍 {task.location}</td>
+                <td className="px-4 py-3 font-medium text-gray-900">{task.title}</td>
+                <td className="px-4 py-3 text-gray-600">📍 {task.location}</td>
                 <td className="px-4 py-3 text-gray-500">{task.category}</td>
                 <td className="px-4 py-3 text-right text-gray-700">RM {parseFloat(task.pay_rate_per_minute).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-blue-600">
