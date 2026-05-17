@@ -436,7 +436,13 @@ export default function Tasks() {
     const params = new URLSearchParams({ page: p, page_size: 15 })
     if (filterStatus) params.set('status', filterStatus)
     api.get(`/admin/tasks?${params}`)
-      .then((r) => setData(r.data))
+      .then((r) => {
+        setData(r.data)
+        const withPhotos = r.data.tasks.filter(t => t.photo_url)
+        if (withPhotos.length) {
+          console.log('[Tasks] Tasks with photos:', withPhotos.map(t => ({ title: t.title, photo_url: t.photo_url, resolved: mediaUrl(t.photo_url) })))
+        }
+      })
       .catch(() => toast.error('Failed to load tasks'))
       .finally(() => setLoading(false))
   }
@@ -517,7 +523,7 @@ export default function Tasks() {
               <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   {task.photo_url
-                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
+                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" onError={e => { console.warn('[Tasks] Image failed to load:', e.currentTarget.src); e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
                     : null}
                   <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base" style={{ display: task.photo_url ? 'none' : 'flex' }}>📋</div>
                 </td>
