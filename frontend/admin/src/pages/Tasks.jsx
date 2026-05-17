@@ -47,9 +47,17 @@ function TaskModal({ task, onClose, onSaved }) {
   } : { ...EMPTY_FORM })
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(task?.photo_url ? mediaUrl(task.photo_url) : null)
+  const [removePhoto, setRemovePhoto] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
+
+  const handleRemovePhoto = () => {
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    setRemovePhoto(true)
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -58,6 +66,7 @@ function TaskModal({ task, onClose, onSaved }) {
     if (!file) return
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
+    setRemovePhoto(false)
   }
 
   const handleSubmit = async (e) => {
@@ -88,6 +97,9 @@ function TaskModal({ task, onClose, onSaved }) {
         const { data } = await api.post(`/tasks/${saved.id}/photo`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
+        saved = data
+      } else if (removePhoto && task) {
+        const { data } = await api.put(`/tasks/${saved.id}`, { photo_url: null })
         saved = data
       }
 
@@ -124,19 +136,32 @@ function TaskModal({ task, onClose, onSaved }) {
             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
               Task Photo <span className="text-gray-400 normal-case font-normal">(optional)</span>
             </label>
-            <label className="flex items-center gap-4 cursor-pointer group">
-              <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-blue-400 overflow-hidden flex items-center justify-center shrink-0 transition-colors">
-                {photoPreview
-                  ? <img src={photoPreview} alt="preview" className="w-full h-full object-cover" />
-                  : <span className="text-3xl">📷</span>
-                }
+            <div className="flex items-center gap-4">
+              <label className="cursor-pointer group shrink-0">
+                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-blue-400 overflow-hidden flex items-center justify-center transition-colors">
+                  {photoPreview
+                    ? <img src={photoPreview} alt="preview" className="w-full h-full object-cover" />
+                    : <span className="text-3xl">📷</span>
+                  }
+                </div>
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoChange} />
+              </label>
+              <div className="text-sm text-gray-500 space-y-1.5">
+                <p className="font-medium text-blue-600 cursor-pointer hover:underline" onClick={() => fileRef.current?.click()}>
+                  {photoPreview ? 'Change photo' : 'Click to upload photo'}
+                </p>
+                <p className="text-xs text-gray-400">JPG, PNG, WebP · max 5MB</p>
+                {photoPreview && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                  >
+                    ✕ Remove photo
+                  </button>
+                )}
               </div>
-              <div className="text-sm text-gray-500">
-                <p className="font-medium text-blue-600 group-hover:underline">Click to upload photo</p>
-                <p className="text-xs mt-0.5">JPG, PNG, WebP · max 5MB</p>
-              </div>
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoChange} />
-            </label>
+            </div>
           </div>
 
           {/* Title */}
