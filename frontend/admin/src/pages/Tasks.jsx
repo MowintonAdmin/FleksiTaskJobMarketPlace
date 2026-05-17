@@ -452,13 +452,7 @@ export default function Tasks() {
     const params = new URLSearchParams({ page: p, page_size: 15 })
     if (filterStatus) params.set('status', filterStatus)
     api.get(`/admin/tasks?${params}`)
-      .then((r) => {
-        setData(r.data)
-        const withPhotos = r.data.tasks.filter(t => t.photo_url)
-        if (withPhotos.length) {
-          console.log('[Tasks] Tasks with photos:', withPhotos.map(t => ({ title: t.title, photo_url: t.photo_url, resolved: mediaUrl(t.photo_url) })))
-        }
-      })
+      .then((r) => setData(r.data))
       .catch(() => toast.error('Failed to load tasks'))
       .finally(() => setLoading(false))
   }
