@@ -1,9 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
-import api, { apiHost } from '../api/client'
-
-// Prefix /media/... paths with the API host so <img> loads from the correct origin.
-const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
+import api from '../api/client'
 
 const CATEGORIES = ['Cleaning', 'Delivery', 'Moving', 'Gardening', 'Repair', 'Cooking', 'Security', 'Events', 'Other']
 
@@ -41,7 +38,7 @@ function TaskModal({ task, onClose, onSaved }) {
     starts_at: task.starts_at ? task.starts_at.slice(0, 16) : '',
   } : { ...EMPTY_FORM })
   const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(task?.photo_url ? mediaUrl(task.photo_url) : null)
+  const [photoPreview, setPhotoPreview] = useState(task?.photo_url ?? null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
@@ -516,7 +513,7 @@ export default function Tasks() {
               <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   {task.photo_url
-                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                    ? <img src={task.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
                     : <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base">📋</div>
                   }
                 </td>

@@ -67,5 +67,5 @@ api.interceptors.response.use(
   }
 )
 
-export { apiBaseUrl, apiHost }
+export { apiBaseUrl }
 export default api
