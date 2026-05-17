@@ -1,10 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
-import api, { apiHost } from '../api/client'
+import api, { apiHost, apiBaseUrl } from '../api/client'
 
-// Build an absolute URL for backend media files.
-// apiHost is '' in dev (Vite proxy handles /media), or the API origin in production.
-const mediaUrl = (path) => path ? `${apiHost}${path}` : null
+// Strip /api/v1 suffix to get the media base URL.
+// This uses the same origin resolution as the API client, ensuring images
+// always load from the correct host regardless of nginx proxy configuration.
+const mediaBase = apiBaseUrl.replace(/\/api\/v1$/, '')
+const mediaUrl = (path) => path ? `${mediaBase}${path}` : null
+
+console.log('[Tasks] apiHost:', apiHost, '| apiBaseUrl:', apiBaseUrl, '| mediaBase:', mediaBase)
 
 const CATEGORIES = ['Cleaning', 'Delivery', 'Moving', 'Gardening', 'Repair', 'Cooking', 'Security', 'Events', 'Other']
 
@@ -46,6 +50,10 @@ function TaskModal({ task, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
+
+  useEffect(() => {
+    console.log('[TaskModal] opened. task.photo_url:', task?.photo_url, '| photoPreview:', task?.photo_url ? mediaUrl(task.photo_url) : null)
+  }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -123,7 +131,15 @@ function TaskModal({ task, onClose, onSaved }) {
             <label className="flex items-center gap-4 cursor-pointer group">
               <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-blue-400 overflow-hidden flex items-center justify-center shrink-0 transition-colors">
                 {photoPreview
-                  ? <img src={photoPreview} alt="preview" className="w-full h-full object-cover" />
+                  ? <img
+                      src={photoPreview}
+                      alt="preview"
+                      className="w-full h-full object-cover"
+                      onError={e => {
+                        console.warn('[TaskModal] photo failed to load:', e.currentTarget.src)
+                        e.currentTarget.replaceWith(Object.assign(document.createElement('span'), { textContent: '📷', className: 'text-3xl' }))
+                      }}
+                    />
                   : <span className="text-3xl">📷</span>
                 }
               </div>
