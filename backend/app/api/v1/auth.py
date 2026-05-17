@@ -15,6 +15,7 @@ from app.schemas.auth import (
 from app.schemas.user import UserCreate
 from app.core.security import verify_password, create_token_pair, decode_token, hash_password
 from app.core.redis_client import invalidate_token, is_token_blacklisted, set_session, get_session, delete_session
+from app.core.email import send_password_reset_email
 from app.core.deps import oauth2_scheme
 from app.config import get_settings
 
@@ -172,9 +173,12 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
         redis_key = f"pwd_reset:{token}"
         await set_session(redis_key, str(user.id), ttl=PWD_RESET_TTL)
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-        # Log the URL so admins can see it in `docker compose logs backend` until
-        # an email transport is wired up.
         logger.info("PASSWORD RESET LINK for %s: %s", payload.email, reset_url)
+        try:
+            await send_password_reset_email(payload.email, reset_url)
+        except Exception:
+            # Email failure must not reveal account existence; already logged inside send_email
+            pass
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)

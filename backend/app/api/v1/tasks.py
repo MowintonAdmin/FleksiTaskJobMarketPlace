@@ -1,6 +1,8 @@
 import uuid
 import math
 import os
+import logging
+import aiofiles
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,8 @@ from app.models.application import Application
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from app.core.deps import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -152,26 +156,40 @@ async def upload_task_photo(
     if task.employer_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    ext = os.path.splitext(photo.filename)[1].lower()
-    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid image type")
-
     from app.config import get_settings
     _settings = get_settings()
-    os.makedirs(_settings.MEDIA_DIR, exist_ok=True)
-    filename = f"task_{task_id}{ext}"
-    save_path = os.path.join(_settings.MEDIA_DIR, filename)
-    size = 0
-    with open(save_path, "wb") as f:
-        while chunk := await photo.read(65536):
-            size += len(chunk)
-            if size > _settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-                raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File too large")
-            f.write(chunk)
+
+    ext = os.path.splitext(photo.filename or "")[1].lower()
+    if not ext:
+        ext = ".jpg"  # fallback for mobile browsers that omit filename extension
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Invalid image type '{ext}'. Allowed: jpg, png, webp")
+
+    try:
+        content = await photo.read()
+        if len(content) > _settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum size is {_settings.MAX_UPLOAD_SIZE_MB}MB",
+            )
+        filename = f"task_{task_id}{ext}"
+        save_path = os.path.join(_settings.MEDIA_DIR, filename)
+        os.makedirs(_settings.MEDIA_DIR, exist_ok=True)
+        async with aiofiles.open(save_path, "wb") as f:
+            await f.write(content)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to save task photo for task %s: %s", task_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save photo: {exc}",
+        )
 
     task.photo_url = f"/media/{filename}"
     db.add(task)
     await db.flush()
+    await db.refresh(task)
 
     count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
     task_data = TaskResponse.model_validate(task)

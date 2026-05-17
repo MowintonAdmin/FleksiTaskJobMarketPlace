@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # Frontend (used for password reset links in emails/logs)
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Email / SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""          # e.g. "FleksiTask <noreply@fleksitask.com>"
+    SMTP_TLS: bool = True        # STARTTLS on port 587; set False for SSL-only port 465
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
