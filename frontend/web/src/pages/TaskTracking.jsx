@@ -2,6 +2,9 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { taskSessionsApi, applicationsApi, tasksApi } from '../api/tasks'
+import { apiHost } from '../api/client'
+
+const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600)
@@ -422,7 +425,7 @@ export default function TaskTracking() {
           )}
           {session.proof_photo_url && (
             <img
-              src={session.proof_photo_url}
+              src={mediaUrl(session.proof_photo_url)}
               alt="Completion proof"
               className="w-full rounded-xl object-cover max-h-48"
             />

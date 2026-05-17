@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../api/client'
+import api, { apiHost } from '../api/client'
 import { toast } from 'react-toastify'
+
+const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
 function Stars({ rating, size = 'text-base' }) {
   if (rating == null) return <span className="text-xs text-gray-400 italic">Not rated</span>
@@ -131,7 +133,7 @@ export default function History() {
                 <div className="flex">
                   {/* Task thumbnail */}
                   {s.task_photo_url ? (
-                    <img src={s.task_photo_url} alt="" className="w-20 h-20 object-cover shrink-0" />
+                    <img src={mediaUrl(s.task_photo_url)} alt="" className="w-20 h-20 object-cover shrink-0" />
                   ) : (
                     <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-3xl shrink-0">
                       📋
