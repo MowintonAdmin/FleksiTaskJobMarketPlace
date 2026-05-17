@@ -1,14 +1,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
-import api, { apiHost, apiBaseUrl } from '../api/client'
+import api, { apiBaseUrl } from '../api/client'
 
-// Strip /api/v1 suffix to get the media base URL.
-// This uses the same origin resolution as the API client, ensuring images
-// always load from the correct host regardless of nginx proxy configuration.
-const mediaBase = apiBaseUrl.replace(/\/api\/v1$/, '')
-const mediaUrl = (path) => path ? `${mediaBase}${path}` : null
-
-console.log('[Tasks] apiHost:', apiHost, '| apiBaseUrl:', apiBaseUrl, '| mediaBase:', mediaBase)
+// Route media through /api/v1/files/... — same proxy path as all API calls.
+// This avoids needing a separate nginx /media/ rule and works in all environments.
+const mediaUrl = (path) => {
+  if (!path) return null
+  const filename = path.replace(/^\/media\//, '')
+  return `${apiBaseUrl}/files/${filename}`
+}
 
 const CATEGORIES = ['Cleaning', 'Delivery', 'Moving', 'Gardening', 'Repair', 'Cooking', 'Security', 'Events', 'Other']
 
