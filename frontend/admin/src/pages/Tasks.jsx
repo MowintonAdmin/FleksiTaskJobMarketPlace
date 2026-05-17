@@ -1,6 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
-import api from '../api/client'
+import api, { apiHost } from '../api/client'
+
+// Build an absolute URL for backend media files.
+// apiHost is '' in dev (Vite proxy handles /media), or the API origin in production.
+const mediaUrl = (path) => path ? `${apiHost}${path}` : null
 
 const CATEGORIES = ['Cleaning', 'Delivery', 'Moving', 'Gardening', 'Repair', 'Cooking', 'Security', 'Events', 'Other']
 
@@ -38,7 +42,7 @@ function TaskModal({ task, onClose, onSaved }) {
     starts_at: task.starts_at ? task.starts_at.slice(0, 16) : '',
   } : { ...EMPTY_FORM })
   const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(task?.photo_url ?? null)
+  const [photoPreview, setPhotoPreview] = useState(task?.photo_url ? mediaUrl(task.photo_url) : null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
@@ -513,9 +517,9 @@ export default function Tasks() {
               <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   {task.photo_url
-                    ? <img src={task.photo_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
-                    : <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base">📋</div>
-                  }
+                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
+                    : null}
+                  <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base" style={{ display: task.photo_url ? 'none' : 'flex' }}>📋</div>
                 </td>
                 <td className="px-4 py-3 font-medium text-gray-900">{task.title}</td>
                 <td className="px-4 py-3 text-gray-600">📍 {task.location}</td>
