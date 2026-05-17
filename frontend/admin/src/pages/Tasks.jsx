@@ -51,10 +51,6 @@ function TaskModal({ task, onClose, onSaved }) {
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
 
-  useEffect(() => {
-    console.log('[TaskModal] opened. task.photo_url:', task?.photo_url, '| photoPreview:', task?.photo_url ? mediaUrl(task.photo_url) : null)
-  }, [])
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const handlePhotoChange = (e) => {
@@ -131,15 +127,7 @@ function TaskModal({ task, onClose, onSaved }) {
             <label className="flex items-center gap-4 cursor-pointer group">
               <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 group-hover:border-blue-400 overflow-hidden flex items-center justify-center shrink-0 transition-colors">
                 {photoPreview
-                  ? <img
-                      src={photoPreview}
-                      alt="preview"
-                      className="w-full h-full object-cover"
-                      onError={e => {
-                        console.warn('[TaskModal] photo failed to load:', e.currentTarget.src)
-                        e.currentTarget.replaceWith(Object.assign(document.createElement('span'), { textContent: '📷', className: 'text-3xl' }))
-                      }}
-                    />
+                  ? <img src={photoPreview} alt="preview" className="w-full h-full object-cover" />
                   : <span className="text-3xl">📷</span>
                 }
               </div>
@@ -533,7 +521,7 @@ export default function Tasks() {
               <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   {task.photo_url
-                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" onError={e => { console.warn('[Tasks] Image failed to load:', e.currentTarget.src); e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
+                    ? <img src={mediaUrl(task.photo_url)} alt="" className="w-9 h-9 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
                     : null}
                   <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-base" style={{ display: task.photo_url ? 'none' : 'flex' }}>📋</div>
                 </td>
