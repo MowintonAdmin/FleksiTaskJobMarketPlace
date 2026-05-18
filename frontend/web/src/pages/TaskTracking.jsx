@@ -45,7 +45,7 @@ export default function TaskTracking() {
   const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
     timerRef.current = setInterval(() => {
-      const secs = Math.floor((Date.now() - parseUTC(checkedInAt).getTime()) / 1000)
+      const secs = Math.max(0, Math.floor((Date.now() - parseUTC(checkedInAt).getTime()) / 1000))
       if (maxSeconds > 0 && secs >= maxSeconds) {
         setElapsed(maxSeconds)
         clearInterval(timerRef.current)
@@ -90,7 +90,7 @@ export default function TaskTracking() {
           if (existing.status === 'active') {
             const maxSecs = (taskData?.estimated_duration_minutes ?? 0) * 60
             const secs = Math.min(
-              Math.floor((Date.now() - parseUTC(existing.checked_in_at).getTime()) / 1000),
+              Math.max(0, Math.floor((Date.now() - parseUTC(existing.checked_in_at).getTime()) / 1000)),
               maxSecs || Infinity
             )
             setElapsed(secs)
@@ -116,7 +116,7 @@ export default function TaskTracking() {
       setSession(newSession)
       const maxSecs = (task?.estimated_duration_minutes ?? 0) * 60
       const secs = Math.min(
-        Math.floor((Date.now() - parseUTC(newSession.checked_in_at).getTime()) / 1000),
+        Math.max(0, Math.floor((Date.now() - parseUTC(newSession.checked_in_at).getTime()) / 1000)),
         maxSecs || Infinity
       )
       setElapsed(secs)
