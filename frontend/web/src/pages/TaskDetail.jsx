@@ -4,6 +4,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import { fetchTaskById, clearSelectedTask } from '../store/taskSlice'
 import { applicationsApi } from '../api/tasks'
+import { apiHost } from '../api/client'
+
+const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
 export default function TaskDetail() {
   const { id } = useParams()
@@ -53,6 +56,12 @@ export default function TaskDetail() {
       <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">
         ← Back
       </button>
+
+      {task.photo_url && (
+        <div className="mb-4 rounded-2xl overflow-hidden shadow">
+          <img src={mediaUrl(task.photo_url)} alt={task.title} className="w-full max-h-64 object-cover" />
+        </div>
+      )}
 
       <div className="card mb-4">
         <div className="flex items-start justify-between gap-4">

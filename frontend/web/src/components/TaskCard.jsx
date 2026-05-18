@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom'
+import { apiHost } from '../api/client'
+
+const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
 const STATUS_COLORS = {
   open: 'bg-green-100 text-green-700',
@@ -12,6 +15,9 @@ export default function TaskCard({ task }) {
 
   return (
     <Link to={`/tasks/${task.id}`} className="card hover:shadow-md transition-shadow block">
+      {task.photo_url && (
+        <img src={mediaUrl(task.photo_url)} alt={task.title} className="w-full h-36 object-cover rounded-xl mb-3 -mt-1" />
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
