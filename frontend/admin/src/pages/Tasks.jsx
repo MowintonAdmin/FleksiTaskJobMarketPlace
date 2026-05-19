@@ -71,6 +71,10 @@ function TaskModal({ task, onClose, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (form.starts_at && new Date(form.starts_at) < new Date()) {
+      alert('Start date cannot be in the past.')
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -265,6 +269,7 @@ function TaskModal({ task, onClose, onSaved }) {
             </label>
             <input
               type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>

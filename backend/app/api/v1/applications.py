@@ -149,8 +149,9 @@ async def update_application_status(
                 Application.status == ApplicationStatus.APPROVED,
             )
         )
-        # +1 because the current application's status change isn't flushed yet
-        approved_count = approved_count_result.scalar_one() + 1
+        # autoflush already persisted the status change above, so the count
+        # includes the current application — no manual +1 needed.
+        approved_count = approved_count_result.scalar_one()
         if approved_count >= task.max_applicants:
             task.status = TaskStatus.IN_PROGRESS
             db.add(task)

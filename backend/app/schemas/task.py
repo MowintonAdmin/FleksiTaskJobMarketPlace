@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, field_validator
 from app.models.task import TaskStatus
 
@@ -31,6 +31,18 @@ class TaskBase(BaseModel):
             raise ValueError("Duration must be positive")
         return v
 
+    @field_validator("starts_at")
+    @classmethod
+    def validate_starts_at(cls, v):
+        if v is None:
+            return v
+        # Ensure timezone-aware comparison
+        now = datetime.now(timezone.utc)
+        v_aware = v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        if v_aware < now:
+            raise ValueError("Start date cannot be in the past")
+        return v
+
 
 class TaskCreate(TaskBase):
     pass
@@ -50,6 +62,17 @@ class TaskUpdate(BaseModel):
     starts_at: datetime | None = None
     status: TaskStatus | None = None
     photo_url: str | None = None
+
+    @field_validator("starts_at")
+    @classmethod
+    def validate_starts_at(cls, v):
+        if v is None:
+            return v
+        now = datetime.now(timezone.utc)
+        v_aware = v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        if v_aware < now:
+            raise ValueError("Start date cannot be in the past")
+        return v
 
 
 class TaskResponse(TaskBase):
