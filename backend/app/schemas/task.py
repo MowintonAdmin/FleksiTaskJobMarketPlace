@@ -31,6 +31,8 @@ class TaskBase(BaseModel):
             raise ValueError("Duration must be positive")
         return v
 
+
+class TaskCreate(TaskBase):
     @field_validator("starts_at")
     @classmethod
     def validate_starts_at(cls, v):
@@ -42,10 +44,6 @@ class TaskBase(BaseModel):
         if v_aware < now:
             raise ValueError("Start date cannot be in the past")
         return v
-
-
-class TaskCreate(TaskBase):
-    pass
 
 
 class TaskUpdate(BaseModel):
