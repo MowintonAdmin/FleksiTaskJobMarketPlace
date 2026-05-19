@@ -270,7 +270,7 @@ export default function TaskTracking() {
                 ⏸ Pause
               </button>
               <button
-                onClick={() => setShowCheckout(true)}
+                onClick={() => { clearInterval(timerRef.current); setShowCheckout(true) }}
                 disabled={actionLoading}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
               >
@@ -329,7 +329,7 @@ export default function TaskTracking() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowCheckout(false)}
+                  onClick={() => { setShowCheckout(false); startTimer(session.checked_in_at, (task?.estimated_duration_minutes ?? 0) * 60) }}
                   className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50"
                 >
                   Cancel
