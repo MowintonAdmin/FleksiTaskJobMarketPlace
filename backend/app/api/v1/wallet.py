@@ -113,6 +113,11 @@ async def upsert_bank_account(
     db: AsyncSession = Depends(get_db),
 ):
     """Add or update bank account details."""
+    # Cross-field length check (bank-specific digit count)
+    try:
+        payload.validate_account_length()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     result = await db.execute(select(BankAccount).where(BankAccount.user_id == current_user.id))
     account = result.scalar_one_or_none()
     if account:

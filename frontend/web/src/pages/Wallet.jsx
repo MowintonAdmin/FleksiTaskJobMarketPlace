@@ -2,6 +2,49 @@ import { useEffect, useState, useCallback } from 'react'
 import { walletApi } from '../api/wallet'
 import { toast } from 'react-toastify'
 
+const MY_BANKS = [
+  { name: 'Maybank', digits: [12, 12] },
+  { name: 'CIMB Bank', digits: [14, 14] },
+  { name: 'Public Bank', digits: [10, 10] },
+  { name: 'RHB Bank', digits: [14, 14] },
+  { name: 'Hong Leong Bank', digits: [12, 12] },
+  { name: 'AmBank', digits: [12, 12] },
+  { name: 'Alliance Bank', digits: [12, 12] },
+  { name: 'Affin Bank', digits: [16, 16] },
+  { name: 'Bank Islam', digits: [16, 16] },
+  { name: 'Bank Muamalat', digits: [16, 16] },
+  { name: 'Bank Rakyat', digits: [16, 16] },
+  { name: 'BSN (Bank Simpanan Nasional)', digits: [16, 16] },
+  { name: 'Agrobank', digits: [11, 11] },
+  { name: 'OCBC Bank Malaysia', digits: [10, 10] },
+  { name: 'UOB Malaysia', digits: [11, 11] },
+  { name: 'Standard Chartered Malaysia', digits: [8, 12] },
+  { name: 'HSBC Bank Malaysia', digits: [12, 12] },
+  { name: 'Citibank Malaysia', digits: [10, 10] },
+  { name: 'Kuwait Finance House', digits: [16, 16] },
+  { name: 'MBSB Bank', digits: [16, 16] },
+]
+
+function validateBankFields(bank_name, account_number, account_holder_name) {
+  if (!bank_name) return 'Please select a bank.'
+  const bank = MY_BANKS.find(b => b.name === bank_name)
+  if (!bank) return 'Please select a valid Malaysian bank.'
+
+  const digits = account_number.replace(/\s+/g, '')
+  if (!/^\d+$/.test(digits))
+    return 'Account number must contain digits only (no spaces, hyphens, or letters).'
+  const [min, max] = bank.digits
+  if (digits.length < min || digits.length > max)
+    return `${bank_name} account numbers must be ${min === max ? min : `${min}–${max}`} digits.`
+
+  if (!account_holder_name.trim()) return 'Account holder name is required.'
+  if (account_holder_name.trim().length < 2) return 'Account holder name is too short.'
+  if (!/^[A-Za-z\s'@/-]+$/.test(account_holder_name.trim()))
+    return 'Account holder name must contain only letters and spaces (as per bank records).'
+
+  return null
+}
+
 const TXN_STYLES = {
   CREDIT: { icon: '💰', color: 'text-green-600', sign: '+' },
   WITHDRAWAL_PENDING: { icon: '⏳', color: 'text-yellow-600', sign: '-' },
@@ -26,14 +69,12 @@ function BankAccountModal({ existing, onClose, onSaved }) {
   const [error, setError] = useState('')
 
   const save = async () => {
-    if (!form.bank_name || !form.account_number || !form.account_holder_name) {
-      setError('All fields are required')
-      return
-    }
+    const validationError = validateBankFields(form.bank_name, form.account_number, form.account_holder_name)
+    if (validationError) { setError(validationError); return }
     setSaving(true)
     setError('')
     try {
-      await walletApi.upsertBankAccount(form)
+      await walletApi.upsertBankAccount({ ...form, account_number: form.account_number.replace(/\s+/g, '') })
       toast.success('Bank account saved')
       onSaved()
       onClose()
@@ -55,14 +96,19 @@ function BankAccountModal({ existing, onClose, onSaved }) {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Bank Name</label>
-            <input value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
-              placeholder="e.g. Maybank, CIMB, Public Bank"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+            <select value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white">
+              <option value="">— Select your bank —</option>
+              {MY_BANKS.map(b => (
+                <option key={b.name} value={b.name}>{b.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Account Number</label>
             <input value={form.account_number} onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
-              placeholder="Enter full account number"
+              placeholder="Digits only"
+              inputMode="numeric"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
           </div>
           <div>
