@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
@@ -123,7 +123,7 @@ export default function Login() {
     }
   }
 
-  const handleGoogleSignIn = async (idToken) => {
+  const handleGoogleSignIn = useCallback(async (idToken) => {
     setFormError(null)
     try {
       await dispatch(loginWithGoogle(idToken)).unwrap()
@@ -133,7 +133,7 @@ export default function Login() {
       setFormError(message)
       toast.error(message)
     }
-  }
+  }, [dispatch, navigate])
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">

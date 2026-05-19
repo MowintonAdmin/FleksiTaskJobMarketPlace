@@ -40,6 +40,14 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
   const [loadError, setLoadError] = useState(null)
   const clientId = normalizeGoogleClientId(getPublicConfig('VITE_GOOGLE_CLIENT_ID', import.meta.env.VITE_GOOGLE_CLIENT_ID))
 
+  // Keep refs so the GIS callback always calls the latest versions
+  // without re-initialising the button on every render.
+  const onCredentialRef = useRef(onCredential)
+  const disabledRef = useRef(disabled)
+  useEffect(() => { onCredentialRef.current = onCredential }, [onCredential])
+  useEffect(() => { disabledRef.current = disabled }, [disabled])
+
+  // Only re-initialise when the client ID itself changes.
   useEffect(() => {
     let cancelled = false
 
@@ -57,15 +65,15 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: ({ credential }) => {
-            if (!credential || disabled) return
-            onCredential(credential)
+            if (!credential || disabledRef.current) return
+            onCredentialRef.current(credential)
           },
         })
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: 'outline',
           size: 'large',
           shape: 'pill',
-          text: 'signup_with',
+          text: 'signin_with',
           width: 360,
           logo_alignment: 'left',
         })
@@ -79,7 +87,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
     return () => {
       cancelled = true
     }
-  }, [clientId, disabled, onCredential])
+  }, [clientId]) // ← intentionally only clientId; onCredential/disabled handled via refs
 
   if (!clientId) {
     return null
