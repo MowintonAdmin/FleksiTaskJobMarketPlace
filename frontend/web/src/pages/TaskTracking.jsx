@@ -56,6 +56,13 @@ export default function TaskTracking() {
     }, 1000)
   }, [])
 
+  // Stop the timer whenever the checkout form is shown
+  useEffect(() => {
+    if (showCheckout) {
+      clearInterval(timerRef.current)
+    }
+  }, [showCheckout])
+
   useEffect(() => {
     async function load() {
       try {
