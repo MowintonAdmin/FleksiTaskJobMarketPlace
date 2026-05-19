@@ -23,4 +23,7 @@ export const messagesApi = {
     const { data } = await api.get('/users/admins')
     return data
   },
+  deleteMessage: async (messageId) => {
+    await api.delete(`/messages/${messageId}`)
+  },
 }

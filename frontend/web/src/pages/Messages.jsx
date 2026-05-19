@@ -102,6 +102,16 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
 
+  const handleDelete = async (messageId) => {
+    if (!window.confirm('Delete this message?')) return
+    try {
+      await messagesApi.deleteMessage(messageId)
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+      onNewMessage?.()
+    } catch {
+      // silent
+    }
+  }
   const load = useCallback(async () => {
     if (!conversation) return
     setLoading(true)
@@ -174,7 +184,19 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
           messages.map((msg) => {
             const isMine = msg.sender_id === currentUserId
             return (
-              <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex items-end gap-1 group ${isMine ? 'justify-end' : 'justify-start'}`}>
+                {isMine && (
+                  <button
+                    onClick={() => handleDelete(msg.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 p-1 shrink-0"
+                    title="Delete message"
+                    aria-label="Delete message"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
                 <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
                   isMine
                     ? 'bg-primary-600 text-white rounded-br-sm'
