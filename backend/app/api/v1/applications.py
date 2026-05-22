@@ -51,6 +51,18 @@ async def apply_for_task(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already applied for this task")
 
+    # Count active (non-rejected, non-withdrawn) applications against the slot limit
+    active_count_result = await db.execute(
+        select(func.count()).select_from(Application).where(
+            and_(
+                Application.task_id == payload.task_id,
+                Application.status.notin_([ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN]),
+            )
+        )
+    )
+    if active_count_result.scalar_one() >= task.max_applicants:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This task has already reached its maximum number of applicants")
+
     application = Application(
         task_id=payload.task_id,
         worker_id=current_user.id,
