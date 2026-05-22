@@ -15,6 +15,7 @@ import ActiveWorkers from './pages/ActiveWorkers'
 import Withdrawals from './pages/Withdrawals'
 import TimeLogs from './pages/TimeLogs'
 import Analytics from './pages/Analytics'
+import Messages from './pages/Messages'
 
 function AdminRoute({ children }) {
   const { token, user } = useSelector((s) => s.auth)
@@ -56,6 +57,7 @@ function AdminShell() {
             <Route path="/time-logs" element={<TimeLogs />} />
             <Route path="/withdrawals" element={<Withdrawals />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/messages" element={<Messages />} />
           </Routes>
         </main>
       </div>

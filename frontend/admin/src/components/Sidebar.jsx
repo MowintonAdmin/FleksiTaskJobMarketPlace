@@ -11,6 +11,7 @@ const links = [
   { to: '/active-workers', label: 'Active Workers', icon: '🟢' },
   { to: '/time-logs', label: 'Time & Payments', icon: '⏱️' },
   { to: '/withdrawals', label: 'Withdrawals', icon: '💸' },
+  { to: '/messages', label: 'Messages', icon: '💬' },
   { to: '/analytics', label: 'Analytics', icon: '📈' },
 ]
 
