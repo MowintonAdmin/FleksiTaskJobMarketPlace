@@ -16,7 +16,7 @@ function ProcessModal({ withdrawal, onClose, onDone }) {
     setSubmitting(true)
     try {
       await api.patch(`/admin/withdrawals/${withdrawal.id}`, { action, notes: notes || null })
-      toast.success(`Withdrawal ${action}d successfully`)
+      toast.success(`Withdrawal ${action === 'reject' ? 'rejected' : 'approved'} successfully`)
       onDone()
       onClose()
     } catch (e) {
