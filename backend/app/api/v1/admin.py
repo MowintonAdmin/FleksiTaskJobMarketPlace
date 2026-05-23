@@ -205,6 +205,74 @@ async def admin_active_workers(
     return out
 
 
+@router.post("/sessions/{session_id}/force-stop")
+async def admin_force_stop_session(
+    session_id: uuid.UUID,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Force-terminate an active session. Credits the worker for time already worked."""
+    from app.models.wallet import Wallet, Transaction, TransactionType
+    from app.models.message import Message
+
+    result = await db.execute(
+        select(TaskSession).where(
+            TaskSession.id == session_id,
+            TaskSession.status == SessionStatus.ACTIVE,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active session not found")
+
+    task_result = await db.execute(select(Task).where(Task.id == session.task_id))
+    task = task_result.scalar_one()
+
+    now = datetime.now(timezone.utc)
+    elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+    earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
+
+    session.checked_out_at = now
+    session.earnings = earnings
+    session.status = SessionStatus.COMPLETED
+    session.proof_notes = f"[Admin force-stopped by {admin_user.full_name or admin_user.email}]"
+    db.add(session)
+
+    # Credit wallet regardless of minimum duration (worker did work)
+    wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
+    wallet = wallet_result.scalar_one_or_none()
+    if not wallet:
+        wallet = Wallet(user_id=session.worker_id)
+        db.add(wallet)
+        await db.flush()
+    wallet.available_balance = round(wallet.available_balance + earnings, 2)
+    db.add(Transaction(
+        user_id=session.worker_id,
+        type=TransactionType.CREDIT,
+        amount=earnings,
+        description=f"Earnings from task: {task.title} (admin force-stopped)",
+        reference_id=str(session.id),
+    ))
+
+    # Notify worker
+    db.add(Message(
+        sender_id=admin_user.id,
+        recipient_id=session.worker_id,
+        body=(
+            f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. "
+            f"You have been credited RM {earnings:.2f} for {elapsed_minutes:.0f} minutes worked."
+        ),
+    ))
+
+    await db.flush()
+    return {
+        "session_id": str(session.id),
+        "elapsed_minutes": round(elapsed_minutes, 1),
+        "earnings_credited": earnings,
+        "status": session.status,
+    }
+
+
 # ── Withdrawal Management ─────────────────────────────────────────────────────
 
 from app.models.wallet import Wallet, WithdrawalRequest, WithdrawalStatus, Transaction, TransactionType
