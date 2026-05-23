@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+﻿import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 
@@ -17,7 +17,7 @@ function ConfirmModal({ worker, onConfirm, onCancel, loading }) {
           This will immediately end <span className="font-semibold">{worker.worker_name || worker.worker_email}</span>'s
           active session on <span className="font-semibold">"{worker.task_title}"</span>.
           They will be credited for <span className="font-semibold">{elapsed(worker.elapsed_minutes)}</span> of work
-          (≈ RM {worker.current_earnings.toFixed(2)}) and notified via message.
+          (â‰ˆ RM {worker.current_earnings.toFixed(2)}) and notified via message.
         </p>
         <div className="flex gap-3 pt-1">
           <button
@@ -32,7 +32,7 @@ function ConfirmModal({ worker, onConfirm, onCancel, loading }) {
             disabled={loading}
             className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
           >
-            {loading ? 'Stopping…' : '⏹ Force Stop'}
+            {loading ? 'Stoppingâ€¦' : 'â¹ Force Stop'}
           </button>
         </div>
       </div>
@@ -93,13 +93,13 @@ export default function ActiveWorkers() {
           </h1>
           {lastRefresh && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Last updated {lastRefresh.toLocaleTimeString()} · auto-refreshes every 30s
+              Last updated {lastRefresh.toLocaleTimeString()} Â· auto-refreshes every 30s
             </p>
           )}
         </div>
         <button onClick={load}
           className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-          ↻ Refresh
+          â†» Refresh
         </button>
       </div>
 
@@ -121,7 +121,7 @@ export default function ActiveWorkers() {
         </div>
       ) : workers.length === 0 ? (
         <div className="bg-white rounded-xl p-16 text-center shadow-sm border border-gray-100">
-          <p className="text-5xl mb-4">😴</p>
+          <p className="text-5xl mb-4">ðŸ˜´</p>
           <p className="font-semibold text-gray-500 text-lg">No workers active right now</p>
           <p className="text-sm text-gray-400 mt-1">Workers who have checked in will appear here</p>
         </div>
@@ -138,7 +138,7 @@ export default function ActiveWorkers() {
                     </div>
                 }
                 <div className="min-w-0">
-                  <p className="font-bold text-gray-900 truncate">{w.worker_name || '—'}</p>
+                  <p className="font-bold text-gray-900 truncate">{w.worker_name || 'â€”'}</p>
                   <p className="text-xs text-gray-400 truncate">{w.worker_email}</p>
                 </div>
                 <span className="ml-auto flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium shrink-0">
@@ -149,8 +149,8 @@ export default function ActiveWorkers() {
 
               {/* Task info */}
               <div className="bg-gray-50 rounded-lg p-3 mb-4 text-sm space-y-1">
-                <p className="font-medium text-gray-800 truncate">📋 {w.task_title}</p>
-                {w.task_location && <p className="text-xs text-gray-500">📍 {w.task_location}</p>}
+                <p className="font-medium text-gray-800 truncate">ðŸ“‹ {w.task_title}</p>
+                {w.task_location && <p className="text-xs text-gray-500">ðŸ“ {w.task_location}</p>}
               </div>
 
               {/* Metrics */}
@@ -175,7 +175,7 @@ export default function ActiveWorkers() {
                 onClick={() => setConfirmTarget(w)}
                 className="w-full py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
               >
-                ⏹ Force Stop Session
+                â¹ Force Stop Session
               </button>
             </div>
           ))}
@@ -189,122 +189,6 @@ export default function ActiveWorkers() {
           onCancel={() => setConfirmTarget(null)}
           loading={stopping}
         />
-      )}
-    </div>
-  )
-}
-
-  const [loading, setLoading] = useState(true)
-  const [lastRefresh, setLastRefresh] = useState(null)
-
-  const load = useCallback(async () => {
-    try {
-      const { data } = await api.get('/admin/workers/active')
-      setWorkers(data)
-      setLastRefresh(new Date())
-    } catch {
-      toast.error('Failed to load active workers')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  // Initial load + auto-refresh every 30 seconds
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
-  }, [load])
-
-  return (
-    <div className="p-6 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse inline-block"></span>
-            Active Workers
-          </h1>
-          {lastRefresh && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              Last updated {lastRefresh.toLocaleTimeString()} · auto-refreshes every 30s
-            </p>
-          )}
-        </div>
-        <button onClick={load}
-          className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-          ↻ Refresh
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3].map(i => (
-            <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-3 animate-pulse">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gray-200" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-100 rounded w-1/2" />
-                </div>
-              </div>
-              <div className="h-3 bg-gray-100 rounded" />
-              <div className="h-3 bg-gray-100 rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      ) : workers.length === 0 ? (
-        <div className="bg-white rounded-xl p-16 text-center shadow-sm border border-gray-100">
-          <p className="text-5xl mb-4">😴</p>
-          <p className="font-semibold text-gray-500 text-lg">No workers active right now</p>
-          <p className="text-sm text-gray-400 mt-1">Workers who have checked in will appear here</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workers.map(w => (
-            <div key={w.session_id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-              {/* Worker info */}
-              <div className="flex items-center gap-3 mb-4">
-                {w.worker_photo
-                  ? <img src={w.worker_photo} alt="" referrerPolicy="no-referrer" className="w-12 h-12 rounded-full object-cover" />
-                  : <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-xl font-bold text-green-600">
-                      {(w.worker_name || w.worker_email || '?')[0].toUpperCase()}
-                    </div>
-                }
-                <div className="min-w-0">
-                  <p className="font-bold text-gray-900 truncate">{w.worker_name || '—'}</p>
-                  <p className="text-xs text-gray-400 truncate">{w.worker_email}</p>
-                </div>
-                <span className="ml-auto flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                  Live
-                </span>
-              </div>
-
-              {/* Task info */}
-              <div className="bg-gray-50 rounded-lg p-3 mb-4 text-sm space-y-1">
-                <p className="font-medium text-gray-800 truncate">📋 {w.task_title}</p>
-                {w.task_location && <p className="text-xs text-gray-500">📍 {w.task_location}</p>}
-              </div>
-
-              {/* Metrics */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold text-blue-600">{elapsed(w.elapsed_minutes)}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Time worked</p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold text-green-600">RM {w.current_earnings.toFixed(2)}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Earned so far</p>
-                </div>
-              </div>
-
-              {/* Check-in time */}
-              <p className="text-xs text-gray-400 text-center mt-3">
-                Checked in at {new Date(w.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   )
