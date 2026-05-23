@@ -64,9 +64,21 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
         buttonRef.current.innerHTML = ''
         window.google.accounts.id.initialize({
           client_id: clientId,
+          ux_mode: 'popup',
           callback: ({ credential }) => {
             if (!credential || disabledRef.current) return
             onCredentialRef.current(credential)
+          },
+          error_callback: ({ type }) => {
+            console.error('[Google Sign-In]', type)
+            if (type === 'suppressed_by_user') return
+            if (type === 'secure_http_required') {
+              setLoadError('Google Sign-In requires HTTPS. Please use https://fleksitask.com.')
+            } else if (type === 'unregistered_origin' || type === 'origin_mismatch') {
+              setLoadError('This domain is not authorized in Google Cloud Console. Contact support.')
+            } else {
+              setLoadError(`Google Sign-In unavailable (${type}). Use email/password instead.`)
+            }
           },
         })
         window.google.accounts.id.renderButton(buttonRef.current, {
