@@ -6,6 +6,22 @@ import { authApi } from '../api/auth'
 
 const SKILLS_SUGGESTIONS = ['Cleaning', 'Driving', 'Delivery', 'Moving', 'Gardening', 'Cooking', 'Tech Support', 'Tutoring', 'Painting', 'Plumbing']
 
+const ACADEMIC_QUALIFICATIONS = [
+  'No Formal Education',
+  'Primary School',
+  'PMR / PT3',
+  'SPM',
+  'STPM',
+  'Certificate',
+  'Diploma',
+  "Bachelor's Degree",
+  "Master's Degree",
+  'PhD / Doctorate',
+  'Others',
+]
+
+const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
+
 export default function Profile() {
   const dispatch = useDispatch()
   const { user } = useSelector((s) => s.auth)
@@ -17,6 +33,11 @@ export default function Profile() {
     bio: user?.bio || '',
     location: user?.location || '',
     skills: user?.skills || [],
+    academic_qualification: user?.academic_qualification || '',
+    body_height_cm: user?.body_height_cm ?? '',
+    nationality: user?.nationality || '',
+    race: user?.race || '',
+    nric_passport: user?.nric_passport || '',
   })
   const [skillInput, setSkillInput] = useState('')
 
@@ -137,6 +158,69 @@ export default function Profile() {
             ))}
           </div>
         </div>
+
+        {/* Personal Details */}
+        <div className="border-t border-gray-100 pt-4 space-y-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personal Details</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nationality</label>
+              <input
+                name="nationality"
+                value={form.nationality}
+                onChange={handleChange}
+                className="input"
+                placeholder="e.g. Malaysian"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Race</label>
+              <select name="race" value={form.race} onChange={handleChange} className="input">
+                <option value="">— Select —</option>
+                {RACES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Academic Qualification</label>
+              <select name="academic_qualification" value={form.academic_qualification} onChange={handleChange} className="input">
+                <option value="">— Select —</option>
+                {ACADEMIC_QUALIFICATIONS.map((q) => <option key={q} value={q}>{q}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Body Height (cm)</label>
+              <input
+                name="body_height_cm"
+                type="number"
+                min="50"
+                max="250"
+                step="0.1"
+                value={form.body_height_cm}
+                onChange={handleChange}
+                className="input"
+                placeholder="e.g. 170"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">NRIC / Passport No.</label>
+            <input
+              name="nric_passport"
+              value={form.nric_passport}
+              onChange={handleChange}
+              className="input"
+              placeholder="e.g. 900101-14-1234 or A12345678"
+              autoComplete="off"
+            />
+            <p className="text-xs text-gray-400 mt-1">This information is kept confidential and only used for identity verification.</p>
+          </div>
+        </div>
+
         <button type="submit" disabled={saving} className="btn-primary w-full">
           {saving ? 'Saving...' : 'Save Profile'}
         </button>

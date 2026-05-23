@@ -20,6 +20,11 @@ class User(Base):
     latitude: Mapped[float | None] = mapped_column(nullable=True)
     longitude: Mapped[float | None] = mapped_column(nullable=True)
     skills: Mapped[str | None] = mapped_column(String(2000), nullable=True)  # JSON array as string
+    academic_qualification: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    body_height_cm: Mapped[float | None] = mapped_column(nullable=True)
+    nationality: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    race: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    nric_passport: Mapped[str | None] = mapped_column(String(50), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_employer: Mapped[bool] = mapped_column(Boolean, default=False)

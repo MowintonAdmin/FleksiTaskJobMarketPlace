@@ -28,6 +28,11 @@ class UserBase(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     skills: list[str] | None = None
+    academic_qualification: str | None = None
+    body_height_cm: float | None = None
+    nationality: str | None = None
+    race: str | None = None
+    nric_passport: str | None = None
 
     @field_validator("skills", mode="before")
     @classmethod
@@ -49,6 +54,11 @@ class UserUpdate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     skills: list[str] | None = None
+    academic_qualification: str | None = None
+    body_height_cm: float | None = None
+    nationality: str | None = None
+    race: str | None = None
+    nric_passport: str | None = None
 
 
 class UserResponse(UserBase):
