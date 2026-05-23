@@ -44,8 +44,11 @@ export default function TaskTracking() {
 
   const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
+    const origin = parseUTC(checkedInAt).getTime()
+    // Poll at 250 ms so the display never lags more than a quarter-second
+    // behind the real elapsed time, even when setInterval drifts.
     timerRef.current = setInterval(() => {
-      const secs = Math.max(0, Math.floor((Date.now() - parseUTC(checkedInAt).getTime()) / 1000))
+      const secs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
       if (maxSeconds > 0 && secs >= maxSeconds) {
         setElapsed(maxSeconds)
         clearInterval(timerRef.current)
@@ -53,7 +56,7 @@ export default function TaskTracking() {
       } else {
         setElapsed(secs)
       }
-    }, 1000)
+    }, 250)
   }, [])
 
   // Stop the timer whenever the checkout form is shown
