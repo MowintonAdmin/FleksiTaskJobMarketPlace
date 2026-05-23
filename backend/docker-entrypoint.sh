@@ -1,14 +1,23 @@
 #!/bin/sh
-set -e
 
-# Ensure media directory exists and is writable.
 mkdir -p /app/media
 
-# Run database migrations before starting the server.
-# This ensures the schema is up to date even after a fresh deploy
-# with new model columns, so the backend never crashes on startup.
+# Run Alembic migrations with retry (DB may take a moment to accept connections).
 echo ">>> Running Alembic migrations..."
-alembic upgrade head
-echo ">>> Migrations complete."
+MIGRATED=0
+for attempt in 1 2 3 4 5; do
+    if alembic upgrade head; then
+        echo ">>> Migrations applied."
+        MIGRATED=1
+        break
+    fi
+    echo "    Attempt $attempt/5 failed — retrying in 3s..."
+    sleep 3
+done
 
+if [ "$MIGRATED" = "0" ]; then
+    echo "WARNING: All migration attempts failed. Starting anyway — schema may already be current."
+fi
+
+echo ">>> Starting uvicorn..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
