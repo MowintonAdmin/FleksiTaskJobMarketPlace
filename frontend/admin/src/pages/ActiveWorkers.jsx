@@ -193,7 +193,7 @@ export default function ActiveWorkers() {
     </div>
   )
 }
-  const [workers, setWorkers] = useState([])
+
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(null)
 
