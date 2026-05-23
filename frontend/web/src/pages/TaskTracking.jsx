@@ -30,9 +30,11 @@ export default function TaskTracking() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
-  // Elapsed seconds (ticks every second while active)
+  // Elapsed seconds (ticks every 250 ms while active)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef(null)
+  // Keeps the effective cap accessible inside setInterval closures and effects
+  const maxSecondsRef = useRef(0)
 
   // Checkout form
   const [proofNotes, setProofNotes] = useState('')
@@ -44,13 +46,24 @@ export default function TaskTracking() {
 
   const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
+    // Coerce to a safe number; treat 0 / NaN / undefined as "no cap"
+    const cap = Number(maxSeconds) > 0 ? Number(maxSeconds) : 0
+    maxSecondsRef.current = cap
     const origin = parseUTC(checkedInAt).getTime()
+    // Check immediately — if we are already at or past the limit don't
+    // even start the interval, just freeze and show checkout.
+    const nowSecs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
+    if (cap > 0 && nowSecs >= cap) {
+      setElapsed(cap)
+      setShowCheckout(true)
+      return
+    }
     // Poll at 250 ms so the display never lags more than a quarter-second
     // behind the real elapsed time, even when setInterval drifts.
     timerRef.current = setInterval(() => {
       const secs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
-      if (maxSeconds > 0 && secs >= maxSeconds) {
-        setElapsed(maxSeconds)
+      if (cap > 0 && secs >= cap) {
+        setElapsed(cap)
         clearInterval(timerRef.current)
         setShowCheckout(true)
       } else {
@@ -58,6 +71,17 @@ export default function TaskTracking() {
       }
     }, 250)
   }, [])
+
+  // Safety-net: if elapsed ever reaches the cap (for any reason the interval
+  // missed it), force-stop the timer and show the checkout form.
+  useEffect(() => {
+    const cap = maxSecondsRef.current
+    if (session?.status === 'active' && cap > 0 && elapsed >= cap && !showCheckout) {
+      clearInterval(timerRef.current)
+      setElapsed(cap)
+      setShowCheckout(true)
+    }
+  }, [elapsed, session, showCheckout])
 
   // Stop the timer whenever the checkout form is shown
   useEffect(() => {
@@ -193,9 +217,12 @@ export default function TaskTracking() {
 
   const payRate = task?.pay_rate_per_minute ?? 0
   const maxEarnings = payRate * (task?.estimated_duration_minutes ?? 0)
+  // Cap elapsed so the display never counts past the limit even for one frame
+  const limitSeconds = (task?.estimated_duration_minutes ?? 0) * 60
+  const displayElapsed = limitSeconds > 0 ? Math.min(elapsed, limitSeconds) : elapsed
   const currentEarnings = (session?.status === 'completed' || session?.status === 'paused')
     ? session.earnings
-    : Math.min((elapsed / 60) * payRate, maxEarnings || Infinity)
+    : Math.min((displayElapsed / 60) * payRate, maxEarnings || Infinity)
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-5">
@@ -249,11 +276,11 @@ export default function TaskTracking() {
           <div className="card bg-green-50 border border-green-200 text-center space-y-2">
             <p className="text-xs text-green-600 uppercase tracking-wide font-semibold">Live Earnings</p>
             <p className="text-4xl font-bold text-green-700">RM {currentEarnings.toFixed(2)}</p>
-            <p className="text-sm text-green-600">⏱ {formatDuration(elapsed)} elapsed</p>
+            <p className="text-sm text-green-600">⏱ {formatDuration(displayElapsed)} elapsed</p>
             <div className="grid grid-cols-2 gap-3 text-left text-xs text-green-700 bg-white/70 rounded-xl p-3 border border-green-100">
               <div>
                 <p className="uppercase tracking-wide text-green-500">Worked so far</p>
-                <p className="font-semibold text-sm">{formatDuration(elapsed)}</p>
+                <p className="font-semibold text-sm">{formatDuration(displayElapsed)}</p>
               </div>
               <div>
                 <p className="uppercase tracking-wide text-green-500">Minimum required</p>
@@ -263,7 +290,7 @@ export default function TaskTracking() {
             <div className="w-full bg-green-100 rounded-full h-2 mt-2">
               <div
                 className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min(100, (elapsed / (task.estimated_duration_minutes * 60)) * 100)}%` }}
+                style={{ width: `${Math.min(100, (displayElapsed / (limitSeconds || 1)) * 100)}%` }}
               />
             </div>
             <p className="text-xs text-green-500">Est. total: RM {(payRate * task.estimated_duration_minutes).toFixed(2)}</p>
