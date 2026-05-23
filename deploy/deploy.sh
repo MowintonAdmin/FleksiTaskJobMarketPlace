@@ -45,9 +45,10 @@ fi
 echo ">>> Building and starting containers..."
 $COMPOSE up -d --build
 
-# ── 3. Run database migrations ──────────────────────────────────────────
-echo ">>> Running database migrations..."
-$COMPOSE exec -T backend alembic upgrade head
+# ── 3. Database migrations ───────────────────────────────────────────────
+# Migrations now run automatically inside the backend container via
+# docker-entrypoint.sh (alembic upgrade head before uvicorn starts).
+# Wait for the backend to become healthy (which implies migrations passed).
 
 # ── 4. Health check ─────────────────────────────────────────────────────
 echo ">>> Waiting for backend to be healthy..."
