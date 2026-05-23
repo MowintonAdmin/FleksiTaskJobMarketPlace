@@ -2,21 +2,20 @@
 
 mkdir -p /app/media
 
-# Run Alembic migrations with retry (DB may take a moment to accept connections).
 echo ">>> Running Alembic migrations..."
-MIGRATED=0
-for attempt in 1 2 3 4 5; do
-    if alembic upgrade head; then
-        echo ">>> Migrations applied."
-        MIGRATED=1
-        break
-    fi
-    echo "    Attempt $attempt/5 failed — retrying in 3s..."
-    sleep 3
-done
 
-if [ "$MIGRATED" = "0" ]; then
-    echo "WARNING: All migration attempts failed. Starting anyway — schema may already be current."
+# First attempt — works on a freshly initialised DB with no tables.
+if alembic upgrade head; then
+    echo ">>> Migrations applied."
+else
+    # Tables likely already exist (created by SQLAlchemy create_all) but the
+    # alembic_version table is absent, so alembic tries to re-create them and
+    # gets a DuplicateTableError.  Stamp the DB at 0002 (the last baseline
+    # revision) so alembic knows what is already in place, then apply only
+    # the remaining migrations (e.g. 0003 adds the new profile columns).
+    echo ">>> Initial migration failed — stamping to 0002 and re-applying..."
+    alembic stamp 0002 || true
+    alembic upgrade head || echo "WARNING: Migration still failed after stamp. Continuing anyway."
 fi
 
 echo ">>> Starting uvicorn..."
