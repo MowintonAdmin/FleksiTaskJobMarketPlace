@@ -314,7 +314,17 @@ export default function Wallet() {
               <p className="font-medium">No transactions yet</p>
               <p className="text-xs mt-1">Complete tasks to start earning</p>
             </div>
-          ) : transactions.map(txn => {
+          ) : (() => {
+            const resolvedWithdrawalIds = new Set(
+              transactions
+                .filter(t => t.type === 'WITHDRAWAL_COMPLETED' || t.type === 'WITHDRAWAL_REJECTED')
+                .map(t => t.reference_id)
+                .filter(Boolean)
+            )
+            return transactions.filter(txn =>
+              !(txn.type === 'WITHDRAWAL_PENDING' && resolvedWithdrawalIds.has(txn.reference_id))
+            )
+          })().map(txn => {
             const s = TXN_STYLES[txn.type] || { icon: '•', color: 'text-gray-600', sign: '' }
             return (
               <div key={txn.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3">
