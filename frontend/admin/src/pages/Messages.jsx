@@ -209,6 +209,29 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Poll for read-receipt updates every 3 s while the chat is open
+  useEffect(() => {
+    if (!conversation) return
+    const id = setInterval(async () => {
+      try {
+        const { unread_ids } = await messagesApi.getReadStatuses(conversation.user_id)
+        const unreadSet = new Set(unread_ids)
+        setMessages((prev) => {
+          const hasChange = prev.some(
+            (m) => m.sender_id === currentUserId && !m.is_read && !unreadSet.has(String(m.id))
+          )
+          if (!hasChange) return prev
+          return prev.map((m) =>
+            m.sender_id === currentUserId && !m.is_read && !unreadSet.has(String(m.id))
+              ? { ...m, is_read: true }
+              : m
+          )
+        })
+      } catch { /* silent */ }
+    }, 3000)
+    return () => clearInterval(id)
+  }, [conversation, currentUserId])
+
   const handleSend = async (e) => {
     e.preventDefault()
     if (!body.trim() || sending) return

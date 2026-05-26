@@ -164,6 +164,23 @@ async def unread_count(
     return {"count": result.scalar_one()}
 
 
+@router.get("/conversation/{user_id}/read-statuses")
+async def get_read_statuses(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return IDs of messages sent by current_user to user_id that are still unread."""
+    result = await db.execute(
+        select(Message.id).where(
+            Message.sender_id == current_user.id,
+            Message.recipient_id == user_id,
+            Message.is_read == False,  # noqa: E712
+        )
+    )
+    return {"unread_ids": [str(row.id) for row in result.all()]}
+
+
 @router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_message(
     message_id: uuid.UUID,
