@@ -101,6 +101,10 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
+  const msgCountRef = useRef(0)
+  const msgIdsRef = useRef(new Set())
+  const onNewMsgRef = useRef(onNewMessage)
+  useEffect(() => { onNewMsgRef.current = onNewMessage }, [onNewMessage])
 
   const handleDelete = async (messageId) => {
     if (!window.confirm('Delete this message?')) return
@@ -127,32 +131,46 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
 
   useEffect(() => { load() }, [load])
 
+  // Scroll to bottom only when messages are added (not on is_read-only updates)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const count = messages.length
+    if (count > msgCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: msgCountRef.current === 0 ? 'instant' : 'smooth' })
+    }
+    msgCountRef.current = count
+    msgIdsRef.current = new Set(messages.map((m) => m.id))
   }, [messages])
 
-  // Poll every 3 s to pick up read-receipts and new incoming messages
+  // Poll every 3 s for new messages and read receipts
   useEffect(() => {
     if (!conversation) return
     const intervalId = setInterval(async () => {
       try {
         const fresh = await messagesApi.getConversation(conversation.user_id)
+        // Detect new messages before updating state (uses latest snapshot via ref)
+        const prevIds = msgIdsRef.current
+        const hasNewMsgs = fresh.some((m) => !prevIds.has(m.id))
+
         setMessages((prev) => {
           const prevMap = new Map(prev.map((m) => [m.id, m]))
           const freshMap = new Map(fresh.map((m) => [m.id, m]))
-          const hasChange = fresh.some((m) => {
-            const existing = prevMap.get(m.id)
-            return !existing || existing.is_read !== m.is_read
-          })
-          if (!hasChange) return prev
-          // Update is_read for existing messages; append genuinely new ones
-          const updated = prev.map((m) => {
-            const f = freshMap.get(m.id)
-            return f && f.is_read !== m.is_read ? { ...m, is_read: f.is_read } : m
-          })
           const newMsgs = fresh.filter((m) => !prevMap.has(m.id))
-          return newMsgs.length ? [...updated, ...newMsgs] : updated
+          const hasReadChange = fresh.some((m) => {
+            const ex = prevMap.get(m.id)
+            return ex && ex.is_read !== m.is_read
+          })
+          if (newMsgs.length === 0 && !hasReadChange) return prev
+          const updated = hasReadChange
+            ? prev.map((m) => {
+                const f = freshMap.get(m.id)
+                return f && f.is_read !== m.is_read ? { ...m, is_read: f.is_read } : m
+              })
+            : prev
+          return newMsgs.length > 0 ? [...updated, ...newMsgs] : updated
         })
+
+        // Refresh the conversations sidebar when new messages arrive
+        if (hasNewMsgs) onNewMsgRef.current?.()
       } catch { /* silent */ }
     }, 3000)
     return () => clearInterval(intervalId)
