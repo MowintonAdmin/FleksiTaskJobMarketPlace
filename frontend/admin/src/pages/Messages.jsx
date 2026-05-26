@@ -209,28 +209,32 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Poll for read-receipt updates every 3 s while the chat is open
+  // Poll every 3 s to pick up read-receipts and new incoming messages
   useEffect(() => {
     if (!conversation) return
-    const id = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       try {
-        const { unread_ids } = await messagesApi.getReadStatuses(conversation.user_id)
-        const unreadSet = new Set(unread_ids)
+        const fresh = await messagesApi.getConversation(conversation.user_id)
         setMessages((prev) => {
-          const hasChange = prev.some(
-            (m) => m.sender_id === currentUserId && !m.is_read && !unreadSet.has(String(m.id))
-          )
+          const prevMap = new Map(prev.map((m) => [m.id, m]))
+          const freshMap = new Map(fresh.map((m) => [m.id, m]))
+          const hasChange = fresh.some((m) => {
+            const existing = prevMap.get(m.id)
+            return !existing || existing.is_read !== m.is_read
+          })
           if (!hasChange) return prev
-          return prev.map((m) =>
-            m.sender_id === currentUserId && !m.is_read && !unreadSet.has(String(m.id))
-              ? { ...m, is_read: true }
-              : m
-          )
+          // Update is_read for existing messages; append genuinely new ones
+          const updated = prev.map((m) => {
+            const f = freshMap.get(m.id)
+            return f && f.is_read !== m.is_read ? { ...m, is_read: f.is_read } : m
+          })
+          const newMsgs = fresh.filter((m) => !prevMap.has(m.id))
+          return newMsgs.length ? [...updated, ...newMsgs] : updated
         })
       } catch { /* silent */ }
     }, 3000)
-    return () => clearInterval(id)
-  }, [conversation, currentUserId])
+    return () => clearInterval(intervalId)
+  }, [conversation])
 
   const handleSend = async (e) => {
     e.preventDefault()
