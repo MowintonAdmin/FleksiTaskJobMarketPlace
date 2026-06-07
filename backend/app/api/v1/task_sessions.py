@@ -41,6 +41,10 @@ async def finalize_checkout(
 ) -> TaskSessionResponse:
     now = datetime.now(timezone.utc)
     elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+    # Cap elapsed time at the task's duration limit so the worker is never billed
+    # for time spent filling out the checkout form after the timer auto-stopped.
+    if task.estimated_duration_minutes > 0:
+        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
     earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
     minimum_duration_met = elapsed_minutes >= task.estimated_duration_minutes
 
@@ -263,6 +267,9 @@ async def pause_session(
 
     now = datetime.now(timezone.utc)
     elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+    # Cap at task duration limit to prevent over-billing
+    if task.estimated_duration_minutes > 0:
+        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
     session.checked_out_at = now
     session.earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
     session.status = SessionStatus.PAUSED
@@ -320,6 +327,9 @@ async def get_earnings(
     now = datetime.now(timezone.utc)
     ref_time = session.checked_out_at or now
     elapsed_minutes = (ref_time.replace(tzinfo=timezone.utc) - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+    # Cap at task duration limit so live earnings display matches what will be paid
+    if task.estimated_duration_minutes > 0:
+        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
     current_earnings = session.earnings if session.status == SessionStatus.COMPLETED else round(elapsed_minutes * task.pay_rate_per_minute, 2)
 
     return EarningsResponse(
