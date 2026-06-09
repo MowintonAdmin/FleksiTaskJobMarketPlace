@@ -74,26 +74,30 @@ if [ ! -f "$REDEPLOY_SCRIPT" ]; then
   exit 1
 fi
 
-echo "Applying secret $SECRET_NAME in namespace $NAMESPACE"
+# Use kubectl patch with a merge strategy so that only GOOGLE_CLIENT_ID (and
+# optionally GOOGLE_CLIENT_SECRET) are updated — all other keys in the secret
+# (SECRET_KEY, DATABASE_URL, REDIS_URL, etc.) are preserved.
+B64_CLIENT_ID=$(printf '%s' "$GOOGLE_CLIENT_ID" | base64 | tr -d '\n')
 
+echo "Patching secret $SECRET_NAME in namespace $NAMESPACE"
 if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
-  kubectl create secret generic "$SECRET_NAME" \
-    --from-literal="GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
-    --from-literal="GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" \
-    -n "$NAMESPACE" \
-    --dry-run=client \
-    -o yaml | kubectl apply -f -
+  B64_CLIENT_SECRET=$(printf '%s' "$GOOGLE_CLIENT_SECRET" | base64 | tr -d '\n')
+  kubectl patch secret "$SECRET_NAME" -n "$NAMESPACE" --type merge \
+    --patch "{\"data\":{\"GOOGLE_CLIENT_ID\":\"$B64_CLIENT_ID\",\"GOOGLE_CLIENT_SECRET\":\"$B64_CLIENT_SECRET\"}}"
 else
-  kubectl create secret generic "$SECRET_NAME" \
-    --from-literal="GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" \
-    -n "$NAMESPACE" \
-    --dry-run=client \
-    -o yaml | kubectl apply -f -
+  kubectl patch secret "$SECRET_NAME" -n "$NAMESPACE" --type merge \
+    --patch "{\"data\":{\"GOOGLE_CLIENT_ID\":\"$B64_CLIENT_ID\"}}"
 fi
 
+# Both the frontend and backend pods inject env vars at startup time via
+# envFrom/secretRef — they must be restarted to pick up the updated secret.
 echo "Restarting frontend deployment to pick up updated secret env"
 kubectl rollout restart deployment/frontend-web -n "$NAMESPACE"
 kubectl rollout status deployment/frontend-web -n "$NAMESPACE" --timeout=120s
+
+echo "Restarting backend deployment to pick up updated GOOGLE_CLIENT_ID"
+kubectl rollout restart deployment/backend -n "$NAMESPACE"
+kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=120s
 
 echo "Rebuilding and redeploying web frontend"
 "$REDEPLOY_SCRIPT" --registry "$REGISTRY" --tag "$TAG" --namespace "$NAMESPACE"

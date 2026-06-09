@@ -17,7 +17,7 @@ function ConfirmModal({ worker, onConfirm, onCancel, loading }) {
           This will immediately end <span className="font-semibold">{worker.worker_name || worker.worker_email}</span>'s
           active session on <span className="font-semibold">"{worker.task_title}"</span>.
           They will be credited for <span className="font-semibold">{elapsed(worker.elapsed_minutes)}</span> of work
-          (â‰ˆ RM {worker.current_earnings.toFixed(2)}) and notified via message.
+          (≈ RM {worker.current_earnings.toFixed(2)}) and notified via message.
         </p>
         <div className="flex gap-3 pt-1">
           <button
@@ -32,7 +32,7 @@ function ConfirmModal({ worker, onConfirm, onCancel, loading }) {
             disabled={loading}
             className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
           >
-            {loading ? 'Stoppingâ€¦' : 'â¹ Force Stop'}
+            {loading ? 'Stopping…' : '⏹ Force Stop'}
           </button>
         </div>
       </div>
@@ -93,13 +93,13 @@ export default function ActiveWorkers() {
           </h1>
           {lastRefresh && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Last updated {lastRefresh.toLocaleTimeString()} Â· auto-refreshes every 30s
+              Last updated {lastRefresh.toLocaleTimeString()} · auto-refreshes every 30s
             </p>
           )}
         </div>
         <button onClick={load}
           className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-          â†» Refresh
+          ↻ Refresh
         </button>
       </div>
 
@@ -121,7 +121,7 @@ export default function ActiveWorkers() {
         </div>
       ) : workers.length === 0 ? (
         <div className="bg-white rounded-xl p-16 text-center shadow-sm border border-gray-100">
-          <p className="text-5xl mb-4">ðŸ˜´</p>
+          <p className="text-5xl mb-4">😴</p>
           <p className="font-semibold text-gray-500 text-lg">No workers active right now</p>
           <p className="text-sm text-gray-400 mt-1">Workers who have checked in will appear here</p>
         </div>
@@ -138,7 +138,7 @@ export default function ActiveWorkers() {
                     </div>
                 }
                 <div className="min-w-0">
-                  <p className="font-bold text-gray-900 truncate">{w.worker_name || 'â€”'}</p>
+                  <p className="font-bold text-gray-900 truncate">{w.worker_name || '—'}</p>
                   <p className="text-xs text-gray-400 truncate">{w.worker_email}</p>
                 </div>
                 <span className="ml-auto flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium shrink-0">
@@ -149,8 +149,8 @@ export default function ActiveWorkers() {
 
               {/* Task info */}
               <div className="bg-gray-50 rounded-lg p-3 mb-4 text-sm space-y-1">
-                <p className="font-medium text-gray-800 truncate">ðŸ“‹ {w.task_title}</p>
-                {w.task_location && <p className="text-xs text-gray-500">ðŸ“ {w.task_location}</p>}
+                <p className="font-medium text-gray-800 truncate">📋 {w.task_title}</p>
+                {w.task_location && <p className="text-xs text-gray-500">📍 {w.task_location}</p>}
               </div>
 
               {/* Metrics */}
@@ -175,7 +175,7 @@ export default function ActiveWorkers() {
                 onClick={() => setConfirmTarget(w)}
                 className="w-full py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
               >
-                â¹ Force Stop Session
+                ⏹ Force Stop Session
               </button>
             </div>
           ))}
