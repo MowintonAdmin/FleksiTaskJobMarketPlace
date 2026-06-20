@@ -1,0 +1,9 @@
+// Replace this file with your real GoogleService-Info.plist downloaded from:
+// https://console.firebase.google.com → your project → iOS app → Download GoogleService-Info.plist
+//
+// Steps:
+// 1. Go to Firebase Console → Project Settings → Add iOS app
+//    Bundle ID: com.fleksitask.app
+// 2. Download GoogleService-Info.plist
+// 3. Replace this file with the downloaded one
+// 4. Copy the REVERSED_CLIENT_ID value into ios/Runner/Info.plist under CFBundleURLSchemes

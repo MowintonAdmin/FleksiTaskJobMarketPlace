@@ -188,7 +188,9 @@ async def admin_active_workers(
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
         task = task_result.scalar_one_or_none()
         elapsed = round((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
-        current_earnings = round(elapsed * (task.pay_rate_per_minute if task else 0), 2)
+        cap = float(task.estimated_duration_minutes) if task and task.estimated_duration_minutes > 0 else None
+        capped_elapsed = round(min(elapsed, cap), 1) if cap else elapsed
+        current_earnings = round(capped_elapsed * (task.pay_rate_per_minute if task else 0), 2)
         out.append({
             "session_id": str(s.id),
             "worker_id": str(s.worker_id),
@@ -199,7 +201,7 @@ async def admin_active_workers(
             "task_title": task.title if task else "Unknown",
             "task_location": task.location if task else "",
             "checked_in_at": s.checked_in_at.isoformat(),
-            "elapsed_minutes": elapsed,
+            "elapsed_minutes": capped_elapsed,
             "current_earnings": current_earnings,
         })
     return out

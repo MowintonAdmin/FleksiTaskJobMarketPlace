@@ -54,7 +54,21 @@ async def get_wallet(
         task = task_result.scalar_one_or_none()
         if task:
             elapsed = (now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
+            if task.estimated_duration_minutes > 0:
+                elapsed = min(elapsed, float(task.estimated_duration_minutes))
             pending_balance += elapsed * task.pay_rate_per_minute
+
+    # Also surface earnings locked in paused sessions so they don't silently
+    # disappear from the worker's view while the task is on hold.
+    paused_sessions_result = await db.execute(
+        select(TaskSession).where(
+            TaskSession.worker_id == current_user.id,
+            TaskSession.status == SessionStatus.PAUSED,
+        )
+    )
+    for s in paused_sessions_result.scalars().all():
+        if s.earnings:
+            pending_balance += s.earnings
 
     # Build response manually (pending_balance is computed, not stored)
     resp = WalletResponse(

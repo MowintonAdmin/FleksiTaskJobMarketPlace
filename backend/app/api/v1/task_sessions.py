@@ -22,13 +22,22 @@ router = APIRouter(prefix="/task-sessions", tags=["Task Tracking"])
 settings = get_settings()
 
 
-def get_worked_minutes(session: TaskSession) -> float:
+def get_worked_minutes(session: TaskSession, cap_minutes: float | None = None) -> float:
+    """Return the accumulated work time for a paused session.
+
+    cap_minutes should be task.estimated_duration_minutes so that a worker who
+    paused after the timer hit the limit isn't backdated past the cap on resume,
+    which would otherwise cause the timer to snap straight to the cap again.
+    """
     if not session.checked_in_at or not session.checked_out_at:
         return 0.0
-    return max(
+    raw = max(
         0.0,
         (session.checked_out_at.replace(tzinfo=timezone.utc) - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60,
     )
+    if cap_minutes and cap_minutes > 0:
+        return min(raw, cap_minutes)
+    return raw
 
 
 async def finalize_checkout(
@@ -141,8 +150,13 @@ async def check_in(
     )
     previous_session = previous_result.scalars().first()
     if previous_session and previous_session.status == SessionStatus.PAUSED:
-        # Resume a paused session — preserve time worked so far
-        worked_minutes = get_worked_minutes(previous_session)
+        # Resume a paused session — preserve time worked so far, capped at the
+        # task's duration limit so the backdated checked_in_at never overshoots
+        # the cap and triggers an instant checkout on the next request.
+        worked_minutes = get_worked_minutes(
+            previous_session,
+            cap_minutes=float(task.estimated_duration_minutes) if task.estimated_duration_minutes > 0 else None,
+        )
         previous_session.checked_in_at = datetime.now(timezone.utc) - timedelta(minutes=worked_minutes)
         previous_session.checked_out_at = None
         previous_session.earnings = None

@@ -1,0 +1,54 @@
+name: fleksitask
+description: FleksiTask - Flexible Job Marketplace (Android & iOS)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP & networking
+  dio: ^5.7.0
+  connectivity_plus: ^6.1.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Navigation
+  go_router: ^14.6.2
+
+  # Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+
+  # Google Sign-In & Firebase
+  google_sign_in: ^6.2.2
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+
+  # Image handling
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+
+  # UI utilities
+  intl: ^0.19.0
+  timeago: ^3.7.0
+  flutter_svg: ^2.0.10+1
+  shimmer: ^3.0.0
+  fluttertoast: ^8.2.9
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
