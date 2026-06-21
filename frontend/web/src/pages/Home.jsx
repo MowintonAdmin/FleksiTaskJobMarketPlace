@@ -57,8 +57,8 @@ export default function Home() {
 
         {/* Android app download */}
         <div className="mt-4 inline-flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-gray-800 transition-colors">
-          <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.523 15.341 14.03 9h-4.06l-3.493 6.341A8.977 8.977 0 0 1 3 12C3 7.029 7.029 3 12 3s9 4.029 9 9a8.977 8.977 0 0 1-3.477 3.341ZM12 21a8.963 8.963 0 0 1-5.294-1.706L9.03 15h5.94l2.324 4.294A8.963 8.963 0 0 1 12 21Z"/>
+          <svg className="w-7 h-7 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5S11 23.33 11 22.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zm-2.5-1C2.67 17 2 16.33 2 15.5v-7C2 7.67 2.67 7 3.5 7S5 7.67 5 8.5v7c0 .83-.67 1.5-1.5 1.5zm17 0c-.83 0-1.5-.67-1.5-1.5v-7c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v7c0 .83-.67 1.5-1.5 1.5zM15.53 2.16l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C7.08 3.04 6 4.6 6 6.5h12c0-1.9-1.08-3.46-2.47-4.34zM10 5H9V4h1v1zm5 0h-1V4h1v1z"/>
           </svg>
           <a
             href="/media/downloads/fleksitask.apk"
