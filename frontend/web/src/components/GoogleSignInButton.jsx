@@ -73,7 +73,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
             console.error('[Google Sign-In]', type)
             if (type === 'suppressed_by_user') return
             if (type === 'secure_http_required') {
-              setLoadError('Google Sign-In requires HTTPS. Please use https://fleksitask.com.')
+              setLoadError('Google Sign-In requires HTTPS. Please use https://flekxi.my.')
             } else if (type === 'unregistered_origin' || type === 'origin_mismatch') {
               setLoadError('This domain is not authorized in Google Cloud Console. Contact support.')
             } else {

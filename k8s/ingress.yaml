@@ -11,12 +11,13 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - fleksitask.com
-        - admin.fleksitask.com
-        - api.fleksitask.com
+        - flekxi.my
+        - www.flekxi.my
+        - admin.flekxi.my
+        - api.flekxi.my
       secretName: fleksitask-tls
   rules:
-    - host: fleksitask.com
+    - host: flekxi.my
       http:
         paths:
           - path: /api
@@ -40,7 +41,7 @@ spec:
                 name: frontend-web-service
                 port:
                   number: 80
-    - host: admin.fleksitask.com
+    - host: admin.flekxi.my
       http:
         paths:
           - path: /
@@ -50,7 +51,7 @@ spec:
                 name: admin-service
                 port:
                   number: 80
-    - host: api.fleksitask.com
+    - host: api.flekxi.my
       http:
         paths:
           - path: /

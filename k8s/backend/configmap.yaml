@@ -7,8 +7,8 @@ data:
   DEBUG: "false"
   MEDIA_DIR: "/app/media"
   MAX_UPLOAD_SIZE_MB: "5"
-  ALLOWED_ORIGINS: '["https://fleksitask.com","https://admin.fleksitask.com"]'
-  FRONTEND_URL: "https://fleksitask.com"
+  ALLOWED_ORIGINS: '["https://flekxi.my","https://www.flekxi.my","https://admin.flekxi.my"]'
+  FRONTEND_URL: "https://flekxi.my"
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   SMTP_TLS: "true"

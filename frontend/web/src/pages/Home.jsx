@@ -54,6 +54,21 @@ export default function Home() {
           Find Flexible Work <span className="text-primary-600">Near You</span>
         </h1>
         <p className="mt-2 text-gray-600 text-lg">Browse tasks, apply in one tap, and start earning today.</p>
+
+        {/* Android app download */}
+        <div className="mt-4 inline-flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-gray-800 transition-colors">
+          <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.523 15.341 14.03 9h-4.06l-3.493 6.341A8.977 8.977 0 0 1 3 12C3 7.029 7.029 3 12 3s9 4.029 9 9a8.977 8.977 0 0 1-3.477 3.341ZM12 21a8.963 8.963 0 0 1-5.294-1.706L9.03 15h5.94l2.324 4.294A8.963 8.963 0 0 1 12 21Z"/>
+          </svg>
+          <a
+            href="/media/downloads/fleksitask.apk"
+            download="FleksiTask.apk"
+            className="text-sm font-semibold leading-tight"
+          >
+            <span className="block text-xs text-gray-400 font-normal">Get it on</span>
+            Android
+          </a>
+        </div>
       </div>
 
       {/* Filters */}
