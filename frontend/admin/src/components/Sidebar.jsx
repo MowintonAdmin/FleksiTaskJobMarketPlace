@@ -43,7 +43,7 @@ export default function Sidebar({ open, onClose }) {
       >
         <div className="px-6 py-5 border-b border-gray-700 flex items-center justify-between">
           <div>
-            <p className="font-bold text-lg">⚡ FleksiTask</p>
+            <p className="font-bold text-lg">⚡ FlekxiTask</p>
             <p className="text-xs text-gray-400 mt-0.5">Admin Dashboard</p>
           </div>
           {/* Close button — mobile only */}

@@ -33,7 +33,7 @@ export default function Register() {
     setFormError(null)
     try {
       await dispatch(loginWithGoogle(idToken)).unwrap()
-      toast.success('Signed in with Google. Welcome to FleksiTask.')
+      toast.success('Signed in with Google. Welcome to FlekxiTask.')
       navigate('/')
     } catch (err) {
       const message = err || 'Google sign-in failed'
@@ -62,7 +62,7 @@ export default function Register() {
         password: form.password,
         location: form.location.trim() || undefined,
       })).unwrap()
-      toast.success('Account created! Welcome to FleksiTask.')
+      toast.success('Account created! Welcome to FlekxiTask.')
       navigate('/')
     } catch (err) {
       setFormError(err || 'Registration failed')

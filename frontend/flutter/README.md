@@ -1,6 +1,6 @@
-# FleksiTask Flutter Android App
+# FlekxiTask Flutter Android App
 
-A Flutter Android application for the FleksiTask Job Marketplace, mirroring all features of the web frontend.
+A Flutter Android application for the FlekxiTask Job Marketplace, mirroring all features of the web frontend.
 
 ## Features
 
@@ -52,7 +52,7 @@ lib/
 ### 1. Firebase / Google Sign-In
 
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Add an Android app with package `com.fleksitask.app`
+2. Add an Android app with package `com.flekxitask.app`
 3. Download `google-services.json` and replace `android/app/google-services.json`
 4. Enable **Google Sign-In** and **Email/Password** in Firebase Auth
 

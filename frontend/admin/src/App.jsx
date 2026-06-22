@@ -43,7 +43,7 @@ function AdminShell() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="font-bold text-gray-800">⚡ FleksiTask Admin</span>
+          <span className="font-bold text-gray-800">⚡ FlekxiTask Admin</span>
         </header>
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100">

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>FleksiTask</string>
+	<string>FlekxiTask</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>fleksitask</string>
+	<string>flekxitask</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,15 +46,15 @@
 
 	<!-- Permissions -->
 	<key>NSCameraUsageDescription</key>
-	<string>FleksiTask needs camera access to take proof photos when checking out from a task.</string>
+	<string>FlekxiTask needs camera access to take proof photos when checking out from a task.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>FleksiTask needs photo library access to upload your profile photo or task proof images.</string>
+	<string>FlekxiTask needs photo library access to upload your profile photo or task proof images.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>FleksiTask needs permission to save photos to your library.</string>
+	<string>FlekxiTask needs permission to save photos to your library.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>FleksiTask uses your location to show nearby tasks.</string>
+	<string>FlekxiTask uses your location to show nearby tasks.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>FleksiTask needs microphone access for video proof recording.</string>
+	<string>FlekxiTask needs microphone access for video proof recording.</string>
 
 	<!-- Google Sign-In URL scheme -->
 	<key>CFBundleURLTypes</key>

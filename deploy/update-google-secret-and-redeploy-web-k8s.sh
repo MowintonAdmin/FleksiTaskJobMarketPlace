@@ -10,8 +10,8 @@ Options:
   --tag TAG                          Image tag to build and deploy
   --google-client-id CLIENT_ID       Google Web OAuth client ID
   --google-client-secret SECRET      Optional Google client secret
-  --namespace NAMESPACE              Kubernetes namespace (default: fleksitask)
-  --secret-name NAME                 Kubernetes secret name (default: fleksitask-secrets)
+  --namespace NAMESPACE              Kubernetes namespace (default: flekxitask)
+  --secret-name NAME                 Kubernetes secret name (default: flekxitask-secrets)
   --help                             Show this help
 EOF
 }
@@ -20,8 +20,8 @@ REGISTRY=''
 TAG=''
 GOOGLE_CLIENT_ID=''
 GOOGLE_CLIENT_SECRET=''
-NAMESPACE='fleksitask'
-SECRET_NAME='fleksitask-secrets'
+NAMESPACE='flekxitask'
+SECRET_NAME='flekxitask-secrets'
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

@@ -11,11 +11,11 @@ import 'providers/wallet_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(const FleksiTaskApp());
+  runApp(const FlekxiTaskApp());
 }
 
-class FleksiTaskApp extends StatelessWidget {
-  const FleksiTaskApp({super.key});
+class FlekxiTaskApp extends StatelessWidget {
+  const FlekxiTaskApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +44,7 @@ class _AppRootState extends State<_AppRoot> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'FleksiTask',
+      title: 'FlekxiTask',
       theme: appTheme,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,

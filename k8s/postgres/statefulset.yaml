@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: fleksitask
+  namespace: flekxitask
 spec:
   serviceName: postgres-service
   replicas: 1
@@ -21,7 +21,7 @@ spec:
             - containerPort: 5432
           env:
             - name: POSTGRES_DB
-              value: fleksitask
+              value: flekxitask
             - name: POSTGRES_USER
               value: fleksi
             - name: POSTGRES_PASSWORD

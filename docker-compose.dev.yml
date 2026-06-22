@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: fleksitask
+      POSTGRES_DB: flekxitask
       POSTGRES_USER: fleksi
       POSTGRES_PASSWORD: password
     ports:
@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fleksi -d fleksitask"]
+      test: ["CMD-SHELL", "pg_isready -U fleksi -d flekxitask"]
       interval: 5s
       retries: 5
 

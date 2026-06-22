@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fleksitask-backend-config
-  namespace: fleksitask
+  name: flekxitask-backend-config
+  namespace: flekxitask
 data:
   DEBUG: "false"
   MEDIA_DIR: "/app/media"
@@ -12,4 +12,4 @@ data:
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   SMTP_TLS: "true"
-  SMTP_FROM: "FleksiTask <enghoo2004@gmail.com>"
+  SMTP_FROM: "FlekxiTask <enghoo2004@gmail.com>"

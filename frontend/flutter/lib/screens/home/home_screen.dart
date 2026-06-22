@@ -50,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FleksiTask'),
+        title: const Text('FlekxiTask'),
         actions: [
           Stack(
             children: [

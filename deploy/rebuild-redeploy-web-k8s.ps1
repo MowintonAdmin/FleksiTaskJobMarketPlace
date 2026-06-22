@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Tag,
 
-    [string]$Namespace = 'fleksitask',
+    [string]$Namespace = 'flekxitask',
     [string]$ImageName = 'frontend-web',
     [string]$DeploymentName = 'frontend-web',
     [string]$ContainerName = 'frontend-web'

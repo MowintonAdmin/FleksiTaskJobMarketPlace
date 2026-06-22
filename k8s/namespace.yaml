@@ -1,6 +1,6 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: fleksitask
+  name: flekxitask
   labels:
-    app.kubernetes.io/part-of: fleksitask
+    app.kubernetes.io/part-of: flekxitask

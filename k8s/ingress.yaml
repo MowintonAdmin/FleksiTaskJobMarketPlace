@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: fleksitask-ingress
-  namespace: fleksitask
+  name: flekxitask-ingress
+  namespace: flekxitask
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/use-regex: "true"
@@ -15,7 +15,7 @@ spec:
         - www.flekxi.my
         - admin.flekxi.my
         - api.flekxi.my
-      secretName: fleksitask-tls
+      secretName: flekxitask-tls
   rules:
     - host: flekxi.my
       http:

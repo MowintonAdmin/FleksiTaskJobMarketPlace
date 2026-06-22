@@ -20,7 +20,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>⚡</Text>
-      <Text style={styles.title}>FleksiTask</Text>
+      <Text style={styles.title}>FlekxiTask</Text>
       <Text style={styles.subtitle}>Find flexible work near you</Text>
 
       <View style={styles.card}>

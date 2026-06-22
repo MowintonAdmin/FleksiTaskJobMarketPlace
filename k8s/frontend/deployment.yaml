@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend-web
-  namespace: fleksitask
+  namespace: flekxitask
 spec:
   replicas: 2
   selector:
@@ -15,12 +15,12 @@ spec:
     spec:
       containers:
         - name: frontend-web
-          image: fleksitask/frontend-web:latest
+          image: flekxitask/frontend-web:latest
           env:
             - name: VITE_GOOGLE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: fleksitask-secrets
+                  name: flekxitask-secrets
                   key: GOOGLE_CLIENT_ID
           ports:
             - containerPort: 80

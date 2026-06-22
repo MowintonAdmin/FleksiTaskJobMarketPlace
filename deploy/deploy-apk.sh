@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# FleksiTask — Build Flutter APK and upload to Hetzner server
+# FlekxiTask — Build Flutter APK and upload to Hetzner server
 # Usage: bash deploy/deploy-apk.sh <server-ip-or-host>
 # Example: bash deploy/deploy-apk.sh root@46.224.200.76
 # ============================================================
@@ -17,12 +17,12 @@ cd ../..
 
 echo ">>> Uploading APK to $SERVER..."
 # Create the downloads directory inside the backend media volume via the container
-ssh "$SERVER" "docker exec fleksitask-backend mkdir -p /app/media/downloads"
+ssh "$SERVER" "docker exec flekxitask-backend mkdir -p /app/media/downloads"
 
 # Copy APK to server then into the container
-scp "$APK_PATH" "${SERVER}:/tmp/fleksitask.apk"
-ssh "$SERVER" "docker cp /tmp/fleksitask.apk fleksitask-backend:/app/media/downloads/fleksitask.apk && rm /tmp/fleksitask.apk"
+scp "$APK_PATH" "${SERVER}:/tmp/flekxitask.apk"
+ssh "$SERVER" "docker cp /tmp/flekxitask.apk flekxitask-backend:/app/media/downloads/flekxitask.apk && rm /tmp/flekxitask.apk"
 
 echo ""
-echo "✅ Done! APK available at: https://<your-domain>/media/downloads/fleksitask.apk"
+echo "✅ Done! APK available at: https://<your-domain>/media/downloads/flekxitask.apk"
 echo "   Download button is already on the home page."

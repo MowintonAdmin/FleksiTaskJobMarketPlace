@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: admin-service
-  namespace: fleksitask
+  namespace: flekxitask
 spec:
   selector:
     app: admin-dashboard

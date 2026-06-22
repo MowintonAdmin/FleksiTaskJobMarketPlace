@@ -10,8 +10,8 @@ param(
     [string]$GoogleClientId,
 
     [string]$GoogleClientSecret = '',
-    [string]$Namespace = 'fleksitask',
-    [string]$SecretName = 'fleksitask-secrets'
+    [string]$Namespace = 'flekxitask',
+    [string]$SecretName = 'flekxitask-secrets'
 )
 
 Set-StrictMode -Version Latest

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: fleksitask
+  namespace: flekxitask
   labels:
     app: backend
 spec:
@@ -17,14 +17,14 @@ spec:
     spec:
       containers:
         - name: backend
-          image: fleksitask/backend:latest
+          image: flekxitask/backend:latest
           ports:
             - containerPort: 8000
           envFrom:
             - configMapRef:
-                name: fleksitask-backend-config
+                name: flekxitask-backend-config
             - secretRef:
-                name: fleksitask-secrets
+                name: flekxitask-secrets
           volumeMounts:
             - name: media-storage
               mountPath: /app/media

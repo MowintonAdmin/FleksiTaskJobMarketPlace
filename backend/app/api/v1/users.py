@@ -39,7 +39,7 @@ async def proxy_profile_photo(url: str = Query(..., min_length=1)):
     if not _is_allowed_external_photo_url(url):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid external photo URL")
 
-    request = Request(url, headers={"User-Agent": "FleksiTask/1.0"})
+    request = Request(url, headers={"User-Agent": "FlekxiTask/1.0"})
     try:
         with urlopen(request, timeout=PHOTO_PROXY_TIMEOUT_SECONDS) as upstream:
             content_type = upstream.headers.get_content_type()

@@ -21,7 +21,7 @@ export default function AdminLogin() {
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-6">
           <p className="text-3xl mb-2">⚡</p>
-          <h1 className="text-2xl font-bold text-gray-900">FleksiTask Admin</h1>
+          <h1 className="text-2xl font-bold text-gray-900">FlekxiTask Admin</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to admin dashboard</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">

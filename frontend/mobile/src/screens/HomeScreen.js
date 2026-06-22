@@ -25,7 +25,7 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>⚡ FleksiTask</Text>
+        <Text style={styles.logo}>⚡ FlekxiTask</Text>
         <Text style={styles.subtitle}>{total} tasks available near you</Text>
       </View>
 

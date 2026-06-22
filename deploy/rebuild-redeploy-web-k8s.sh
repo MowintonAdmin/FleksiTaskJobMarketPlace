@@ -8,7 +8,7 @@ Usage: $0 --registry REGISTRY --tag TAG [options]
 Options:
   --registry REGISTRY        Container registry, e.g. ghcr.io/your-org
   --tag TAG                  Image tag to build and deploy
-  --namespace NAMESPACE      Kubernetes namespace (default: fleksitask)
+  --namespace NAMESPACE      Kubernetes namespace (default: flekxitask)
   --image-name NAME          Image name (default: frontend-web)
   --deployment-name NAME     Deployment name (default: frontend-web)
   --container-name NAME      Container name (default: frontend-web)
@@ -18,7 +18,7 @@ EOF
 
 REGISTRY=''
 TAG=''
-NAMESPACE='fleksitask'
+NAMESPACE='flekxitask'
 IMAGE_NAME='frontend-web'
 DEPLOYMENT_NAME='frontend-web'
 CONTAINER_NAME='frontend-web'

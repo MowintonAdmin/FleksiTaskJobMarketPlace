@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "FleksiTask Job Marketplace"
+    APP_NAME: str = "FlekxiTask Job Marketplace"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     SECRET_KEY: str
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = ""          # e.g. "FleksiTask <noreply@fleksitask.com>"
+    SMTP_FROM: str = ""          # e.g. "FlekxiTask <noreply@flekxitask.com>"
     SMTP_TLS: bool = True        # STARTTLS on port 587; set False for SSL-only port 465
 
     class Config:

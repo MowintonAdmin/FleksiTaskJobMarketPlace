@@ -1,23 +1,23 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: fleksitask-postgres
+    container_name: flekxitask-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-fleksitask}
+      POSTGRES_DB: ${POSTGRES_DB:-flekxitask}
       POSTGRES_USER: ${POSTGRES_USER:-fleksi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleksi} -d ${POSTGRES_DB:-fleksitask}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleksi} -d ${POSTGRES_DB:-flekxitask}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: fleksitask-redis
+    container_name: flekxitask-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
@@ -32,7 +32,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fleksitask-backend
+    container_name: flekxitask-backend
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -53,7 +53,7 @@ services:
       args:
         VITE_API_BASE_URL: ${WEB_VITE_API_BASE_URL:-}
         VITE_GOOGLE_CLIENT_ID: ${WEB_VITE_GOOGLE_CLIENT_ID:-}
-    container_name: fleksitask-web
+    container_name: flekxitask-web
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: ${WEB_VITE_API_BASE_URL:-}
@@ -67,7 +67,7 @@ services:
     build:
       context: ./frontend/admin
       dockerfile: Dockerfile
-    container_name: fleksitask-admin
+    container_name: flekxitask-admin
     restart: unless-stopped
     ports:
       - "3001:80"
@@ -81,4 +81,4 @@ volumes:
 
 networks:
   default:
-    name: fleksitask-network
+    name: flekxitask-network

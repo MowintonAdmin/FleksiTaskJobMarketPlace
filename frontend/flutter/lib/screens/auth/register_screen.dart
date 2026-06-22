@@ -59,7 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Join FleksiTask', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Join FlekxiTask', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 6),
                 Text('Find flexible gigs near you', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray500)),
                 const SizedBox(height: 32),

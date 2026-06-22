@@ -43,22 +43,22 @@ async def send_email(to: str, subject: str, html_body: str, text_body: str | Non
 
 
 async def send_password_reset_email(to: str, reset_url: str) -> None:
-    subject = "Reset your FleksiTask password"
+    subject = "Reset your FlekxiTask password"
 
     text_body = (
         f"Hi,\n\n"
-        f"We received a request to reset your FleksiTask password.\n\n"
+        f"We received a request to reset your FlekxiTask password.\n\n"
         f"Click the link below to set a new password (valid for 1 hour):\n"
         f"{reset_url}\n\n"
         f"If you didn't request this, you can safely ignore this email.\n\n"
-        f"— The FleksiTask Team"
+        f"— The FlekxiTask Team"
     )
 
     html_body = f"""<!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;max-width:480px;margin:40px auto;color:#374151;">
   <div style="background:#f9fafb;border-radius:12px;padding:32px;">
-    <h2 style="margin:0 0 8px;color:#111827;">⚡ FleksiTask</h2>
+    <h2 style="margin:0 0 8px;color:#111827;">⚡ FlekxiTask</h2>
     <h3 style="margin:0 0 20px;font-weight:600;">Reset your password</h3>
     <p style="margin:0 0 24px;line-height:1.6;color:#6b7280;">
       We received a request to reset the password for your account.<br>

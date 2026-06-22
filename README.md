@@ -1,4 +1,4 @@
-# ⚡ FleksiTask Job Marketplace
+# ⚡ FlekxiTask Job Marketplace
 
 A full-stack part-time job marketplace connecting workers with flexible local tasks. Workers register instantly via Google, browse tasks near them, and apply with one tap.
 
@@ -7,7 +7,7 @@ A full-stack part-time job marketplace connecting workers with flexible local ta
 ## Architecture Overview
 
 ```
-FleksiTaskJobMarketplace/
+FlekxiTaskJobMarketplace/
 ├── backend/              # Python FastAPI REST API
 ├── frontend/
 │   ├── web/              # React + Tailwind CSS (workers & employers)
@@ -223,7 +223,7 @@ cp backend/.env.example backend/.env
 
 Set at least:
 - `SECRET_KEY`
-- `DATABASE_URL=postgresql+asyncpg://fleksi:<same-password-as-deploy-.env.prod>@postgres:5432/fleksitask`
+- `DATABASE_URL=postgresql+asyncpg://fleksi:<same-password-as-deploy-.env.prod>@postgres:5432/flekxitask`
 - `REDIS_URL=redis://redis:6379/0`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`

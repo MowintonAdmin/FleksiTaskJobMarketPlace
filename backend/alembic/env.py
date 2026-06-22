@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://fleksi:password@postgres:5432/fleksitask")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://fleksi:password@postgres:5432/flekxitask")
 
 
 def run_migrations_offline() -> None:

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: admin-dashboard
-  namespace: fleksitask
+  namespace: flekxitask
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: admin-dashboard
-          image: fleksitask/admin-dashboard:latest
+          image: flekxitask/admin-dashboard:latest
           ports:
             - containerPort: 80
           resources:

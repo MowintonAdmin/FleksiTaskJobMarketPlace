@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# FleksiTask — Hetzner VPS deploy / rebuild script
+# FlekxiTask — Hetzner VPS deploy / rebuild script
 # Usage:
 #   First deploy:  bash deploy/deploy.sh --first-run
 #   Rebuild:       bash deploy/deploy.sh
