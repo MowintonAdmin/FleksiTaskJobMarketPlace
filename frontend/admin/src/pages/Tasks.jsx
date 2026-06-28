@@ -462,7 +462,7 @@ export default function Tasks() {
         ...prev,
         tasks: prev.tasks.map(t => t.id === task.id ? { ...t, status: newStatus } : t),
       }))
-      toast.success(`Status updated to "${newStatus.replace('_', ' ')}"`)
+      toast.success(`Status updated to "${newStatus.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}"`)  
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to update status')
     } finally {
@@ -585,7 +585,7 @@ export default function Tasks() {
                     className={`text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}
                   >
                     {ALL_STATUSES.map(s => (
-                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                      <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
                     ))}
                   </select>
                 </td>
