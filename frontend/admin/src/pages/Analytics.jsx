@@ -51,6 +51,73 @@ function BarChart({ data, maxVal }) {
   )
 }
 
+function SpendingLineChart({ data }) {
+  if (!data.length) return null
+  const W = 600, H = 180
+  const PAD = { top: 24, right: 20, bottom: 32, left: 52 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  const maxVal = Math.max(...data.map((d) => d.value), 1)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => maxVal * t)
+
+  const px = (i) => PAD.left + (data.length > 1 ? (i / (data.length - 1)) * innerW : innerW / 2)
+  const py = (v) => PAD.top + innerH - (v / maxVal) * innerH
+
+  const points = data.map((d, i) => ({ x: px(i), y: py(d.value), ...d }))
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+  const areaD = `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(PAD.top + innerH).toFixed(1)} Z`
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 320 }}>
+        {/* horizontal grid lines + Y labels */}
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PAD.left} y1={py(t)} x2={W - PAD.right} y2={py(t)}
+              stroke="#f3f4f6" strokeWidth="1" />
+            <text x={PAD.left - 6} y={py(t) + 4} textAnchor="end" fontSize="9" fill="#9ca3af">
+              {t >= 1000 ? `${(t / 1000).toFixed(t % 1000 === 0 ? 0 : 1)}k` : Math.round(t)}
+            </text>
+          </g>
+        ))}
+
+        {/* area fill */}
+        <defs>
+          <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill="url(#spendGrad)" />
+
+        {/* trend line */}
+        <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* dots, value labels, month labels */}
+        {points.map((p, i) => (
+          <g key={i}>
+            {/* month label */}
+            <text x={p.x} y={H - 6} textAnchor="middle" fontSize="9" fill="#9ca3af">
+              {p.label}
+            </text>
+            {/* dot */}
+            <circle cx={p.x} cy={p.y} r="4" fill="white" stroke="#3b82f6" strokeWidth="2" />
+            {/* value above dot */}
+            {p.value > 0 && (
+              <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize="8.5"
+                fill="#374151" fontWeight="600">
+                {p.display || p.value}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
 // ── Tab: Overview ────────────────────────────────────────────────────────────
 function OverviewTab() {
   const [data, setData] = useState(null)
@@ -204,7 +271,7 @@ function MonthlyTab() {
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <p className="font-semibold text-gray-700 mb-4">Monthly Spending (RM) — {year}</p>
-            <BarChart data={chartData} />
+            <SpendingLineChart data={chartData} />
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
