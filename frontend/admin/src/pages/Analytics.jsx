@@ -275,6 +275,31 @@ function MonthlyTab() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <p className="font-semibold text-gray-700">Monthly Breakdown — {year}</p>
+              <button
+                onClick={() => {
+                  const header = ['Month', 'Sessions', 'Hours', 'Spending (RM)']
+                  const rows = months.map((m) => [
+                    `${m.month_name} ${m.year}`, m.sessions, m.hours, m.spending,
+                  ])
+                  const totalsRow = ['TOTAL', totalSessions, totalHours, totalSpending]
+                  const csv = [header, ...rows, totalsRow]
+                    .map((r) => r.map((v) => `"${v}"`).join(','))
+                    .join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `monthly-spending-${year}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+              >
+                ⬇ Export CSV
+              </button>
+            </div>
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                 <tr>
@@ -292,6 +317,14 @@ function MonthlyTab() {
                     <td className="px-4 py-3 font-semibold text-green-600">RM {m.spending.toLocaleString()}</td>
                   </tr>
                 ))}
+                {months.length > 0 && (
+                  <tr className="bg-gray-50 font-semibold text-gray-700">
+                    <td className="px-4 py-3">Total</td>
+                    <td className="px-4 py-3">{totalSessions}</td>
+                    <td className="px-4 py-3">{totalHours} h</td>
+                    <td className="px-4 py-3 text-green-700">RM {totalSpending.toLocaleString()}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
