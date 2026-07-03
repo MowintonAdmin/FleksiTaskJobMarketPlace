@@ -22,7 +22,10 @@ export default function TaskCard({ task }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[task.status]}`}>
-              {task.status.replace('_', ' ')}
+              {task.status
+                .split('_')
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ')}
             </span>
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
               {task.category}

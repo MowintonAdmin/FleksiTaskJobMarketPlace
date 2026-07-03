@@ -9,6 +9,13 @@ const STATUS_COLORS = {
   withdrawn: 'bg-gray-100 text-gray-600',
 }
 
+const formatStatusLabel = (status) =>
+  String(status || '')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+
 function MessageModal({ worker, onClose }) {
   const [body, setBody] = useState('')
   const [messages, setMessages] = useState([])
@@ -170,7 +177,9 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
                   <div key={s.id} className="bg-gray-50 rounded-xl p-3 text-sm">
                     <div className="flex justify-between items-start">
                       <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{s.status}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {formatStatusLabel(s.status)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                       <span>⏱ {s.elapsed_minutes != null ? `${s.elapsed_minutes} min` : '—'}</span>
@@ -282,7 +291,9 @@ export default function Applications() {
                 <td className="px-4 py-3 text-gray-500 min-w-[160px] italic text-xs whitespace-pre-wrap break-words">{app.cover_note ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{new Date(app.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[app.status]}`}>{app.status}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[app.status]}`}>
+                    {formatStatusLabel(app.status)}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-center gap-1.5">

@@ -8,6 +8,13 @@ const STATUS_COLORS = {
   REJECTED: 'bg-red-100 text-red-600',
 }
 
+const formatStatusLabel = (status) =>
+  String(status || '')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+
 function ProcessModal({ withdrawal, onClose, onDone }) {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -139,7 +146,7 @@ export default function Withdrawals() {
               <tr>
                 <td colSpan={6} className="text-center py-12 text-gray-400">
                   <p className="text-3xl mb-2">✅</p>
-                  <p>No {filterStatus.toLowerCase() || ''} withdrawal requests</p>
+                  <p>No {formatStatusLabel(filterStatus) || ''} withdrawal requests</p>
                 </td>
               </tr>
             ) : withdrawals.map(w => (
@@ -160,7 +167,7 @@ export default function Withdrawals() {
                 </td>
                 <td className="px-5 py-3 text-center">
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[w.status]}`}>
-                    {w.status}
+                    {formatStatusLabel(w.status)}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-center">

@@ -2,6 +2,13 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 
+const formatStatusLabel = (status) =>
+  String(status || '')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+
 /* ─── Message modal ──────────────────────────────────────────────────────── */
 function MessageModal({ worker, onClose }) {
   const [body, setBody] = useState('')
@@ -215,7 +222,7 @@ function WorkerDrawer({ user, onClose, onMessage }) {
                       <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         s.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                      }`}>{s.status}</span>
+                      }`}>{formatStatusLabel(s.status)}</span>
                     </div>
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                       <span>{new Date(s.checked_in_at).toLocaleDateString()}</span>

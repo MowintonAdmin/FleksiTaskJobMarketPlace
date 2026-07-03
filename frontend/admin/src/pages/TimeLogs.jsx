@@ -11,6 +11,12 @@ function elapsed(minutes) {
 
 const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' }) : '—'
 const fmtInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : ''
+const formatStatusLabel = (status) =>
+  String(status || '')
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 
 /* ── Adjust Time Modal ─────────────────────────────────────────────────── */
 function AdjustModal({ session, onClose, onSaved }) {
@@ -163,7 +169,7 @@ function TaskCostPanel({ costs, loading }) {
                   t.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                   t.status === 'completed' ? 'bg-gray-100 text-gray-600' :
                   'bg-red-100 text-red-500'
-                }`}>{t.status}</span>
+                }`}>{formatStatusLabel(t.status)}</span>
               </td>
               <td className="px-5 py-3 text-right text-gray-500">RM {t.estimated_cost.toFixed(2)}</td>
               <td className="px-5 py-3 text-right text-green-700 font-medium">RM {t.paid_cost.toFixed(2)}</td>
@@ -304,7 +310,7 @@ export default function TimeLogs() {
                     <td className="px-5 py-3 text-center">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                         log.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                      }`}>{log.status}</span>
+                      }`}>{formatStatusLabel(log.status)}</span>
                     </td>
                     <td className="px-5 py-3 text-right font-semibold text-gray-900">
                       RM {(log.cost ?? 0).toFixed(2)}
