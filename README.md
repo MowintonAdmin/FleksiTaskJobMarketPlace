@@ -74,6 +74,16 @@ Place your Firebase service account JSON at `backend/firebase-credentials.json`.
 docker compose up --build
 ```
 
+### One-Command Local Start
+```bash
+./scripts/local-up.sh
+```
+
+This helper script:
+- checks Docker and Docker Compose availability
+- creates `backend/.env` from `backend/.env.example` if missing
+- starts the full stack with build in detached mode
+
 | Service | URL |
 |---|---|
 | Web App | http://localhost:3000 |
