@@ -5,14 +5,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if ! command -v docker >/dev/null 2>&1; then
+if command -v docker >/dev/null 2>&1; then
+  DOCKER_BIN="docker"
+elif [ -x "/Applications/Docker.app/Contents/Resources/bin/docker" ]; then
+  DOCKER_BIN="/Applications/Docker.app/Contents/Resources/bin/docker"
+else
   echo "Error: Docker is not installed or not in PATH."
   echo "Install Docker Desktop, start it, then run this script again."
   exit 1
 fi
 
-if docker compose version >/dev/null 2>&1; then
-  COMPOSE_CMD=(docker compose)
+if "$DOCKER_BIN" compose version >/dev/null 2>&1; then
+  COMPOSE_CMD=("$DOCKER_BIN" compose)
 elif command -v docker-compose >/dev/null 2>&1; then
   COMPOSE_CMD=(docker-compose)
 else
