@@ -2,16 +2,31 @@ import logging
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+
+def _build_engine_kwargs() -> dict:
+    kwargs = {"echo": settings.DEBUG}
+    if settings.DATABASE_URL.startswith("sqlite"):
+        kwargs.update({
+            "connect_args": {"check_same_thread": False},
+            "poolclass": NullPool,
+        })
+    else:
+        kwargs.update({
+            "pool_size": settings.DATABASE_POOL_SIZE,
+            "max_overflow": settings.DATABASE_MAX_OVERFLOW,
+        })
+    return kwargs
+
+
 engine = create_async_engine(
     settings.DATABASE_URL,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    echo=settings.DEBUG,
+    **_build_engine_kwargs(),
 )
 
 AsyncSessionLocal = async_sessionmaker(
