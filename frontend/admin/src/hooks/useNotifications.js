@@ -51,7 +51,7 @@ export default function useAdminNotifications(userId, accessToken) {
 
         // 3. Check for new pending session approvals
         try {
-          const { data: sessions } = await api.get('/admin/sessions/pending')
+          const { data: sessions } = await api.get('/admin/sessions/pending-approval')
           const count = Array.isArray(sessions) ? sessions.length : 0
           if (!cancelled && count > prevPendingSessionsRef.current) {
             const newCount = count - prevPendingSessionsRef.current
@@ -80,7 +80,7 @@ export default function useAdminNotifications(userId, accessToken) {
       } catch {}
 
       try {
-        const { data: sessions } = await api.get('/admin/sessions/pending')
+        const { data: sessions } = await api.get('/admin/sessions/pending-approval')
         prevPendingSessionsRef.current = Array.isArray(sessions) ? sessions.length : 0
       } catch {}
     }
