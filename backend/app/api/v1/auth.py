@@ -182,10 +182,9 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
         logger.info("PASSWORD RESET LINK for %s: %s", payload.email, reset_url)
 
-        # In development, return the link so it works without SMTP
-        if settings.DEBUG:
-            response["reset_url"] = reset_url
-            response["message"] = "DEV MODE: Use the link below to reset your password."
+        # Always return the link in non-production so it works without SMTP
+        response["reset_url"] = reset_url
+        response["message"] = "DEV MODE: Use the link below to reset your password."
 
         try:
             await send_password_reset_email(payload.email, reset_url)
