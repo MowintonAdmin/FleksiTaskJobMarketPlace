@@ -227,6 +227,7 @@ async def submit_for_verification(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your account is already verified")
     if current_user.verification_status == "submitted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your verification is already pending review")
+    # Rejected users can resubmit
 
     current_user.verification_status = "submitted"
     current_user.verification_submitted_at = datetime.now(timezone.utc)

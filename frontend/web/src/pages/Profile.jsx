@@ -49,7 +49,12 @@ function VerificationStatus({ user, onResubmit }) {
             <p className="text-xs text-red-600">Reason: {user.rejection_reason || 'No specific reason provided'}</p>
           </div>
         </div>
-        <p className="text-xs text-red-500 mt-1">Please update your information below and resubmit for review.</p>
+        <p className="text-xs text-red-500 mb-3">Please update your information below and resubmit for review.</p>
+        {onResubmit && (
+          <button onClick={onResubmit} className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            Resubmit for Verification
+          </button>
+        )}
       </div>
     )
   }
