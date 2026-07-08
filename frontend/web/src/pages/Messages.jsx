@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { toast } from 'react-toastify'
 import { messagesApi } from '../api/messages'
+import usePolling from '../hooks/usePolling'
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 function Avatar({ name, photo, size = 'md' }) {
@@ -339,6 +341,9 @@ export default function Messages() {
   }
 
   useEffect(() => { loadConversations() }, [loadConversations])
+
+  // Auto-refresh conversation list every 5s so new messages appear
+  usePolling(loadConversations, 5000)
 
   const handleSelect = (conv) => {
     setActiveConv(conv)

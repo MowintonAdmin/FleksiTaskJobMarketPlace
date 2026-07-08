@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { applicationsApi } from '../api/tasks'
+import usePolling from '../hooks/usePolling'
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -20,12 +21,22 @@ export default function MyApplications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  const fetchApplications = useCallback(async () => {
+    try {
+      const data = await applicationsApi.getMyApplications()
+      setApplications(data)
+      setError(null)
+    } catch {
+      if (loading) setError('Failed to load applications')
+    }
+  }, [loading])
+
   useEffect(() => {
-    applicationsApi.getMyApplications()
-      .then(setApplications)
-      .catch(() => setError('Failed to load applications'))
-      .finally(() => setLoading(false))
-  }, [])
+    fetchApplications().finally(() => setLoading(false))
+  }, [fetchApplications])
+
+  // Auto-refresh every 5s
+  usePolling(fetchApplications, 5000)
 
   if (loading) return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-3">

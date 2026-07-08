@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { fetchCurrentUser } from './store/authSlice'
+import useNotifications from './hooks/useNotifications'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -25,10 +26,14 @@ function PrivateRoute({ children }) {
 export default function App() {
   const dispatch = useDispatch()
   const token = useSelector((s) => s.auth.accessToken)
+  const { user } = useSelector((s) => s.auth)
 
   useEffect(() => {
     if (token) dispatch(fetchCurrentUser())
   }, [token, dispatch])
+
+  // Global notifications — runs on EVERY page for BOTH user and admin
+  useNotifications(user?.id, token)
 
   return (
     <Router>
@@ -50,7 +55,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={5000} />
     </Router>
   )
 }

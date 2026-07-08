@@ -165,21 +165,6 @@ export default function TaskTracking() {
     }
   }
 
-  const handlePause = async () => {
-    setActionLoading(true)
-    try {
-      const paused = await taskSessionsApi.pause(session.id)
-      clearInterval(timerRef.current)
-      setSession(paused)
-      setElapsed(0)
-      toast.info('Task paused. You can resume anytime.')
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Pause failed')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
   const handlePhotoChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -237,13 +222,6 @@ export default function TaskTracking() {
         <div className="space-y-4">
           {!showCheckout ? (
             <div className="flex gap-3">
-              <button
-                onClick={handlePause}
-                disabled={actionLoading}
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
-              >
-                ⏸ Pause
-              </button>
               <button
                 onClick={() => { clearInterval(timerRef.current); setShowCheckout(true) }}
                 disabled={actionLoading}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { fetchTasks } from '../store/taskSlice'
@@ -11,9 +11,21 @@ export default function Home() {
   const { items, loading, error, total, page, totalPages, filters } = useSelector((s) => s.tasks)
   const { accessToken } = useSelector((s) => s.auth)
   const [wallet, setWallet] = useState(null)
+  const filtersRef = useRef(filters)
+
+  // Keep filters ref in sync
+  useEffect(() => { filtersRef.current = filters }, [filters])
 
   useEffect(() => {
     dispatch(fetchTasks({}))
+
+    // Auto-refresh tasks every 15 seconds so new tasks from admin appear
+    // without needing a manual page refresh.
+    const intervalId = setInterval(() => {
+      dispatch(fetchTasks({ ...filtersRef.current }))
+    }, 5000)
+
+    return () => clearInterval(intervalId)
   }, [dispatch])
 
   useEffect(() => {
