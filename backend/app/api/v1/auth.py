@@ -127,11 +127,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
-    if not user.is_verified and user.verification_status == "rejected":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account has been rejected. Please update your profile and contact support."
-        )
+    # Rejected users can still log in to see their rejection reason and resubmit
 
     access_token, refresh_token = create_token_pair(user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
