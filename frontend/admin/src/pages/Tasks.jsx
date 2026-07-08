@@ -27,8 +27,8 @@ const EMPTY_FORM = {
   requirements: '',
   location: '',
   category: 'Cleaning',
-  pay_rate_per_minute: '',
-  estimated_duration_minutes: '',
+  pay_rate_per_hour: '',
+  estimated_duration_hours: '',
   max_applicants: 1,
   starts_at: '',
 }
@@ -40,8 +40,8 @@ function TaskModal({ task, onClose, onSaved }) {
     requirements: task.requirements ?? '',
     location: task.location,
     category: task.category,
-    pay_rate_per_minute: task.pay_rate_per_minute,
-    estimated_duration_minutes: task.estimated_duration_minutes,
+    pay_rate_per_hour: (task.pay_rate_per_minute * 60).toFixed(2),
+    estimated_duration_hours: Math.round(task.estimated_duration_minutes / 60) || '',
     max_applicants: task.max_applicants,
     starts_at: task.starts_at ? task.starts_at.slice(0, 16) : '',
   } : { ...EMPTY_FORM })
@@ -84,8 +84,8 @@ function TaskModal({ task, onClose, onSaved }) {
     try {
       const payload = {
         ...form,
-        pay_rate_per_minute: parseFloat(form.pay_rate_per_minute),
-        estimated_duration_minutes: parseInt(form.estimated_duration_minutes),
+        pay_rate_per_minute: parseFloat(form.pay_rate_per_hour) / 60,
+        estimated_duration_minutes: parseInt(form.estimated_duration_hours) * 60,
         max_applicants: parseInt(form.max_applicants),
         starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
         requirements: form.requirements || null,
@@ -229,20 +229,20 @@ function TaskModal({ task, onClose, onSaved }) {
           {/* Pay + Duration + Workers */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Pay/min (RM) *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Pay/hour (RM) *</label>
               <input
-                required type="number" step="0.01" min="0.01"
-                value={form.pay_rate_per_minute} onChange={e => set('pay_rate_per_minute', e.target.value)}
-                placeholder="0.50"
+                required type="number" step="0.50" min="1"
+                value={form.pay_rate_per_hour} onChange={e => set('pay_rate_per_hour', e.target.value)}
+                placeholder="15.00"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Duration (min) *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Duration (hours) *</label>
               <input
-                required type="number" step="1" min="1"
-                value={form.estimated_duration_minutes} onChange={e => set('estimated_duration_minutes', e.target.value)}
-                placeholder="120"
+                required type="number" step="0.5" min="0.5"
+                value={form.estimated_duration_hours} onChange={e => set('estimated_duration_hours', e.target.value)}
+                placeholder="2"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
@@ -258,11 +258,11 @@ function TaskModal({ task, onClose, onSaved }) {
           </div>
 
           {/* Pay estimate */}
-          {parseFloat(form.pay_rate_per_minute) > 0 && parseInt(form.estimated_duration_minutes) > 0 && (
+          {parseFloat(form.pay_rate_per_hour) > 0 && parseInt(form.estimated_duration_hours) > 0 && (
             <div className="bg-blue-50 rounded-lg px-4 py-2.5 text-sm text-blue-700 flex flex-wrap gap-3">
-              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_minute) * parseInt(form.estimated_duration_minutes)).toFixed(2)}</strong></span>
+              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours)).toFixed(2)}</strong></span>
               {parseInt(form.max_applicants) > 1 && (
-                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_minute) * parseInt(form.estimated_duration_minutes) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
+                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
               )}
             </div>
           )}
@@ -452,6 +452,33 @@ export default function Tasks() {
   const [cancelTask, setCancelTask] = useState(null)
   const [rateTask, setRateTask] = useState(null)
   const [savingStatus, setSavingStatus] = useState(null) // task id being updated
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportCSV = async () => {
+    setExporting(true)
+    try {
+      const token = localStorage.getItem('admin_access_token')
+      const res = await fetch(`${apiBaseUrl}/admin/tasks/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename=([^;]+)/)
+      const filename = match ? match[1] : 'tasks-export.csv'
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Tasks CSV exported successfully!')
+    } catch {
+      toast.error('Failed to export tasks CSV')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleStatusChange = async (task, newStatus) => {
     if (newStatus === task.status) return
@@ -497,12 +524,25 @@ export default function Tasks() {
         <h1 className="text-2xl font-bold text-gray-900">
           Tasks <span className="text-gray-400 font-normal text-lg">({data.total})</span>
         </h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
-        >
-          + New Task
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={exporting}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            {exporting ? (
+              <><span className="animate-spin">⏳</span> Exporting…</>
+            ) : (
+              <><span>📥</span> Export CSV</>
+            )}
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            + New Task
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -517,10 +557,10 @@ export default function Tasks() {
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <option value="">All statuses</option>
-          <option value="open">Open</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="open">OPEN</option>
+          <option value="in_progress">IN PROGRESS</option>
+          <option value="completed">COMPLETED</option>
+          <option value="cancelled">CANCELLED</option>
         </select>
       </div>
 
@@ -533,7 +573,7 @@ export default function Tasks() {
               <th className="px-4 py-3 text-left">Title</th>
               <th className="px-4 py-3 text-left">Location</th>
               <th className="px-4 py-3 text-left">Category</th>
-              <th className="px-4 py-3 text-right">Pay/min</th>
+              <th className="px-4 py-3 text-right">Pay/hr</th>
               <th className="px-4 py-3 text-right">Est. Total</th>
               <th className="px-4 py-3 text-center">Workers</th>
               <th className="px-4 py-3 text-left">Start Date</th>
@@ -563,7 +603,7 @@ export default function Tasks() {
                 <td className="px-4 py-3 font-medium text-gray-900">{task.title}</td>
                 <td className="px-4 py-3 text-gray-600">📍 {task.location}</td>
                 <td className="px-4 py-3 text-gray-500">{task.category}</td>
-                <td className="px-4 py-3 text-right text-gray-700">RM {parseFloat(task.pay_rate_per_minute).toFixed(2)}</td>
+                <td className="px-4 py-3 text-right text-gray-700">RM {(parseFloat(task.pay_rate_per_minute) * 60).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-blue-600">
                   RM {(task.pay_rate_per_minute * task.estimated_duration_minutes).toFixed(2)}
                 </td>
@@ -585,7 +625,7 @@ export default function Tasks() {
                     className={`text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}
                   >
                     {ALL_STATUSES.map(s => (
-                      <option key={s} value={s}>{s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                      <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>
                     ))}
                   </select>
                 </td>
