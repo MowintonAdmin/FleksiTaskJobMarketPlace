@@ -122,6 +122,8 @@ async def upload_profile_photo(
 
     current_user.profile_photo_url = f"/media/profiles/{filename}"
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 
@@ -152,6 +154,8 @@ async def upload_bank_qr(
 
     current_user.bank_qr_code_url = f"/media/bank-qr/{filename}"
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 
@@ -212,6 +216,8 @@ async def upload_selfie(
 
     current_user.selfie_with_id_url = f"/media/selfies/{filename}"
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 
@@ -232,6 +238,8 @@ async def submit_for_verification(
     current_user.verification_status = "submitted"
     current_user.verification_submitted_at = datetime.now(timezone.utc)
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 
