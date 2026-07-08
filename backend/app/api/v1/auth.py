@@ -115,7 +115,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
-    return {"message": "Account created. Please wait for admin approval before logging in."}
+    return {"message": "Account created! Welcome to FlekxiTask. Please log in, complete your profile, and submit for verification."}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -127,10 +127,10 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
-    if not user.is_verified:
+    if not user.is_verified and user.verification_status == "rejected":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is pending admin approval. Please wait for verification before logging in."
+            detail="Your account has been rejected. Please update your profile and contact support."
         )
 
     access_token, refresh_token = create_token_pair(user.id)
