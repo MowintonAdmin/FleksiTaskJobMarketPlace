@@ -272,30 +272,6 @@ export default function TaskTracking() {
         </div>
       ) : session.status === 'active' ? (
         <div className="space-y-4">
-          {/* Live earnings ticker */}
-          <div className="card bg-green-50 border border-green-200 text-center space-y-2">
-            <p className="text-xs text-green-600 uppercase tracking-wide font-semibold">Live Earnings</p>
-            <p className="text-4xl font-bold text-green-700">RM {currentEarnings.toFixed(2)}</p>
-            <p className="text-sm text-green-600">⏱ {formatDuration(displayElapsed)} elapsed</p>
-            <div className="grid grid-cols-2 gap-3 text-left text-xs text-green-700 bg-white/70 rounded-xl p-3 border border-green-100">
-              <div>
-                <p className="uppercase tracking-wide text-green-500">Worked so far</p>
-                <p className="font-semibold text-sm">{formatDuration(displayElapsed)}</p>
-              </div>
-              <div>
-                <p className="uppercase tracking-wide text-green-500">Minimum required</p>
-                <p className="font-semibold text-sm">{formatDuration(minimumDurationSeconds)}</p>
-              </div>
-            </div>
-            <div className="w-full bg-green-100 rounded-full h-2 mt-2">
-              <div
-                className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min(100, (displayElapsed / (limitSeconds || 1)) * 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-green-500">Est. total: RM {(payRate * task.estimated_duration_minutes).toFixed(2)}</p>
-          </div>
-
           {/* Check-out section */}
           {!showCheckout ? (
             <div className="flex gap-3">
@@ -388,27 +364,8 @@ export default function TaskTracking() {
         <div className="card text-center space-y-4">
           <p className="text-5xl">⏸</p>
           <h2 className="text-xl font-bold text-gray-900">Task Paused</h2>
-
-          <div className="bg-amber-50 rounded-xl p-4 space-y-2">
-            <p className="text-sm text-gray-500">Earnings so far</p>
-            <p className="text-3xl font-bold text-amber-700">RM {session.earnings?.toFixed(2)}</p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-amber-600">Worked so far</p>
-                <p className="text-sm font-semibold text-amber-800">
-                  {formatDuration(Math.floor((parseUTC(session.checked_out_at) - parseUTC(session.checked_in_at)) / 1000))}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-amber-600">Minimum required</p>
-                <p className="text-sm font-semibold text-amber-800">{formatDuration(minimumDurationSeconds)}</p>
-              </div>
-            </div>
-            <p className="text-xs text-amber-700 pt-1">Resume to continue tracking from where you stopped.</p>
-          </div>
+          <p className="text-sm text-gray-500">Your work session is currently paused.</p>
+          <p className="text-xs text-amber-700">Resume to continue tracking from where you stopped.</p>
 
           <div className="space-y-3">
             <button
@@ -432,34 +389,20 @@ export default function TaskTracking() {
           <p className="text-5xl">🎉</p>
           <h2 className="text-xl font-bold text-gray-900">Work Completed!</h2>
 
-          <div className="bg-green-50 rounded-xl p-4 space-y-2">
-            <p className="text-sm text-gray-500">Total Earnings</p>
-            <p className="text-3xl font-bold text-green-700">RM {session.earnings?.toFixed(2)}</p>
+          <p className="text-sm text-gray-600">
+            Your task has been marked as completed. Our staff will verify the submission and get back to you regarding the amount within <strong>1-3 working days</strong>.
+          </p>
+
+          <div className="bg-blue-50 rounded-xl p-4 space-y-1 text-center">
+            <p className="text-sm text-blue-700 font-medium">✅ Confirmation received</p>
+            <p className="text-xs text-blue-600">
+              Started at {parseUTC(session.checked_in_at).toLocaleTimeString()} · Ended at {parseUTC(session.checked_out_at).toLocaleTimeString()}
+            </p>
+            {session.proof_notes && (
+              <p className="text-xs text-blue-600 mt-1">📝 {session.proof_notes}</p>
+            )}
           </div>
 
-          <div className="text-left space-y-2 border-t border-gray-100 pt-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Checked in</span>
-              <span className="text-gray-700">{parseUTC(session.checked_in_at).toLocaleTimeString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Checked out</span>
-              <span className="text-gray-700">{parseUTC(session.checked_out_at).toLocaleTimeString()}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Duration</span>
-              <span className="text-gray-700">
-                {formatDuration(Math.floor((parseUTC(session.checked_out_at) - parseUTC(session.checked_in_at)) / 1000))}
-              </span>
-            </div>
-          </div>
-
-          {session.proof_notes && (
-            <div className="bg-gray-50 rounded-lg p-3 text-left">
-              <p className="text-xs text-gray-500 mb-1">Your notes</p>
-              <p className="text-sm text-gray-700">{session.proof_notes}</p>
-            </div>
-          )}
           {session.proof_photo_url && (
             <img
               src={mediaUrl(session.proof_photo_url)}
