@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { toast } from 'react-toastify'
 import { setUser } from '../store/authSlice'
@@ -119,6 +119,23 @@ export default function Profile() {
     nric_passport: user?.nric_passport || '',
   })
   const [skillInput, setSkillInput] = useState('')
+
+  // Sync form state when user data changes (e.g., after save or photo upload)
+  useEffect(() => {
+    if (!user) return
+    setForm({
+      full_name: user.full_name || '',
+      bio: user.bio || '',
+      location: user.location || '',
+      phone: user.phone || '',
+      skills: user.skills || [],
+      academic_qualification: user.academic_qualification || '',
+      body_height_cm: user.body_height_cm ?? '',
+      nationality: user.nationality || '',
+      race: user.race || '',
+      nric_passport: user.nric_passport || '',
+    })
+  }, [user])
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
 
