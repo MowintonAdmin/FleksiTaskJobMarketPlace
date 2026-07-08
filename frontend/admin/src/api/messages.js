@@ -28,4 +28,19 @@ export const messagesApi = {
     const { data } = await api.get('/users', { params: { limit: 200 } })
     return data
   },
+  getQuickReplies: async () => {
+    const { data } = await api.get('/messages/quick-replies')
+    return data
+  },
+  reactToMessage: async (messageId, reaction) => {
+    const { data } = await api.post(`/messages/reaction/${messageId}`, { reaction })
+    return data
+  },
+  sendTyping: async (userId) => {
+    await api.post(`/messages/typing/${userId}`)
+  },
+  checkTyping: async (userId) => {
+    const { data } = await api.get(`/messages/typing/${userId}`, { _skipRedirect: true })
+    return data
+  },
 }
