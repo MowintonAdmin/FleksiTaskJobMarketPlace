@@ -173,16 +173,46 @@ function WorkerPickerModal({ onClose, onSelect }) {
 }
 
 /* ── Chat panel ───────────────────────────────────────────────────────── */
+const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
 function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const [messages, setMessages] = useState([])
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [showReactions, setShowReactions] = useState(null)
+  const [showQuickReplies, setShowQuickReplies] = useState(false)
+  const [quickReplies, setQuickReplies] = useState([])
+  const [isTyping, setIsTyping] = useState(false)
+  const typingTimerRef = useRef(null)
   const bottomRef = useRef(null)
   const msgCountRef = useRef(0)
   const msgIdsRef = useRef(new Set())
   const onNewMsgRef = useRef(onNewMessage)
   useEffect(() => { onNewMsgRef.current = onNewMessage }, [onNewMessage])
+
+  // Load quick replies
+  useEffect(() => {
+    messagesApi.getQuickReplies().then(setQuickReplies).catch(() => {})
+  }, [])
+
+  // Send typing indicator when user types
+  useEffect(() => {
+    if (!body.trim() || !conversation) return
+    messagesApi.sendTyping(conversation.user_id).catch(() => {})
+  }, [body, conversation])
+
+  // Check if other user is typing (poll every 3s)
+  useEffect(() => {
+    if (!conversation) return
+    const id = setInterval(async () => {
+      try {
+        const { typing } = await messagesApi.checkTyping(conversation.user_id)
+        setIsTyping(typing)
+      } catch {}
+    }, 3000)
+    return () => clearInterval(id)
+  }, [conversation])
 
   const handleDelete = async (messageId) => {
     if (!window.confirm('Delete this message?')) return
@@ -193,6 +223,24 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     } catch {
       toast.error('Failed to delete message')
     }
+  }
+
+  const handleReact = async (messageId, emoji) => {
+    try {
+      const updated = await messagesApi.reactToMessage(messageId, emoji)
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: updated.reaction } : m))
+    } catch {
+      toast.error('Failed to react')
+    }
+    setShowReactions(null)
+  }
+
+  const handleRemoveReaction = async (messageId) => {
+    try {
+      const updated = await messagesApi.reactToMessage(messageId, null)
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: null } : m))
+    } catch {}
+    setShowReactions(null)
   }
 
   const load = useCallback(async () => {
@@ -210,7 +258,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
 
   useEffect(() => { load() }, [load])
 
-  // Scroll to bottom only when messages are added (not on is_read-only updates)
+  // Scroll to bottom only when messages are added
   useEffect(() => {
     const count = messages.length
     if (count > msgCountRef.current) {
@@ -228,29 +276,29 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
       try {
         const fresh = await messagesApi.getConversation(uid)
         const prevSize = msgIdsRef.current.size
-
         setMessages((prev) => {
           const freshMap = new Map(fresh.map((m) => [m.id, m]))
           const hasChange =
             prev.length !== fresh.length ||
-            prev.some((m) => { const f = freshMap.get(m.id); return !f || f.is_read !== m.is_read })
+            prev.some((m) => { const f = freshMap.get(m.id); return !f || f.is_read !== m.is_read || f.reaction !== m.reaction })
           return hasChange ? fresh : prev
         })
-
         if (fresh.length > prevSize) onNewMsgRef.current?.()
       } catch { /* silent */ }
     }, 3000)
     return () => clearInterval(intervalId)
   }, [conversation])
 
-  const handleSend = async (e) => {
-    e.preventDefault()
-    if (!body.trim() || sending) return
+  const handleSend = async (e, presetBody) => {
+    e?.preventDefault()
+    const text = presetBody || body.trim()
+    if (!text || sending) return
     setSending(true)
     try {
-      const msg = await messagesApi.sendMessage(conversation.user_id, body.trim())
+      const msg = await messagesApi.sendMessage(conversation.user_id, text)
       setMessages((prev) => [...prev, msg])
       setBody('')
+      setShowQuickReplies(false)
       onNewMessage?.()
     } catch {
       toast.error('Failed to send message')
@@ -271,7 +319,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header with typing indicator */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white shrink-0">
         <button
           onClick={onBack}
@@ -285,14 +333,16 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
         <Avatar name={conversation.user_name} photo={conversation.user_photo} />
         <div>
           <p className="font-semibold text-gray-900 text-sm">{conversation.user_name || 'Unknown'}</p>
-          {conversation.user_email && (
+          {isTyping ? (
+            <p className="text-xs text-green-600 font-medium animate-pulse">typing...</p>
+          ) : conversation.user_email ? (
             <p className="text-xs text-gray-400">{conversation.user_email}</p>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-gray-50">
+      {/* Messages with reactions */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-gray-50" onClick={() => setShowReactions(null)}>
         {loading ? (
           <div className="flex justify-center items-center h-24">
             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -303,37 +353,64 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
           messages.map((msg) => {
             const isMine = msg.sender_id === currentUserId
             return (
-              <div key={msg.id} className={`flex items-end gap-1 group ${isMine ? 'justify-end' : 'justify-start'}`}>
-                {isMine && (
-                  <button
-                    onClick={() => handleDelete(msg.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 p-1 shrink-0"
-                    title="Delete message"
-                    aria-label="Delete message"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-                <div className={`max-w-[72%] px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
-                  isMine
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
-                }`}>
-                  <p className="break-words">{msg.body}</p>
-                  <p className={`text-[10px] mt-1 flex items-center justify-end gap-0.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {isMine && (
-                      <span
-                        className={`ml-1 font-bold ${msg.is_read ? 'text-blue-200' : 'text-blue-300'}`}
-                        title={msg.is_read ? 'Read' : 'Delivered'}
-                      >
-                        {msg.is_read ? '✓✓' : '✓'}
+              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} group relative`}>
+                <div className="flex items-end gap-1 max-w-[75%]">
+                  {isMine && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowReactions(showReactions === msg.id ? null : msg.id) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-blue-500 p-1 shrink-0"
+                      title="React"
+                    >
+                      😊
+                    </button>
+                  )}
+                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm relative ${
+                    isMine
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+                  }`}>
+                    <p className="break-words">{msg.body}</p>
+                    {msg.reaction && (
+                      <span className="absolute -bottom-3 -right-1 text-base bg-white rounded-full px-1 shadow-sm border border-gray-100">
+                        {msg.reaction}
                       </span>
                     )}
-                  </p>
+                    <p className={`text-[10px] mt-1 flex items-center justify-end gap-0.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {isMine && (
+                        <span className={`ml-1 font-bold ${msg.is_read ? 'text-blue-200' : 'text-blue-300'}`} title={msg.is_read ? 'Read' : 'Delivered'}>
+                          {msg.is_read ? '✓✓' : '✓'}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  {!isMine && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowReactions(showReactions === msg.id ? null : msg.id) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-blue-500 p-1 shrink-0"
+                      title="React"
+                    >
+                      😊
+                    </button>
+                  )}
                 </div>
+                {/* Reaction picker */}
+                {showReactions === msg.id && (
+                  <div className="flex gap-1 mt-1 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1.5 z-10" onClick={(e) => e.stopPropagation()}>
+                    {REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReact(msg.id, emoji)}
+                        className={`hover:scale-125 transition-transform text-base ${msg.reaction === emoji ? 'scale-110 ring-2 ring-blue-300 rounded-full' : ''}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                    {msg.reaction && (
+                      <button onClick={() => handleRemoveReaction(msg.id)} className="text-xs text-gray-400 hover:text-red-500 ml-1 self-center">✕</button>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
@@ -341,8 +418,33 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Quick reply templates */}
+      {showQuickReplies && (
+        <div className="border-t border-gray-100 bg-white px-4 py-3 space-y-1.5 max-h-40 overflow-y-auto">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quick Replies</p>
+          {quickReplies.map((qr, i) => (
+            <button
+              key={i}
+              onClick={() => handleSend(null, qr.text)}
+              className="block w-full text-left text-sm text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors border border-gray-100"
+            >
+              <span className="text-xs font-medium text-blue-600 block">{qr.label}</span>
+              <span className="text-xs text-gray-500">{qr.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <form onSubmit={handleSend} className="flex items-center gap-2 px-4 py-3 border-t border-gray-100 bg-white shrink-0">
+        <button
+          type="button"
+          onClick={() => setShowQuickReplies(!showQuickReplies)}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 transition-colors ${showQuickReplies ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}
+          title="Quick replies"
+        >
+          ⚡
+        </button>
         <input
           value={body}
           onChange={(e) => setBody(e.target.value)}

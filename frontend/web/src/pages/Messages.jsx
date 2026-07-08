@@ -5,6 +5,8 @@ import { toast } from 'react-toastify'
 import { messagesApi } from '../api/messages'
 import usePolling from '../hooks/usePolling'
 
+const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 function Avatar({ name, photo, size = 'md' }) {
   const sz = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
@@ -102,11 +104,31 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const [body, setBody] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [showReactions, setShowReactions] = useState(null)
+  const [isTyping, setIsTyping] = useState(false)
   const bottomRef = useRef(null)
   const msgCountRef = useRef(0)
   const msgIdsRef = useRef(new Set())
   const onNewMsgRef = useRef(onNewMessage)
   useEffect(() => { onNewMsgRef.current = onNewMessage }, [onNewMessage])
+
+  // Send typing indicator when user types
+  useEffect(() => {
+    if (!body.trim() || !conversation) return
+    messagesApi.sendTyping(conversation.user_id).catch(() => {})
+  }, [body, conversation])
+
+  // Check if other user is typing (poll every 3s)
+  useEffect(() => {
+    if (!conversation) return
+    const id = setInterval(async () => {
+      try {
+        const { typing } = await messagesApi.checkTyping(conversation.user_id)
+        setIsTyping(typing)
+      } catch {}
+    }, 3000)
+    return () => clearInterval(id)
+  }, [conversation])
 
   const handleDelete = async (messageId) => {
     if (!window.confirm('Delete this message?')) return
@@ -118,6 +140,23 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
       // silent
     }
   }
+
+  const handleReact = async (messageId, emoji) => {
+    try {
+      const updated = await messagesApi.reactToMessage(messageId, emoji)
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: updated.reaction } : m))
+    } catch {}
+    setShowReactions(null)
+  }
+
+  const handleRemoveReaction = async (messageId) => {
+    try {
+      const updated = await messagesApi.reactToMessage(messageId, null)
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: null } : m))
+    } catch {}
+    setShowReactions(null)
+  }
+
   const load = useCallback(async () => {
     if (!conversation) return
     setLoading(true)
@@ -143,7 +182,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     msgIdsRef.current = new Set(messages.map((m) => m.id))
   }, [messages])
 
-  // Poll every 3 s for new messages and read receipts
+  // Poll every 3 s for new messages, read receipts, and reactions
   useEffect(() => {
     if (!conversation) return
     const uid = conversation.user_id
@@ -156,7 +195,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
           const freshMap = new Map(fresh.map((m) => [m.id, m]))
           const hasChange =
             prev.length !== fresh.length ||
-            prev.some((m) => { const f = freshMap.get(m.id); return !f || f.is_read !== m.is_read })
+            prev.some((m) => { const f = freshMap.get(m.id); return !f || f.is_read !== m.is_read || f.reaction !== m.reaction })
           return hasChange ? fresh : prev
         })
 
@@ -194,7 +233,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header with typing indicator */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white shrink-0">
         <button onClick={onBack} className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 mr-1" aria-label="Back">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -204,11 +243,12 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
         <Avatar name={conversation.user_name} photo={conversation.user_photo} />
         <div>
           <p className="font-semibold text-gray-900 text-sm">{conversation.user_name || 'Unknown'}</p>
+          {isTyping && <p className="text-xs text-green-600 font-medium animate-pulse">typing...</p>}
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+      {/* Messages with reactions */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2" onClick={() => setShowReactions(null)}>
         {loading ? (
           <div className="flex justify-center items-center h-24">
             <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -219,32 +259,62 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
           messages.map((msg) => {
             const isMine = msg.sender_id === currentUserId
             return (
-              <div key={msg.id} className={`flex items-end gap-1 group ${isMine ? 'justify-end' : 'justify-start'}`}>
-                {isMine && (
-                  <button
-                    onClick={() => handleDelete(msg.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 p-1 shrink-0"
-                    title="Delete message"
-                    aria-label="Delete message"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-                <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm shadow-sm ${
-                  isMine
-                    ? 'bg-primary-600 text-white rounded-br-sm'
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
-                }`}>
-                  <p className="break-words">{msg.body}</p>
-                  <p className={`text-[10px] mt-1 ${isMine ? 'text-primary-200 text-right' : 'text-gray-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {isMine && (
-                      <span className="ml-1">{msg.is_read ? '✓✓' : '✓'}</span>
+              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} group relative`}>
+                <div className="flex items-end gap-1 max-w-[75%]">
+                  {isMine && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowReactions(showReactions === msg.id ? null : msg.id) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-primary-500 p-1 shrink-0"
+                      title="React"
+                    >
+                      😊
+                    </button>
+                  )}
+                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm relative ${
+                    isMine
+                      ? 'bg-primary-600 text-white rounded-br-sm'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+                  }`}>
+                    <p className="break-words">{msg.body}</p>
+                    {msg.reaction && (
+                      <span className="absolute -bottom-3 -right-1 text-base bg-white rounded-full px-1 shadow-sm border border-gray-100">
+                        {msg.reaction}
+                      </span>
                     )}
-                  </p>
+                    <p className={`text-[10px] mt-1 ${isMine ? 'text-primary-200 text-right' : 'text-gray-400'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {isMine && (
+                        <span className="ml-1">{msg.is_read ? '✓✓' : '✓'}</span>
+                      )}
+                    </p>
+                  </div>
+                  {!isMine && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowReactions(showReactions === msg.id ? null : msg.id) }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-primary-500 p-1 shrink-0"
+                      title="React"
+                    >
+                      😊
+                    </button>
+                  )}
                 </div>
+                {/* Reaction picker */}
+                {showReactions === msg.id && (
+                  <div className="flex gap-1 mt-1 bg-white rounded-full shadow-lg border border-gray-100 px-2 py-1.5 z-10" onClick={(e) => e.stopPropagation()}>
+                    {REACTIONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReact(msg.id, emoji)}
+                        className={`hover:scale-125 transition-transform text-base ${msg.reaction === emoji ? 'scale-110 ring-2 ring-primary-300 rounded-full' : ''}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                    {msg.reaction && (
+                      <button onClick={() => handleRemoveReaction(msg.id)} className="text-xs text-gray-400 hover:text-red-500 ml-1 self-center">✕</button>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
