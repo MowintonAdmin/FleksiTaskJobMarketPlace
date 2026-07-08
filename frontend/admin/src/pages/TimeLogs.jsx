@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
 
 function elapsed(minutes) {
   if (minutes == null) return '—'
@@ -236,10 +237,7 @@ export default function TimeLogs() {
             {activeLogs.length} worker{activeLogs.length !== 1 ? 's' : ''} active now · Total cost RM {totalCost.toFixed(2)}
           </p>
         </div>
-        <button onClick={() => { loadLogs(); loadCosts() }}
-          className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 shadow-sm transition-colors">
-          ↻ Refresh
-        </button>
+        <RefreshButton onClick={() => { loadLogs(); loadCosts() }} loading={loadingLogs || loadingCosts} />
       </div>
 
       {/* Tabs */}

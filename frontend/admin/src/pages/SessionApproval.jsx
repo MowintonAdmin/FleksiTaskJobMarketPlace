@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import api from '../api/client'
 import usePolling from '../hooks/usePolling'
+import RefreshButton from '../components/RefreshButton'
 
 export default function SessionApproval() {
   const [sessions, setSessions] = useState([])
@@ -65,9 +66,7 @@ export default function SessionApproval() {
         <h1 className="text-2xl font-bold text-gray-900">
           Session Approval <span className="text-gray-400 font-normal text-lg">({sessions.length})</span>
         </h1>
-        <button onClick={load} disabled={loading} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700">
-          {loading ? '⟳ Refreshing...' : '⟳ Refresh'}
-        </button>
+        <RefreshButton onClick={load} loading={loading} />
       </div>
 
       {loading ? (

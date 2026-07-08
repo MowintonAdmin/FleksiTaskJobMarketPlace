@@ -2,6 +2,7 @@
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
 
 function elapsed(minutes) {
   const h = Math.floor(minutes / 60)
@@ -95,14 +96,11 @@ export default function ActiveWorkers() {
           </h1>
           {lastRefresh && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Last updated {lastRefresh.toLocaleTimeString()} · auto-refreshes every 30s
+              Auto-refreshes every 30s
             </p>
           )}
         </div>
-        <button onClick={load}
-          className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-          ↻ Refresh
-        </button>
+        <RefreshButton onClick={load} loading={loading} lastRefresh={lastRefresh} />
       </div>
 
       {/* Search */}

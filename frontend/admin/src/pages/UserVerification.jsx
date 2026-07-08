@@ -3,6 +3,7 @@ import { toast } from 'react-toastify'
 import api from '../api/client'
 import usePolling from '../hooks/usePolling'
 import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
 
 const REJECTION_REASONS = [
   'ID photo is unclear or blurry',
@@ -86,9 +87,7 @@ export default function UserVerification() {
         <h1 className="text-2xl font-bold text-gray-900">
           User Verification <span className="text-gray-400 font-normal text-lg">({users.length})</span>
         </h1>
-        <button onClick={load} disabled={loading} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700">
-          {loading ? '⟳ Refreshing...' : '⟳ Refresh'}
-        </button>
+        <RefreshButton onClick={load} loading={loading} />
       </div>
 
       {/* Search + Filter */}
