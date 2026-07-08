@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { fetchAdminUser } from './slices/authSlice'
+import useAdminNotifications from './hooks/useNotifications'
 import Sidebar from './components/Sidebar'
 import AdminLogin from './pages/AdminLogin'
 import Dashboard from './pages/Dashboard'
@@ -28,7 +29,11 @@ function AdminRoute({ children }) {
 }
 
 function AdminShell() {
+  const { user, token } = useSelector((s) => s.auth)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Global admin notifications — runs on every admin page
+  useAdminNotifications(user?.id, token)
 
   return (
     <div className="flex h-screen overflow-hidden">
