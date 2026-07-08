@@ -51,25 +51,25 @@ export default function FilterBar({ filters }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Min Pay ($/min)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Min Pay (RM/hour)</label>
           <input
             name="minPay"
             type="number"
             min="0"
-            step="0.01"
+            step="0.50"
             value={local.minPay}
             onChange={handleChange}
-            placeholder="0.00"
+            placeholder="10.00"
             className="input"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Max Pay ($/min)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Max Pay (RM/hour)</label>
           <input
             name="maxPay"
             type="number"
             min="0"
-            step="0.01"
+            step="0.50"
             value={local.maxPay}
             onChange={handleChange}
             placeholder="Any"
