@@ -16,7 +16,6 @@ function formatDuration(seconds) {
 /** Parse a datetime string from the backend, always treating it as UTC. */
 function parseUTC(str) {
   if (!str) return null
-  // If no timezone suffix present, append Z so the browser treats it as UTC
   return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
 }
 
@@ -30,13 +29,10 @@ export default function TaskTracking() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
-  // Elapsed seconds (ticks every 250 ms while active)
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef(null)
-  // Keeps the effective cap accessible inside setInterval closures and effects
   const maxSecondsRef = useRef(0)
 
-  // Checkout form
   const [proofNotes, setProofNotes] = useState('')
   const [proofPhoto, setProofPhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
@@ -46,20 +42,15 @@ export default function TaskTracking() {
 
   const startTimer = useCallback((checkedInAt, maxSeconds) => {
     clearInterval(timerRef.current)
-    // Coerce to a safe number; treat 0 / NaN / undefined as "no cap"
     const cap = Number(maxSeconds) > 0 ? Number(maxSeconds) : 0
     maxSecondsRef.current = cap
     const origin = parseUTC(checkedInAt).getTime()
-    // Check immediately — if we are already at or past the limit don't
-    // even start the interval, just freeze and show checkout.
     const nowSecs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
     if (cap > 0 && nowSecs >= cap) {
       setElapsed(cap)
       setShowCheckout(true)
       return
     }
-    // Poll at 250 ms so the display never lags more than a quarter-second
-    // behind the real elapsed time, even when setInterval drifts.
     timerRef.current = setInterval(() => {
       const secs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
       if (cap > 0 && secs >= cap) {
@@ -72,8 +63,6 @@ export default function TaskTracking() {
     }, 250)
   }, [])
 
-  // Safety-net: if elapsed ever reaches the cap (for any reason the interval
-  // missed it), force-stop the timer and show the checkout form.
   useEffect(() => {
     const cap = maxSecondsRef.current
     if (session?.status === 'active' && cap > 0 && elapsed >= cap && !showCheckout) {
@@ -83,7 +72,6 @@ export default function TaskTracking() {
     }
   }, [elapsed, session, showCheckout])
 
-  // Stop the timer whenever the checkout form is shown
   useEffect(() => {
     if (showCheckout) {
       clearInterval(timerRef.current)
@@ -93,30 +81,24 @@ export default function TaskTracking() {
   useEffect(() => {
     async function load() {
       try {
-        // Load application to get task info
         const apps = await applicationsApi.getMyApplications()
         const app = apps.find((a) => a.id === applicationId)
         if (!app) { navigate('/my-applications'); return }
 
-        // Use embedded task data if available, otherwise fetch separately
         let taskData = app.task || null
         if (!taskData) {
           taskData = await tasksApi.getById(app.task_id)
         }
         setTask(taskData)
 
-        // Fetch sessions — getActiveSession may return null; handle gracefully
         let activeSession = null
         try {
           activeSession = await taskSessionsApi.getActiveSession()
-        } catch {
-          // Non-critical — ignore if no active session endpoint fails
-        }
+        } catch {}
         if (activeSession && activeSession.application_id !== applicationId) {
           setOtherActiveSession(activeSession)
         }
 
-        // Check for existing session on this application
         const sessions = await taskSessionsApi.getMySessions()
         const existing = sessions.find((s) => s.application_id === applicationId)
         if (existing) {
@@ -164,10 +146,6 @@ export default function TaskTracking() {
   }
 
   const handleCheckOut = async () => {
-    if (!proofPhoto) {
-      toast.error('Please attach a proof photo before checking out.')
-      return
-    }
     setActionLoading(true)
     try {
       const completed = await taskSessionsApi.checkOut(session.id, proofNotes, proofPhoto)
@@ -175,7 +153,7 @@ export default function TaskTracking() {
       setSession(completed)
       setElapsed(0)
       setShowCheckout(false)
-      toast.success(`Checked out! You earned RM ${completed.earnings?.toFixed(2)}`)
+      toast.success('Work submitted! Awaiting admin approval.')
     } catch (e) {
       const detail = e.response?.data?.detail
       const msg = Array.isArray(detail)
@@ -215,15 +193,6 @@ export default function TaskTracking() {
     </div>
   )
 
-  const payRate = task?.pay_rate_per_minute ?? 0
-  const maxEarnings = payRate * (task?.estimated_duration_minutes ?? 0)
-  // Cap elapsed so the display never counts past the limit even for one frame
-  const limitSeconds = (task?.estimated_duration_minutes ?? 0) * 60
-  const displayElapsed = limitSeconds > 0 ? Math.min(elapsed, limitSeconds) : elapsed
-  const currentEarnings = (session?.status === 'completed' || session?.status === 'paused')
-    ? session.earnings
-    : Math.min((displayElapsed / 60) * payRate, maxEarnings || Infinity)
-
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-5">
       {/* Task Header */}
@@ -231,12 +200,6 @@ export default function TaskTracking() {
         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Task</p>
         <h1 className="text-xl font-bold text-gray-900">{task?.title}</h1>
         <p className="text-sm text-gray-500 mt-1">📍 {task?.location}</p>
-        <p className="text-sm text-primary-600 font-medium mt-1">
-          RM {payRate.toFixed(4)}/min &nbsp;·&nbsp; Est. {task?.estimated_duration_minutes} min
-        </p>
-        <p className="text-xs text-gray-500 mt-2">
-          Minimum required: {formatDuration(minimumDurationSeconds)}
-        </p>
       </div>
 
       {/* Status Card */}
@@ -259,7 +222,7 @@ export default function TaskTracking() {
           ) : (
             <>
               <p className="text-gray-600 font-medium">Ready to start work?</p>
-              <p className="text-sm text-gray-400">Check in to begin tracking your time and earnings.</p>
+              <p className="text-sm text-gray-400">Check in to begin tracking your time.</p>
               <button
                 onClick={handleCheckIn}
                 disabled={actionLoading}
@@ -272,7 +235,6 @@ export default function TaskTracking() {
         </div>
       ) : session.status === 'active' ? (
         <div className="space-y-4">
-          {/* Check-out section */}
           {!showCheckout ? (
             <div className="flex gap-3">
               <button
@@ -294,10 +256,9 @@ export default function TaskTracking() {
             <div className="card space-y-4">
               <h2 className="font-semibold text-gray-900">Submit Completion Proof</h2>
 
-              {/* Photo upload */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Photo Proof <span className="text-red-500">*</span>
+                  Photo Proof <span className="text-gray-400 normal-case font-normal">(optional)</span>
                 </label>
                 {photoPreview ? (
                   <div className="relative">
@@ -326,7 +287,6 @@ export default function TaskTracking() {
                 )}
               </div>
 
-              {/* Notes */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Notes <span className="text-gray-400">(optional)</span>
@@ -349,9 +309,8 @@ export default function TaskTracking() {
                 </button>
                 <button
                   onClick={handleCheckOut}
-                  disabled={actionLoading || !proofPhoto}
+                  disabled={actionLoading}
                   className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
-                  title={!proofPhoto ? 'Attach a proof photo to check out' : ''}
                 >
                   {actionLoading ? 'Submitting…' : 'Confirm Check Out'}
                 </button>
@@ -360,7 +319,6 @@ export default function TaskTracking() {
           )}
         </div>
       ) : session.status === 'paused' ? (
-        /* Paused */
         <div className="card text-center space-y-4">
           <p className="text-5xl">⏸</p>
           <h2 className="text-xl font-bold text-gray-900">Task Paused</h2>
@@ -384,17 +342,16 @@ export default function TaskTracking() {
           </div>
         </div>
       ) : (
-        /* Completed */
         <div className="card text-center space-y-4">
           <p className="text-5xl">🎉</p>
           <h2 className="text-xl font-bold text-gray-900">Work Completed!</h2>
 
           <p className="text-sm text-gray-600">
-            Your task has been marked as completed. Our staff will verify the submission and get back to you regarding the amount within <strong>1-3 working days</strong>.
+            Your task has been submitted for review. An admin will verify your work and credit the amount to your wallet within <strong>1-3 working days</strong>.
           </p>
 
           <div className="bg-blue-50 rounded-xl p-4 space-y-1 text-center">
-            <p className="text-sm text-blue-700 font-medium">✅ Confirmation received</p>
+            <p className="text-sm text-blue-700 font-medium">✅ Work submitted — awaiting admin approval</p>
             <p className="text-xs text-blue-600">
               Started at {parseUTC(session.checked_in_at).toLocaleTimeString()} · Ended at {parseUTC(session.checked_out_at).toLocaleTimeString()}
             </p>

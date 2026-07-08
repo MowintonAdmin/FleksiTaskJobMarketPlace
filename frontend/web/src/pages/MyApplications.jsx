@@ -68,7 +68,7 @@ export default function MyApplications() {
                         📍 {app.task.location}
                       </p>
                       <p className="text-sm text-primary-600 font-medium mt-1">
-                        RM {(app.task.pay_rate_per_minute * app.task.estimated_duration_minutes).toFixed(2)} total
+                        RM {(app.task.pay_rate_per_minute * app.task.estimated_duration_minutes).toFixed(2)}
                       </p>
                     </>
                   ) : (

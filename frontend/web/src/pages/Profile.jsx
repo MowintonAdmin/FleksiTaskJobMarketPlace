@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { toast } from 'react-toastify'
 import { setUser } from '../store/authSlice'
 import { authApi } from '../api/auth'
+import api from '../api/client'
 
 const SKILLS_SUGGESTIONS = ['Cleaning', 'Driving', 'Delivery', 'Moving', 'Gardening', 'Cooking', 'Tech Support', 'Tutoring', 'Painting', 'Plumbing']
 
@@ -26,8 +27,10 @@ export default function Profile() {
   const dispatch = useDispatch()
   const { user } = useSelector((s) => s.auth)
   const photoRef = useRef()
+  const bankQrRef = useRef()
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadingBankQr, setUploadingBankQr] = useState(false)
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     bio: user?.bio || '',
@@ -89,6 +92,25 @@ export default function Profile() {
     }
   }
 
+  const handleBankQrUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingBankQr(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/users/me/bank-qr', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      dispatch(setUser(data))
+      toast.success('Bank QR code uploaded!')
+    } catch {
+      toast.error('Failed to upload Bank QR')
+    } finally {
+      setUploadingBankQr(false)
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
@@ -116,6 +138,35 @@ export default function Profile() {
           <button onClick={() => photoRef.current.click()} className="btn-secondary text-xs px-3 py-1.5">
             Upload Photo
           </button>
+        </div>
+      </div>
+
+      {/* Bank QR Code Upload */}
+      <div className="card mb-6">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Bank QR Code</p>
+        <div className="flex items-center gap-4">
+          <div className="relative shrink-0">
+            {user?.bank_qr_code_url ? (
+              <img src={user.bank_qr_code_url} alt="Bank QR" className="w-24 h-24 rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+            ) : (
+              <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">
+                🏦
+              </div>
+            )}
+            {uploadingBankQr && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-gray-500">
+            <p className="font-medium text-gray-700">Upload your Bank QR code</p>
+            <p className="text-xs text-gray-400 mt-1">This helps admin process payments to your account.</p>
+            <input ref={bankQrRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleBankQrUpload} />
+            <button onClick={() => bankQrRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-2">
+              {user?.bank_qr_code_url ? 'Change QR Code' : 'Upload QR Code'}
+            </button>
+          </div>
         </div>
       </div>
 

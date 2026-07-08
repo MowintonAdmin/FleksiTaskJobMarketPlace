@@ -25,6 +25,7 @@ class User(Base):
     nationality: Mapped[str | None] = mapped_column(String(100), nullable=True)
     race: Mapped[str | None] = mapped_column(String(100), nullable=True)
     nric_passport: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    bank_qr_code_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     fcm_token: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_employer: Mapped[bool] = mapped_column(Boolean, default=False)

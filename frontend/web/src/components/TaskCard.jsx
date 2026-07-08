@@ -38,11 +38,9 @@ export default function TaskCard({ task }) {
         </div>
         <div className="text-right shrink-0">
           <p className="text-lg font-bold text-primary-600">RM {totalPay}</p>
-          <p className="text-xs text-gray-500">RM {task.pay_rate_per_minute}/min</p>
         </div>
       </div>
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
-        <span>⏱ {task.estimated_duration_minutes} min</span>
         <span>👥 {task.application_count} applied</span>
         {task.starts_at && (
           <span>🗓 {new Date(task.starts_at).toLocaleDateString()}</span>

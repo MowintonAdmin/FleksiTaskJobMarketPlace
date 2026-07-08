@@ -894,6 +894,201 @@ async def export_workers_csv(
     )
 
 
+# ── User Verification (Admin approves new user registrations) ─────────────────
+
+@router.get("/users/unverified")
+async def admin_unverified_users(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """List all unverified users awaiting admin approval."""
+    result = await db.execute(
+        select(User)
+        .where(User.is_verified == False, User.is_admin == False)
+        .order_by(User.created_at.desc())
+    )
+    users = result.scalars().all()
+    out = []
+    for u in users:
+        sessions_result = await db.execute(
+            select(TaskSession).where(TaskSession.worker_id == u.id)
+        )
+        sessions = sessions_result.scalars().all()
+        completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
+        out.append({
+            "id": str(u.id),
+            "email": u.email,
+            "full_name": u.full_name,
+            "profile_photo_url": u.profile_photo_url,
+            "location": u.location,
+            "nationality": u.nationality,
+            "race": u.race,
+            "nric_passport": u.nric_passport,
+            "academic_qualification": u.academic_qualification,
+            "body_height_cm": u.body_height_cm,
+            "bank_qr_code_url": u.bank_qr_code_url,
+            "total_sessions": len(sessions),
+            "completed_sessions": len(completed),
+            "created_at": u.created_at.isoformat(),
+        })
+    return out
+
+
+class UserVerificationAction(BaseModel):
+    action: str  # "approve" or "reject"
+
+
+@router.post("/users/{user_id}/verify")
+async def admin_verify_user(
+    user_id: uuid.UUID,
+    payload: UserVerificationAction,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Approve or reject a user registration."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    action = payload.action.lower()
+    if action == "approve":
+        user.is_verified = True
+        user.is_active = True
+        await db.flush()
+        return {"status": "approved", "user_id": str(user.id)}
+    elif action == "reject":
+        await db.delete(user)
+        await db.flush()
+        return {"status": "rejected", "user_id": str(user.id)}
+
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
+
+
+# ── Enhanced Worker Export CSV ───────────────────────────────────────────────
+
+@router.get("/export/workers-detailed")
+async def export_workers_detailed_csv(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Export detailed worker data with NRIC, bank QR, per-task earnings, and payment status."""
+    from app.models.wallet import WithdrawalRequest, Wallet
+
+    users_result = await db.execute(select(User).where(User.is_admin == False).order_by(User.created_at.desc()))
+    users = users_result.scalars().all()
+
+    sessions_result = await db.execute(select(TaskSession).order_by(TaskSession.created_at.desc()))
+    all_sessions = sessions_result.scalars().all()
+
+    withdrawals_result = await db.execute(select(WithdrawalRequest))
+    all_withdrawals = withdrawals_result.scalars().all()
+
+    now = datetime.now(timezone.utc)
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    writer.writerow([
+        "Full Name", "Email", "Phone", "Location",
+        "Nationality", "Race", "Academic Qualification",
+        "Body Height (cm)", "NRIC / Passport",
+        "Bank QR Image URL",
+        "Is Verified", "Joined Date",
+        "Task Title", "Task Category", "Task Location",
+        "Check-In", "Check-Out", "Duration (min)",
+        "Earnings (RM)", "Payment Status",
+        "Withdrawal Status", "Withdrawal Amount (RM)", "Withdrawal Date",
+        "Rating", "Feedback",
+    ])
+
+    for u in users:
+        u_sessions = [s for s in all_sessions if s.worker_id == u.id]
+        u_withdrawals = [w for w in all_withdrawals if w.user_id == u.id]
+
+        if not u_sessions:
+            # User with no sessions — write one row with user info only
+            writer.writerow([
+                u.full_name, u.email, "", u.location or "",
+                u.nationality or "", u.race or "", u.academic_qualification or "",
+                u.body_height_cm or "", u.nric_passport or "",
+                u.bank_qr_code_url or "",
+                "Yes" if u.is_verified else "No",
+                u.created_at.strftime("%Y-%m-%d %H:%M"),
+                "", "", "", "", "", "", "", "", "", "", "", "",
+            ])
+        else:
+            for s in u_sessions:
+                task_result = await db.execute(select(Task).where(Task.id == s.task_id))
+                task = task_result.scalar_one_or_none()
+
+                elapsed = None
+                if s.checked_in_at and s.checked_out_at:
+                    elapsed = round(
+                        (s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1
+                    )
+
+                # Check if this session's earnings have been withdrawn
+                withdrawal = next((w for w in u_withdrawals if w.reference_id == str(s.id)), None)
+                payment_status = "Pending Approval"
+                withdrawal_status = ""
+                withdrawal_amount = ""
+                withdrawal_date = ""
+
+                if s.earnings and s.earnings > 0:
+                    # Check wallet transactions for this session
+                    wallet_result = await db.execute(
+                        select(Wallet).where(Wallet.user_id == u.id)
+                    )
+                    wallet = wallet_result.scalar_one_or_none()
+                    if wallet:
+                        from app.models.wallet import Transaction as Txn
+                        txn_result = await db.execute(
+                            select(Txn).where(
+                                Txn.reference_id == str(s.id),
+                                Txn.type == "CREDIT"
+                            )
+                        )
+                        txn = txn_result.scalar_one_or_none()
+                        if txn:
+                            payment_status = "Approved & Credited"
+
+                if withdrawal:
+                    withdrawal_status = withdrawal.status
+                    withdrawal_amount = withdrawal.amount
+                    withdrawal_date = withdrawal.processed_at.strftime("%Y-%m-%d %H:%M") if withdrawal.processed_at else ""
+
+                writer.writerow([
+                    u.full_name, u.email, "", u.location or "",
+                    u.nationality or "", u.race or "", u.academic_qualification or "",
+                    u.body_height_cm or "", u.nric_passport or "",
+                    u.bank_qr_code_url or "",
+                    "Yes" if u.is_verified else "No",
+                    u.created_at.strftime("%Y-%m-%d %H:%M"),
+                    task.title if task else "Unknown",
+                    task.category if task else "",
+                    task.location if task else "",
+                    s.checked_in_at.strftime("%Y-%m-%d %H:%M") if s.checked_in_at else "",
+                    s.checked_out_at.strftime("%Y-%m-%d %H:%M") if s.checked_out_at else "",
+                    elapsed or "",
+                    s.earnings if s.earnings else "",
+                    payment_status,
+                    withdrawal_status,
+                    withdrawal_amount,
+                    withdrawal_date,
+                    s.rating if s.rating else "",
+                    s.feedback or "",
+                ])
+
+    output.seek(0)
+    filename = f"workers_detailed_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 # ── Database Backup & Restore ─────────────────────────────────────────────────
 
 def _parse_db_url(database_url: str) -> dict:
@@ -1029,4 +1224,122 @@ async def database_restore(
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+
+# ── Session Approval (Admin validates & credits worker) ──────────────────────
+
+from app.models.task_session import TaskSession as _TaskSessionForApproval
+from app.models.task import TaskStatus as _TaskStatusForApproval
+from app.models.wallet import Wallet as _WalletForApproval, Transaction as _TransactionForApproval, TransactionType as _TransactionTypeForApproval
+from app.models.message import Message as _MessageForApproval
+
+
+@router.get("/sessions/pending-approval")
+async def admin_pending_sessions(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """List all completed sessions awaiting admin approval/credit."""
+    result = await db.execute(
+        select(_TaskSessionForApproval)
+        .where(_TaskSessionForApproval.status == SessionStatus.COMPLETED)
+        .order_by(_TaskSessionForApproval.checked_out_at.desc())
+    )
+    sessions = result.scalars().all()
+    out = []
+    for s in sessions:
+        worker_result = await db.execute(select(User).where(User.id == s.worker_id))
+        worker = worker_result.scalar_one_or_none()
+        task_result = await db.execute(select(Task).where(Task.id == s.task_id))
+        task = task_result.scalar_one_or_none()
+        out.append({
+            "session_id": str(s.id),
+            "worker_id": str(s.worker_id),
+            "worker_name": worker.full_name if worker else "Unknown",
+            "worker_email": worker.email if worker else "",
+            "task_id": str(s.task_id),
+            "task_title": task.title if task else "Unknown",
+            "task_location": task.location if task else "",
+            "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
+            "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None,
+            "earnings": s.earnings,
+            "proof_notes": s.proof_notes,
+            "proof_photo_url": s.proof_photo_url,
+            "status": s.status,
+        })
+    return out
+
+
+class SessionApprovalAction(BaseModel):
+    action: str  # "approve" or "reject"
+    notes: str | None = None
+
+
+@router.post("/sessions/{session_id}/approve")
+async def admin_approve_session(
+    session_id: uuid.UUID,
+    payload: SessionApprovalAction,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve a completed session and credit the worker's wallet."""
+    result = await db.execute(
+        select(_TaskSessionForApproval).where(
+            _TaskSessionForApproval.id == session_id,
+            _TaskSessionForApproval.status == SessionStatus.COMPLETED,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Completed session not found")
+
+    if not session.earnings or session.earnings <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
+
+    action = payload.action.lower()
+    if action == "approve":
+        wallet_result = await db.execute(select(_WalletForApproval).where(_WalletForApproval.user_id == session.worker_id))
+        wallet = wallet_result.scalar_one_or_none()
+        if not wallet:
+            wallet = _WalletForApproval(user_id=session.worker_id)
+            db.add(wallet)
+            await db.flush()
+        wallet.available_balance = round(wallet.available_balance + session.earnings, 2)
+
+        task_result = await db.execute(select(Task).where(Task.id == session.task_id))
+        task = task_result.scalar_one()
+        db.add(_TransactionForApproval(
+            user_id=session.worker_id,
+            type=_TransactionTypeForApproval.CREDIT,
+            amount=session.earnings,
+            description=f"Earnings approved for task: {task.title}",
+            reference_id=str(session.id),
+        ))
+
+        if task.status != _TaskStatusForApproval.COMPLETED:
+            task.status = _TaskStatusForApproval.COMPLETED
+
+        reason = f" Notes: {payload.notes}" if payload.notes else ""
+        db.add(_MessageForApproval(
+            sender_id=admin_user.id,
+            recipient_id=session.worker_id,
+            body=f"✅ Your task \"{task.title}\" has been approved! RM {session.earnings:.2f} has been credited to your wallet.{reason}",
+        ))
+
+        await db.flush()
+        return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
+
+    elif action == "reject":
+        task_result = await db.execute(select(Task).where(Task.id == session.task_id))
+        task = task_result.scalar_one()
+        reason = f" Reason: {payload.notes}" if payload.notes else ""
+        db.add(_MessageForApproval(
+            sender_id=admin_user.id,
+            recipient_id=session.worker_id,
+            body=f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason}",
+        ))
+        await db.flush()
+        return {"status": "rejected", "session_id": str(session.id)}
+
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
 

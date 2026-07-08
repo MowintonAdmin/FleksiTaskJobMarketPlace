@@ -110,6 +110,36 @@ async def upload_profile_photo(
     return current_user
 
 
+@router.post("/me/bank-qr", response_model=UserResponse)
+async def upload_bank_qr(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a Bank QR code image for payment processing."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    content = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+
+    media_path = Path(settings.MEDIA_DIR) / "bank-qr"
+    media_path.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.id}_bank_qr.{ext}"
+    file_path = media_path / filename
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    current_user.bank_qr_code_url = f"/media/bank-qr/{filename}"
+    db.add(current_user)
+    return current_user
+
+
 @router.put("/me/fcm-token", status_code=status.HTTP_204_NO_CONTENT)
 async def update_fcm_token(
     payload: FCMTokenUpdate,

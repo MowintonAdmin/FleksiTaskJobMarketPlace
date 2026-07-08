@@ -4,7 +4,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import { getPublicConfig } from '../config/runtime'
-import { loginWithGoogle, registerUser } from '../store/authSlice'
+import { loginWithGoogle } from '../store/authSlice'
+import { authApi } from '../api/auth'
 
 function hasGoogleClientId() {
   const clientId = getPublicConfig('VITE_GOOGLE_CLIENT_ID', import.meta.env.VITE_GOOGLE_CLIENT_ID).trim()
@@ -56,17 +57,18 @@ export default function Register() {
     }
 
     try {
-      await dispatch(registerUser({
+      await authApi.register({
         full_name: form.full_name.trim(),
         email: form.email.trim(),
         password: form.password,
         location: form.location.trim() || undefined,
-      })).unwrap()
-      toast.success('Account created! Welcome to FlekxiTask.')
-      navigate('/')
+      })
+      toast.success('Account created! Please wait for admin approval before signing in.')
+      navigate('/login')
     } catch (err) {
-      setFormError(err || 'Registration failed')
-      toast.error(err || 'Registration failed')
+      const msg = err.response?.data?.detail || err.message || 'Registration failed'
+      setFormError(msg)
+      toast.error(msg)
     }
   }
 
@@ -223,4 +225,3 @@ export default function Register() {
     </div>
   )
 }
-

@@ -5,10 +5,12 @@ import { logout } from '../slices/authSlice'
 const links = [
   { to: '/', label: 'Dashboard', icon: '📊' },
   { to: '/users', label: 'Workers', icon: '👥' },
+  { to: '/user-verification', label: 'User Verification', icon: '🆕' },
   { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
   { to: '/tasks', label: 'Tasks', icon: '📋' },
   { to: '/applications', label: 'Applications', icon: '📝' },
   { to: '/active-workers', label: 'Active Workers', icon: '🟢' },
+  { to: '/session-approval', label: 'Session Approval', icon: '✅' },
   { to: '/time-logs', label: 'Time & Payments', icon: '⏱️' },
   { to: '/withdrawals', label: 'Withdrawals', icon: '💸' },
   { to: '/messages', label: 'Messages', icon: '💬' },

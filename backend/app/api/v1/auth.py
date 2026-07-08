@@ -96,9 +96,9 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user with email and password."""
+    """Register a new user with email and password. Account requires admin approval."""
     if not payload.password:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password is required")
 
@@ -115,8 +115,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
-    access_token, refresh_token = create_token_pair(user.id)
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    return {"message": "Account created. Please wait for admin approval before logging in."}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -128,6 +127,11 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is pending admin approval. Please wait for verification before logging in."
+        )
 
     access_token, refresh_token = create_token_pair(user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)

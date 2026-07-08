@@ -17,6 +17,8 @@ import TimeLogs from './pages/TimeLogs'
 import Analytics from './pages/Analytics'
 import Messages from './pages/Messages'
 import DatabaseBackup from './pages/DatabaseBackup'
+import SessionApproval from './pages/SessionApproval'
+import UserVerification from './pages/UserVerification'
 
 function AdminRoute({ children }) {
   const { token, user } = useSelector((s) => s.auth)
@@ -60,6 +62,8 @@ function AdminShell() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/database" element={<DatabaseBackup />} />
+            <Route path="/session-approval" element={<SessionApproval />} />
+            <Route path="/user-verification" element={<UserVerification />} />
           </Routes>
         </main>
       </div>

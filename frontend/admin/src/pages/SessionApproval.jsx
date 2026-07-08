@@ -1,0 +1,157 @@
+import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
+import api from '../api/client'
+
+export default function SessionApproval() {
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [processingId, setProcessingId] = useState(null)
+  const [notes, setNotes] = useState({})
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { data } = await api.get('/admin/sessions/pending-approval')
+      setSessions(data)
+    } catch {
+      toast.error('Failed to load pending sessions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleApprove = async (sessionId) => {
+    setProcessingId(sessionId)
+    try {
+      await api.post(`/admin/sessions/${sessionId}/approve`, {
+        action: 'approve',
+        notes: notes[sessionId] || null,
+      })
+      toast.success('Session approved! Worker credited.')
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId))
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to approve session')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleReject = async (sessionId) => {
+    if (!window.confirm('Reject this session? The worker will be notified.')) return
+    setProcessingId(sessionId)
+    try {
+      await api.post(`/admin/sessions/${sessionId}/approve`, {
+        action: 'reject',
+        notes: notes[sessionId] || null,
+      })
+      toast.success('Session rejected.')
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId))
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to reject session')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Session Approval <span className="text-gray-400 font-normal text-lg">({sessions.length})</span>
+        </h1>
+        <button onClick={load} disabled={loading} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700">
+          {loading ? '⟳ Refreshing...' : '⟳ Refresh'}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1,2,3].map(i => (
+            <div key={i} className="bg-white rounded-xl p-5 animate-pulse space-y-2">
+              <div className="h-4 bg-gray-200 rounded w-1/3" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
+              <div className="h-3 bg-gray-100 rounded w-2/3" />
+            </div>
+          ))}
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 text-center">
+          <p className="text-5xl mb-3">✅</p>
+          <p className="font-semibold text-gray-600">No pending sessions</p>
+          <p className="text-sm text-gray-400 mt-1">All completed sessions have been reviewed.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {sessions.map(s => (
+            <div key={s.session_id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-5 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900">{s.task_title}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">📍 {s.task_location}</p>
+                    <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
+                      <span>👤 {s.worker_name}</span>
+                      <span>📧 {s.worker_email}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold text-green-600">RM {s.earnings?.toFixed(2)}</p>
+                    <p className="text-xs text-gray-400">
+                      Checked out: {s.checked_out_at ? new Date(s.checked_out_at).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {s.proof_notes && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-1">Worker's notes:</p>
+                    <p className="text-sm text-gray-700">{s.proof_notes}</p>
+                  </div>
+                )}
+
+                {s.proof_photo_url && (
+                  <img
+                    src={s.proof_photo_url}
+                    alt="Proof"
+                    className="w-full max-h-48 rounded-lg object-cover border border-gray-200"
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Admin notes (optional)</label>
+                  <input
+                    type="text"
+                    value={notes[s.session_id] || ''}
+                    onChange={(e) => setNotes(prev => ({ ...prev, [s.session_id]: e.target.value }))}
+                    placeholder="Add a note for the worker..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex border-t border-gray-100">
+                <button
+                  onClick={() => handleReject(s.session_id)}
+                  disabled={processingId === s.session_id}
+                  className="flex-1 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 border-r border-gray-100"
+                >
+                  {processingId === s.session_id ? '⏳' : '✕ Reject'}
+                </button>
+                <button
+                  onClick={() => handleApprove(s.session_id)}
+                  disabled={processingId === s.session_id}
+                  className="flex-1 py-3 text-sm font-semibold text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
+                >
+                  {processingId === s.session_id ? '⏳ Approving...' : '✓ Approve & Credit'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

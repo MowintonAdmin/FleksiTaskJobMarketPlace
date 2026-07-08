@@ -80,15 +80,10 @@ export default function TaskDetail() {
           </div>
           <div className="text-right shrink-0">
             <p className="text-3xl font-bold text-primary-600">RM {totalPay}</p>
-            <p className="text-sm text-gray-500">RM {task.pay_rate_per_minute}/min × {task.estimated_duration_minutes} min</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100 text-center">
-          <div>
-            <p className="text-xs text-gray-500">Duration</p>
-            <p className="font-semibold text-gray-900">{task.estimated_duration_minutes} min</p>
-          </div>
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100 text-center">
           <div>
             <p className="text-xs text-gray-500">Applications</p>
             <p className="font-semibold text-gray-900">{task.application_count}</p>

@@ -64,27 +64,6 @@ async def finalize_checkout(
     if photo_url:
         session.proof_photo_url = photo_url
 
-    if minimum_duration_met:
-        # Mark the task itself as completed
-        task.status = TaskStatus.COMPLETED
-        db.add(task)
-
-        wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == current_user.id))
-        wallet = wallet_result.scalar_one_or_none()
-        if not wallet:
-            wallet = Wallet(user_id=current_user.id)
-            db.add(wallet)
-            await db.flush()
-        wallet.available_balance = round(wallet.available_balance + earnings, 2)
-        txn = Transaction(
-            user_id=current_user.id,
-            type=TransactionType.CREDIT,
-            amount=earnings,
-            description=f"Earnings from task: {task.title}",
-            reference_id=str(session.id),
-        )
-        db.add(txn)
-
     await db.flush()
     await db.refresh(session)
     return TaskSessionResponse.model_validate(session)

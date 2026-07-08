@@ -33,6 +33,7 @@ class UserBase(BaseModel):
     nationality: str | None = None
     race: str | None = None
     nric_passport: str | None = None
+    bank_qr_code_url: str | None = None
 
     @field_validator("skills", mode="before")
     @classmethod
@@ -59,6 +60,7 @@ class UserUpdate(BaseModel):
     nationality: str | None = None
     race: str | None = None
     nric_passport: str | None = None
+    bank_qr_code_url: str | None = None
 
 
 class UserResponse(UserBase):
