@@ -2,18 +2,13 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { applicationsApi } from '../api/tasks'
 import usePolling from '../hooks/usePolling'
+import api from '../api/client'
 
 const STATUS_STYLES = {
   pending: 'bg-yellow-100 text-yellow-700',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-600',
   withdrawn: 'bg-gray-100 text-gray-600',
-}
-
-const TASK_STATUS_STYLES = {
-  completed: 'bg-gray-100 text-gray-500',
-  cancelled: 'bg-red-50 text-red-400',
-  in_progress: 'bg-blue-100 text-blue-700',
 }
 
 export default function MyApplications() {
@@ -98,6 +93,17 @@ export default function MyApplications() {
               {app.cover_note && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100 italic">"{app.cover_note}"</p>
               )}
+              {app.status === 'approved' && app.task?.status === 'completed' && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <p className="font-semibold text-green-800 text-sm">Task Completed</p>
+                      <p className="text-xs text-green-600">This task has been completed and earnings have been credited to your wallet.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {app.status === 'approved' && app.task?.status !== 'completed' && app.task?.status !== 'cancelled' && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <Link
@@ -106,6 +112,14 @@ export default function MyApplications() {
                   >
                     ⏱ Track Work
                   </Link>
+                </div>
+              )}
+              {app.task?.status === 'cancelled' && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="font-semibold text-red-800 text-sm">❌ Task Cancelled</p>
+                    <p className="text-xs text-red-600">This task has been cancelled by the employer.</p>
+                  </div>
                 </div>
               )}
             </div>
