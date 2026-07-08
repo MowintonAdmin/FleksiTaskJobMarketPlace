@@ -285,44 +285,41 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Selfie with ID */}
-      <div className="card mb-6">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Identity Verification Photo</p>
-        <div className="flex items-start gap-4">
-          <div className="relative shrink-0 w-32 h-32">
-            {user?.selfie_with_id_url ? (
-              <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-full rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
-            ) : (
-              <div className="w-full h-full rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🤳</div>
-            )}
-            {uploadingSelfie && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
-                <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-          <div className="text-sm text-gray-500 flex-1">
-            <p className="font-medium text-gray-700">Take a selfie holding your NRIC / Passport</p>
-            <p className="text-xs text-gray-400 mt-1">Make sure your face and ID details are clearly visible.</p>
-            <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
-              const file = e.target.files?.[0]
-              if (!file) return
-              setUploadingSelfie(true)
-              try {
-                const formData = new FormData()
-                formData.append('file', file)
-                const { data } = await api.post('/users/me/selfie', formData, {
-                  headers: { 'Content-Type': 'multipart/form-data' },
-                })
-                dispatch(setUser(data))
-                toast.success('Selfie uploaded!')
-              } catch { toast.error('Failed to upload selfie') }
-              finally { setUploadingSelfie(false) }
-            }} />
-            <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-2">
-              {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
-            </button>
-          </div>
+      {/* Selfie with ID — single clean box */}
+      <div className="card mb-6 flex items-center gap-5">
+        <div className="relative shrink-0 w-28 h-28">
+          {user?.selfie_with_id_url ? (
+            <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-full rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+          ) : (
+            <div className="w-full h-full rounded-xl bg-gray-100 flex items-center justify-center text-4xl border-2 border-dashed border-gray-300">🤳</div>
+          )}
+          {uploadingSelfie && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+              <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm">Identity Verification Photo</p>
+          <p className="text-xs text-gray-500 mt-1">Hold your NRIC / Passport (front) next to your face and take a selfie. Make sure both your face and ID details are clearly visible.</p>
+          <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            setUploadingSelfie(true)
+            try {
+              const formData = new FormData()
+              formData.append('file', file)
+              const { data } = await api.post('/users/me/selfie', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+              })
+              dispatch(setUser(data))
+              toast.success('Selfie uploaded!')
+            } catch { toast.error('Failed to upload selfie') }
+            finally { setUploadingSelfie(false) }
+          }} />
+          <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-3">
+            {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
+          </button>
         </div>
       </div>
 
