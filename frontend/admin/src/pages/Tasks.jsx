@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import usePolling from '../hooks/usePolling'
+import SearchFilterBar from '../components/SearchFilterBar'
 
 // Route media through /api/v1/files/... — same proxy path as all API calls.
 // This avoids needing a separate nginx /media/ rule and works in all environments.
@@ -550,23 +551,25 @@ export default function Tasks() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          type="text" placeholder="Search by title or location…"
-          value={search} onChange={e => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        />
-        <select
-          value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All statuses</option>
-          <option value="open">OPEN</option>
-          <option value="in_progress">IN PROGRESS</option>
-          <option value="completed">COMPLETED</option>
-          <option value="cancelled">CANCELLED</option>
-        </select>
-      </div>
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by title or location…"
+        filters={[
+          {
+            value: filterStatus,
+            onChange: setFilterStatus,
+            onPageReset: () => setPage(1),
+            options: [
+              { value: '', label: 'All statuses' },
+              { value: 'open', label: 'Open' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'cancelled', label: 'Cancelled' },
+            ],
+          },
+        ]}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">

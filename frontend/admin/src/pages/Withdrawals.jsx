@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
+import SearchFilterBar from '../components/SearchFilterBar'
 
 const STATUS_COLORS = {
   PENDING: 'bg-yellow-100 text-yellow-700',
@@ -114,13 +115,23 @@ export default function Withdrawals() {
             <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5 font-medium">{pending}</span>
           )}
         </h1>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-          <option value="">All statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
+        <SearchFilterBar
+          search=""
+          onSearchChange={() => {}}
+          placeholder=""
+          filters={[
+            {
+              value: filterStatus,
+              onChange: setFilterStatus,
+              options: [
+                { value: '', label: 'All statuses' },
+                { value: 'PENDING', label: 'Pending' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'REJECTED', label: 'Rejected' },
+              ],
+            },
+          ]}
+        />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">

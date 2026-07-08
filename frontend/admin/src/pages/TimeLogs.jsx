@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
+import SearchFilterBar from '../components/SearchFilterBar'
 
 function elapsed(minutes) {
   if (minutes == null) return '—'
@@ -257,19 +258,30 @@ export default function TimeLogs() {
       {tab === 'logs' && (
         <>
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <select value={filterTask} onChange={e => setFilterTask(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-              <option value="">All tasks</option>
-              {tasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
+          <SearchFilterBar
+            search=""
+            onSearchChange={() => {}}
+            placeholder=""
+            filters={[
+              {
+                value: filterTask,
+                onChange: setFilterTask,
+                options: [
+                  { value: '', label: 'All tasks' },
+                  ...tasks.map(t => ({ value: t.id, label: t.title })),
+                ],
+              },
+              {
+                value: filterStatus,
+                onChange: setFilterStatus,
+                options: [
+                  { value: '', label: 'All statuses' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'completed', label: 'Completed' },
+                ],
+              },
+            ]}
+          />
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
             <table className="w-full text-sm">
