@@ -16,3 +16,4 @@ build/
 *.log
 media/
 staticfiles/
+"backend/local.db"  
