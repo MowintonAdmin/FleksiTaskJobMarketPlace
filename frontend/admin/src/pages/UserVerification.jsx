@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import api from '../api/client'
 import usePolling from '../hooks/usePolling'
+import SearchFilterBar from '../components/SearchFilterBar'
 
 const REJECTION_REASONS = [
   'ID photo is unclear or blurry',
@@ -15,6 +16,7 @@ const REJECTION_REASONS = [
 
 export default function UserVerification() {
   const [users, setUsers] = useState([])
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState(null)
   const [rejectModal, setRejectModal] = useState(null) // user object being rejected
@@ -89,6 +91,14 @@ export default function UserVerification() {
         </button>
       </div>
 
+      {/* Search + Filter */}
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by name or email…"
+        filters={[]}
+      />
+
       {loading ? (
         <div className="space-y-3">
           {[1,2,3].map(i => (
@@ -106,7 +116,13 @@ export default function UserVerification() {
         </div>
       ) : (
         <div className="space-y-4">
-          {users.map(u => (
+          {users
+            .filter(u => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+            })
+            .map(u => (
             <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-5 space-y-3">
                 <div className="flex items-start justify-between gap-4">
