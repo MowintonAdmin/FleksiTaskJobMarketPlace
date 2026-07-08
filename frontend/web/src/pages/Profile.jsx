@@ -242,6 +242,25 @@ export default function Profile() {
   }
 
   const handleSubmitVerification = async () => {
+    // Validate all required fields before submitting
+    const missing = []
+    if (!form.full_name?.trim()) missing.push('Full Name')
+    if (!form.phone?.trim()) missing.push('Phone Number')
+    if (!form.nric_passport?.trim()) missing.push('NRIC / Passport No.')
+    if (!form.body_height_cm && form.body_height_cm !== 0) missing.push('Body Height')
+    if (!form.nationality?.trim()) missing.push('Nationality')
+    if (!form.race?.trim()) missing.push('Race')
+    if (!user?.selfie_with_id_url) missing.push('Selfie with ID upload')
+    if (!user?.bank_qr_code_url) missing.push('Bank QR Code upload')
+
+    if (missing.length > 0) {
+      toast.error(
+        `Please complete the following before submitting: ${missing.join(', ')}`,
+        { autoClose: 10000 }
+      )
+      return
+    }
+
     try {
       const { data } = await api.post('/users/me/submit-verification')
       dispatch(setUser(data))
