@@ -8,11 +8,6 @@ services:
   backend:
     env_file:
       - ./backend/.env
-    environment:
-      # Override ALLOWED_ORIGINS so the production frontend domains are permitted.
-      # Set BACKEND_ALLOWED_ORIGINS in deploy/.env.prod, e.g.:
-      #   BACKEND_ALLOWED_ORIGINS=["https://flekxi.my","https://www.flekxi.my","https://admin.flekxi.my"]
-      ALLOWED_ORIGINS: ${BACKEND_ALLOWED_ORIGINS:-["http://localhost:3000"]}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8000}:8000"
     restart: unless-stopped
