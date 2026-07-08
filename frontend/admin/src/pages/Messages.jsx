@@ -202,7 +202,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     messagesApi.sendTyping(conversation.user_id).catch(() => {})
   }, [body, conversation])
 
-  // Check if other user is typing (poll every 3s)
+  // Check if other user is typing (poll every 1.5s)
   useEffect(() => {
     if (!conversation) return
     const id = setInterval(async () => {
@@ -210,7 +210,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
         const { typing } = await messagesApi.checkTyping(conversation.user_id)
         setIsTyping(typing)
       } catch {}
-    }, 3000)
+    }, 1500)
     return () => clearInterval(id)
   }, [conversation])
 

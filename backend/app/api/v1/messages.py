@@ -242,7 +242,7 @@ async def typing_indicator(
     from app.core.redis_client import set_session, get_session, delete_session
 
     key = f"typing:{current_user.id}:{user_id}"
-    await set_session(key, "1", ttl=5)  # auto-expires after 5s
+    await set_session(key, "1", ttl=3)  # auto-expires after 3s
     return {"status": "ok"}
 
 
