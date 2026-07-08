@@ -260,11 +260,11 @@ function TaskModal({ task, onClose, onSaved }) {
           </div>
 
           {/* Pay estimate */}
-          {parseFloat(form.pay_rate_per_hour) > 0 && parseInt(form.estimated_duration_hours) > 0 && (
+          {parseFloat(form.pay_rate_per_hour) > 0 && parseFloat(form.estimated_duration_hours) > 0 && (
             <div className="bg-blue-50 rounded-lg px-4 py-2.5 text-sm text-blue-700 flex flex-wrap gap-3">
-              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours)).toFixed(2)}</strong></span>
+              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseFloat(form.estimated_duration_hours)).toFixed(2)}</strong></span>
               {parseInt(form.max_applicants) > 1 && (
-                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
+                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseFloat(form.estimated_duration_hours) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
               )}
             </div>
           )}
