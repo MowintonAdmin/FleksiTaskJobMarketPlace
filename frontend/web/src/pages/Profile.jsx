@@ -345,6 +345,7 @@ export default function Profile() {
             onChange={handleChange}
             className="input"
             placeholder="e.g. +60 12-345 6789"
+            required
           />
           <p className="text-xs text-gray-400 mt-1">Used for identity verification and admin contact.</p>
         </div>
@@ -415,7 +416,7 @@ export default function Profile() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Body Height (cm)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Body Height (cm) <span className="text-red-500">*</span></label>
               <input
                 name="body_height_cm"
                 type="number"
@@ -426,12 +427,13 @@ export default function Profile() {
                 onChange={handleChange}
                 className="input"
                 placeholder="e.g. 170"
+                required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">NRIC / Passport No.</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">NRIC / Passport No. <span className="text-red-500">*</span></label>
             <input
               name="nric_passport"
               value={form.nric_passport}
@@ -439,6 +441,7 @@ export default function Profile() {
               className="input"
               placeholder="e.g. 900101-14-1234 or A12345678"
               autoComplete="off"
+              required
             />
             <p className="text-xs text-gray-400 mt-1">This information is kept confidential and only used for identity verification.</p>
           </div>

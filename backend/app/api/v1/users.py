@@ -74,6 +74,20 @@ async def update_my_profile(
     db: AsyncSession = Depends(get_db),
 ):
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Validate mandatory fields
+    errors = []
+    if "full_name" in update_data and not update_data["full_name"]:
+        errors.append("Full name is required")
+    if "phone" in update_data and not update_data["phone"]:
+        errors.append("Phone number is required")
+    if "nric_passport" in update_data and not update_data["nric_passport"]:
+        errors.append("NRIC/Passport number is required")
+    if "body_height_cm" in update_data and (update_data["body_height_cm"] is None or update_data["body_height_cm"] <= 0):
+        errors.append("Body height must be greater than 0")
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
+
     if "skills" in update_data and update_data["skills"] is not None:
         update_data["skills"] = json.dumps(update_data["skills"])
     for field, value in update_data.items():
