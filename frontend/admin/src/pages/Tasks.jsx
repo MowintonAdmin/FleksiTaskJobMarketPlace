@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
+import usePolling from '../hooks/usePolling'
 
 // Route media through /api/v1/files/... — same proxy path as all API calls.
 // This avoids needing a separate nginx /media/ rule and works in all environments.
@@ -509,6 +510,9 @@ export default function Tasks() {
 
   useEffect(() => { load(1) }, [filterStatus])
   useEffect(() => { load(page) }, [page])
+
+  // Auto-refresh tasks list every 5s
+  usePolling(() => load(page), 5000)
 
   const displayedTasks = search
     ? data.tasks.filter(t =>
