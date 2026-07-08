@@ -1,4 +1,4 @@
-import json
+ import json
 import os
 import subprocess
 import tempfile
@@ -603,8 +603,52 @@ async def admin_adjust_session_time(
 
 
 import math
+import io
+import csv
 
 # ── Task Listing (Admin) ──────────────────────────────────────────────────────
+
+@router.get("/tasks/export")
+async def export_tasks_csv(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export all tasks to CSV."""
+    from app.models.task import TaskStatus
+    result = await db.execute(select(Task).order_by(Task.created_at.desc()))
+    tasks = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Title", "Description", "Location", "Category",
+        "Pay Rate (RM/min)", "Est. Duration (min)", "Max Applicants",
+        "Status", "Start Date", "Created At",
+    ])
+
+    for t in tasks:
+        writer.writerow([
+            str(t.id),
+            t.title,
+            t.description,
+            t.location,
+            t.category,
+            t.pay_rate_per_minute,
+            t.estimated_duration_minutes,
+            t.max_applicants,
+            t.status,
+            t.starts_at.isoformat() if t.starts_at else "",
+            t.created_at.isoformat(),
+        ])
+
+    output.seek(0)
+    filename = f"tasks_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
 
 @router.get("/tasks")
 async def admin_list_tasks(
