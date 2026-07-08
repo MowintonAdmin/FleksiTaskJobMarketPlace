@@ -141,6 +141,66 @@ async def upload_bank_qr(
     return current_user
 
 
+@router.post("/me/id-photo-front", response_model=UserResponse)
+async def upload_id_photo_front(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a photo of the front of your NRIC/Passport."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    content = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+
+    media_path = Path(settings.MEDIA_DIR) / "id-photos"
+    media_path.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.id}_id_front.{ext}"
+    file_path = media_path / filename
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    current_user.id_photo_front_url = f"/media/id-photos/{filename}"
+    db.add(current_user)
+    return current_user
+
+
+@router.post("/me/selfie", response_model=UserResponse)
+async def upload_selfie(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a selfie with ID for identity verification."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    content = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+
+    media_path = Path(settings.MEDIA_DIR) / "selfies"
+    media_path.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.id}_selfie.{ext}"
+    file_path = media_path / filename
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    current_user.selfie_with_id_url = f"/media/selfies/{filename}"
+    db.add(current_user)
+    return current_user
+
+
 @router.post("/me/submit-verification", response_model=UserResponse)
 async def submit_for_verification(
     current_user: User = Depends(get_current_user),

@@ -26,7 +26,7 @@ class User(Base):
     body_height_cm: Mapped[float | None] = mapped_column(nullable=True)
     nationality: Mapped[str | None] = mapped_column(String(100), nullable=True)
     race: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    nric_passport: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    nric_passport: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     bank_qr_code_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     id_photo_front_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     id_photo_back_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

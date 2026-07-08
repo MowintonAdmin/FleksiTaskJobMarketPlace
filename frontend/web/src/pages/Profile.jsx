@@ -94,9 +94,13 @@ export default function Profile() {
   const { user } = useSelector((s) => s.auth)
   const photoRef = useRef()
   const bankQrRef = useRef()
+  const selfieRef = useRef()
+  const idPhotoRef = useRef()
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingBankQr, setUploadingBankQr] = useState(false)
+  const [uploadingSelfie, setUploadingSelfie] = useState(false)
+  const [uploadingIdPhoto, setUploadingIdPhoto] = useState(false)
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     bio: user?.bio || '',
@@ -218,6 +222,82 @@ export default function Profile() {
           <button onClick={() => photoRef.current.click()} className="btn-secondary text-xs px-3 py-1.5">
             Upload Photo
           </button>
+        </div>
+      </div>
+
+      {/* ID Photos & Selfie */}
+      <div className="card mb-6">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Identity Documents</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Selfie with ID */}
+          <div>
+            <div className="relative mb-2">
+              {user?.selfie_with_id_url ? (
+                <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-32 rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+              ) : (
+                <div className="w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🤳</div>
+              )}
+              {uploadingSelfie && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                  <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              setUploadingSelfie(true)
+              try {
+                const formData = new FormData()
+                formData.append('file', file)
+                const { data } = await api.post('/users/me/selfie', formData, {
+                  headers: { 'Content-Type': 'multipart/form-data' },
+                })
+                dispatch(setUser(data))
+                toast.success('Selfie uploaded!')
+              } catch { toast.error('Failed to upload selfie') }
+              finally { setUploadingSelfie(false) }
+            }} />
+            <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 w-full">
+              {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
+            </button>
+            <p className="text-xs text-gray-400 mt-1">Hold your NRIC/Passport next to your face.</p>
+          </div>
+
+          {/* ID Photo Front */}
+          <div>
+            <div className="relative mb-2">
+              {user?.id_photo_front_url ? (
+                <img src={user.id_photo_front_url} alt="ID Front" className="w-full h-32 rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+              ) : (
+                <div className="w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🪪</div>
+              )}
+              {uploadingIdPhoto && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                  <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+            <input ref={idPhotoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              setUploadingIdPhoto(true)
+              try {
+                const formData = new FormData()
+                formData.append('file', file)
+                const { data } = await api.post('/users/me/id-photo-front', formData, {
+                  headers: { 'Content-Type': 'multipart/form-data' },
+                })
+                dispatch(setUser(data))
+                toast.success('ID photo uploaded!')
+              } catch { toast.error('Failed to upload ID photo') }
+              finally { setUploadingIdPhoto(false) }
+            }} />
+            <button onClick={() => idPhotoRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 w-full">
+              {user?.id_photo_front_url ? 'Change ID' : 'Upload ID (Front)'}
+            </button>
+            <p className="text-xs text-gray-400 mt-1">Clear photo of your NRIC/Passport front.</p>
+          </div>
         </div>
       </div>
 
