@@ -212,6 +212,7 @@ async def admin_get_user_sessions(
 
 class UserVerificationAction(BaseModel):
     action: str  # "approve" or "reject"
+    reason: str | None = None  # rejection reason
 
 
 @router.post("/users/{user_id}/verify")
@@ -231,12 +232,15 @@ async def admin_verify_user(
     if action == "approve":
         user.is_verified = True
         user.is_active = True
+        user.verification_status = "approved"
         await db.flush()
         return {"status": "approved", "user_id": str(user.id)}
     elif action == "reject":
-        await db.delete(user)
+        user.verification_status = "rejected"
+        user.rejection_reason = payload.reason or "No specific reason provided"
+        user.is_active = True  # Keep account active so they can re-upload
         await db.flush()
-        return {"status": "rejected", "user_id": str(user.id)}
+        return {"status": "rejected", "reason": user.rejection_reason, "user_id": str(user.id)}
 
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
 
