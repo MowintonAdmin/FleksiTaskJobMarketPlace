@@ -85,7 +85,7 @@ function TaskModal({ task, onClose, onSaved }) {
       const payload = {
         ...form,
         pay_rate_per_minute: parseFloat(form.pay_rate_per_hour) / 60,
-        estimated_duration_minutes: parseInt(form.estimated_duration_hours) * 60,
+        estimated_duration_minutes: Math.round(parseFloat(form.estimated_duration_hours) * 60),
         max_applicants: parseInt(form.max_applicants),
         starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
         requirements: form.requirements || null,

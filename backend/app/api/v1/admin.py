@@ -561,31 +561,7 @@ async def admin_adjust_session_time(
         new_earnings = round(elapsed * task.pay_rate_per_minute, 2)
         session.earnings = new_earnings
         session.status = SessionStatus.COMPLETED
-
-        # Adjust wallet balance by the diff
-        diff = new_earnings - old_earnings
-        wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
-        wallet = wallet_result.scalar_one_or_none()
-        if wallet and diff != 0:
-            wallet.available_balance = round(wallet.available_balance + diff, 2)
-            # Record adjustment transaction
-            reason_note = f" Reason: {payload.reason}" if payload.reason else ""
-            db.add(Transaction(
-                user_id=session.worker_id,
-                type=TransactionType.CREDIT if diff > 0 else TransactionType.WITHDRAWAL_PENDING,
-                amount=abs(diff),
-                description=f"Time adjustment by admin (session {str(session_id)[:8]}…){reason_note}",
-                reference_id=str(session_id),
-            ))
-        # Notify worker
-        reason_note = f" Reason: {payload.reason}" if payload.reason else ""
-        db.add(Message(
-            sender_id=admin_user.id,
-            recipient_id=session.worker_id,
-            body=f"⏱ Your work session time was adjusted by an admin. New earnings: RM {new_earnings:.2f}.{reason_note}",
-        ))
     else:
-        # Only check-in adjustment (active session)
         new_earnings = None
 
     await db.flush()
