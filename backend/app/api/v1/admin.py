@@ -96,6 +96,45 @@ class UserWithStats(UserResponse):
     stats: WorkerStats | None = None
 
 
+# ⚠️ MUST be registered BEFORE /users/{user_id} so FastAPI matches "unverified" first
+@router.get("/users/unverified")
+async def admin_unverified_users(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """List all unverified users awaiting admin approval."""
+    result = await db.execute(
+        select(User)
+        .where(User.is_verified == False, User.is_admin == False)
+        .order_by(User.created_at.desc())
+    )
+    users = result.scalars().all()
+    out = []
+    for u in users:
+        sessions_result = await db.execute(
+            select(TaskSession).where(TaskSession.worker_id == u.id)
+        )
+        sessions = sessions_result.scalars().all()
+        completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
+        out.append({
+            "id": str(u.id),
+            "email": u.email,
+            "full_name": u.full_name,
+            "profile_photo_url": u.profile_photo_url,
+            "location": u.location,
+            "nationality": u.nationality,
+            "race": u.race,
+            "nric_passport": u.nric_passport,
+            "academic_qualification": u.academic_qualification,
+            "body_height_cm": u.body_height_cm,
+            "bank_qr_code_url": u.bank_qr_code_url,
+            "total_sessions": len(sessions),
+            "completed_sessions": len(completed),
+            "created_at": u.created_at.isoformat(),
+        })
+    return out
+
+
 @router.get("/users", response_model=list[UserResponse])
 async def admin_list_users(
     search: str | None = Query(None),
@@ -169,6 +208,37 @@ async def admin_get_user_sessions(
             "proof_photo_url": s.proof_photo_url,
         })
     return out
+
+
+class UserVerificationAction(BaseModel):
+    action: str  # "approve" or "reject"
+
+
+@router.post("/users/{user_id}/verify")
+async def admin_verify_user(
+    user_id: uuid.UUID,
+    payload: UserVerificationAction,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Approve or reject a user registration."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    action = payload.action.lower()
+    if action == "approve":
+        user.is_verified = True
+        user.is_active = True
+        await db.flush()
+        return {"status": "approved", "user_id": str(user.id)}
+    elif action == "reject":
+        await db.delete(user)
+        await db.flush()
+        return {"status": "rejected", "user_id": str(user.id)}
+
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
 
 
 # ── Active Workers ────────────────────────────────────────────────────────────
@@ -894,77 +964,6 @@ async def export_workers_csv(
     )
 
 
-# ── User Verification (Admin approves new user registrations) ─────────────────
-
-@router.get("/users/unverified")
-async def admin_unverified_users(
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    """List all unverified users awaiting admin approval."""
-    result = await db.execute(
-        select(User)
-        .where(User.is_verified == False, User.is_admin == False)
-        .order_by(User.created_at.desc())
-    )
-    users = result.scalars().all()
-    out = []
-    for u in users:
-        sessions_result = await db.execute(
-            select(TaskSession).where(TaskSession.worker_id == u.id)
-        )
-        sessions = sessions_result.scalars().all()
-        completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
-        out.append({
-            "id": str(u.id),
-            "email": u.email,
-            "full_name": u.full_name,
-            "profile_photo_url": u.profile_photo_url,
-            "location": u.location,
-            "nationality": u.nationality,
-            "race": u.race,
-            "nric_passport": u.nric_passport,
-            "academic_qualification": u.academic_qualification,
-            "body_height_cm": u.body_height_cm,
-            "bank_qr_code_url": u.bank_qr_code_url,
-            "total_sessions": len(sessions),
-            "completed_sessions": len(completed),
-            "created_at": u.created_at.isoformat(),
-        })
-    return out
-
-
-class UserVerificationAction(BaseModel):
-    action: str  # "approve" or "reject"
-
-
-@router.post("/users/{user_id}/verify")
-async def admin_verify_user(
-    user_id: uuid.UUID,
-    payload: UserVerificationAction,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
-):
-    """Approve or reject a user registration."""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    action = payload.action.lower()
-    if action == "approve":
-        user.is_verified = True
-        user.is_active = True
-        await db.flush()
-        return {"status": "approved", "user_id": str(user.id)}
-    elif action == "reject":
-        await db.delete(user)
-        await db.flush()
-        return {"status": "rejected", "user_id": str(user.id)}
-
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
-
-
 # ── Enhanced Worker Export CSV ───────────────────────────────────────────────
 
 @router.get("/export/workers-detailed")
@@ -1342,4 +1341,3 @@ async def admin_approve_session(
         return {"status": "rejected", "session_id": str(session.id)}
 
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
-
