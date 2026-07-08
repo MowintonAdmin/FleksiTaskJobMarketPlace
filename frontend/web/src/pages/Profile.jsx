@@ -333,11 +333,11 @@ export default function Profile() {
       {/* Form */}
       <form onSubmit={handleSave} className="card space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
           <input name="full_name" value={form.full_name} onChange={handleChange} className="input" required />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
           <input
             name="phone"
             type="tel"
