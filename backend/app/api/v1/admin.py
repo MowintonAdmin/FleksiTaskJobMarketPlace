@@ -1331,8 +1331,10 @@ async def admin_approve_session(
             body=f"✅ Your task \"{task.title}\" has been approved! RM {session.earnings:.2f} has been credited to your wallet.{reason}",
         ))
 
+        session.status = SessionStatus.SETTLED
+        db.add(session)
         await db.flush()
-        await db.refresh(wallet)
+        await db.refresh(session)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
 
     elif action == "reject":
