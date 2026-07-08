@@ -1250,6 +1250,9 @@ async def admin_pending_sessions(
     sessions = result.scalars().all()
     out = []
     for s in sessions:
+        # Skip sessions with no earnings (rejected)
+        if not s.earnings or s.earnings <= 0:
+            continue
         worker_result = await db.execute(select(User).where(User.id == s.worker_id))
         worker = worker_result.scalar_one_or_none()
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
@@ -1329,12 +1332,16 @@ async def admin_approve_session(
         ))
 
         await db.flush()
+        await db.refresh(wallet)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
 
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
         reason = f" Reason: {payload.notes}" if payload.notes else ""
+        # Zero out earnings so this session won't appear in pending-approval again
+        session.earnings = 0.0
+        db.add(session)
         db.add(_MessageForApproval(
             sender_id=admin_user.id,
             recipient_id=session.worker_id,

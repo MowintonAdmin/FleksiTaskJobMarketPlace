@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import api from '../api/client'
+import usePolling from '../hooks/usePolling'
 
 export default function SessionApproval() {
   const [sessions, setSessions] = useState([])
@@ -8,7 +9,7 @@ export default function SessionApproval() {
   const [processingId, setProcessingId] = useState(null)
   const [notes, setNotes] = useState({})
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const { data } = await api.get('/admin/sessions/pending-approval')
@@ -18,9 +19,12 @@ export default function SessionApproval() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 5s
+  usePolling(load, 5000)
 
   const handleApprove = async (sessionId) => {
     setProcessingId(sessionId)
