@@ -23,6 +23,48 @@ const ACADEMIC_QUALIFICATIONS = [
 
 const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
 
+function VerificationStatus({ user }) {
+  if (!user) return null
+  const status = user.verification_status || (user.is_verified ? 'approved' : 'pending')
+
+  if (status === 'approved') {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+        <span className="text-2xl">✅</span>
+        <div>
+          <p className="font-semibold text-green-800 text-sm">Account Verified</p>
+          <p className="text-xs text-green-600">Your identity has been verified. You can now apply for tasks.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'rejected') {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">❌</span>
+          <div>
+            <p className="font-semibold text-red-800 text-sm">Verification Rejected</p>
+            <p className="text-xs text-red-600">Reason: {user.rejection_reason || 'No specific reason provided'}</p>
+          </div>
+        </div>
+        <p className="text-xs text-red-500 mt-1">Please update your information and contact admin to re-submit.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+      <span className="text-2xl">⏳</span>
+      <div>
+        <p className="font-semibold text-yellow-800 text-sm">Pending Verification</p>
+        <p className="text-xs text-yellow-600">Your account is awaiting admin approval. Some features may be limited.</p>
+      </div>
+    </div>
+  )
+}
+
 export default function Profile() {
   const dispatch = useDispatch()
   const { user } = useSelector((s) => s.auth)
@@ -35,6 +77,7 @@ export default function Profile() {
     full_name: user?.full_name || '',
     bio: user?.bio || '',
     location: user?.location || '',
+    phone: user?.phone || '',
     skills: user?.skills || [],
     academic_qualification: user?.academic_qualification || '',
     body_height_cm: user?.body_height_cm ?? '',
@@ -115,6 +158,9 @@ export default function Profile() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
 
+      {/* Verification Status Banner */}
+      <VerificationStatus user={user} />
+
       {/* Photo */}
       <div className="card mb-6 flex items-center gap-4">
         <div className="relative">
@@ -175,6 +221,18 @@ export default function Profile() {
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
           <input name="full_name" value={form.full_name} onChange={handleChange} className="input" required />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number</label>
+          <input
+            name="phone"
+            type="tel"
+            value={form.phone}
+            onChange={handleChange}
+            className="input"
+            placeholder="e.g. +60 12-345 6789"
+          />
+          <p className="text-xs text-gray-400 mt-1">Used for identity verification and admin contact.</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
