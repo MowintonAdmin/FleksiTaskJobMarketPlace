@@ -130,6 +130,7 @@ async def send_message(
     msg = Message(sender_id=current_user.id, recipient_id=payload.recipient_id, body=payload.body.strip())
     db.add(msg)
     await db.flush()
+    await db.refresh(msg)
     resp = MessageResponse.model_validate(msg)
     resp.sender_name = current_user.full_name
     return resp

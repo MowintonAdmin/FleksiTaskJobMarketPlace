@@ -36,7 +36,18 @@ async def apply_for_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """One-tap task application."""
+    """One-tap task application. User must be verified."""
+    if not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account must be verified before you can apply for tasks. Please complete your profile and wait for admin verification.",
+        )
+    if not current_user.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide a phone number in your profile before applying for tasks.",
+        )
+
     result = await db.execute(select(Task).where(Task.id == payload.task_id))
     task = result.scalar_one_or_none()
     if not task or task.status != TaskStatus.OPEN:

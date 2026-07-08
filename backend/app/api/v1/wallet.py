@@ -223,5 +223,6 @@ async def request_withdrawal(
     )
     db.add(txn)
     await db.flush()
+    await db.refresh(withdrawal)
 
     return WithdrawalResponse.model_validate(withdrawal)

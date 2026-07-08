@@ -20,6 +20,7 @@ export default function UserVerification() {
   const [rejectModal, setRejectModal] = useState(null) // user object being rejected
   const [rejectReason, setRejectReason] = useState('')
   const [rejectCustom, setRejectCustom] = useState('')
+  const [viewModal, setViewModal] = useState(null) // user object being viewed in detail
 
   const load = useCallback(async () => {
     try {
@@ -112,21 +113,52 @@ export default function UserVerification() {
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900">{u.full_name}</p>
                     <p className="text-sm text-gray-500">{u.email}</p>
+                    {u.phone && <p className="text-sm text-gray-500 mt-0.5">📞 {u.phone}</p>}
                     {u.location && <p className="text-sm text-gray-500 mt-0.5">📍 {u.location}</p>}
                     <p className="text-xs text-gray-400 mt-1">Joined: {new Date(u.created_at).toLocaleString()}</p>
                     <p className="text-xs text-gray-400">Sessions: {u.total_sessions || 0} ({u.completed_sessions || 0} completed)</p>
                   </div>
                   <div className="text-right shrink-0">
                     {u.profile_photo_url && (
-                      <img src={u.profile_photo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+                      <img src={u.profile_photo_url} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
                   {u.nationality && <p><span className="text-gray-500">Nationality:</span> {u.nationality}</p>}
                   {u.race && <p><span className="text-gray-500">Race:</span> {u.race}</p>}
                   {u.nric_passport && <p><span className="text-gray-500">NRIC/Passport:</span> {u.nric_passport}</p>}
+                  {u.body_height_cm && <p><span className="text-gray-500">Height:</span> {u.body_height_cm} cm</p>}
+                  {u.academic_qualification && <p><span className="text-gray-500">Education:</span> {u.academic_qualification}</p>}
+                </div>
+
+                {/* Identity photos row */}
+                <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-100">
+                  {u.selfie_with_id_url && (
+                    <div className="text-center">
+                      <p className="text-xs text-gray-400 mb-1">Selfie with ID</p>
+                      <img
+                        src={u.selfie_with_id_url}
+                        alt="Selfie with ID"
+                        className="w-24 h-24 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setViewModal({ ...u, imageUrl: u.selfie_with_id_url, imageLabel: 'Selfie with ID' })}
+                        onError={e => { e.currentTarget.style.display = 'none' }}
+                      />
+                    </div>
+                  )}
+                  {u.bank_qr_code_url && (
+                    <div className="text-center">
+                      <p className="text-xs text-gray-400 mb-1">Bank QR</p>
+                      <img
+                        src={u.bank_qr_code_url}
+                        alt="Bank QR"
+                        className="w-24 h-24 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setViewModal({ ...u, imageUrl: u.bank_qr_code_url, imageLabel: 'Bank QR Code' })}
+                        onError={e => { e.currentTarget.style.display = 'none' }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -148,6 +180,20 @@ export default function UserVerification() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Photo view modal */}
+      {viewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setViewModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900">{viewModal.imageLabel}</h2>
+              <button onClick={() => setViewModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <img src={viewModal.imageUrl} alt={viewModal.imageLabel} className="w-full rounded-xl" />
+            <p className="text-sm text-gray-500 mt-2">{viewModal.full_name} — {viewModal.email}</p>
+          </div>
         </div>
       )}
 
