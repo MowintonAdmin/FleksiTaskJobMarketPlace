@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import usePolling from '../hooks/usePolling'
 
 const formatStatusLabel = (status) =>
   String(status || '')
@@ -272,6 +273,9 @@ export default function Users() {
     const t = setTimeout(load, 300)
     return () => clearTimeout(t)
   }, [load])
+
+  // Auto-refresh users list every 5s
+  usePolling(load, 5000)
 
   return (
     <div className="p-6 space-y-5">

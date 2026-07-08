@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import usePolling from '../hooks/usePolling'
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -223,6 +224,9 @@ export default function Applications() {
   }, [filterTask, filterStatus])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh applications list every 5s
+  usePolling(load, 5000)
 
   const updateStatus = async (id, newStatus) => {
     try {

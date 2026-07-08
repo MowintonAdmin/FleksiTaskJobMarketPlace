@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import usePolling from '../hooks/usePolling'
 
 const STATUS_COLORS = {
   PENDING: 'bg-yellow-100 text-yellow-700',
@@ -103,6 +104,9 @@ export default function Withdrawals() {
   }, [filterStatus])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh withdrawals list every 5s
+  usePolling(load, 5000)
 
   const pending = withdrawals.filter(w => w.status === 'PENDING').length
 
