@@ -224,9 +224,11 @@ async def admin_verify_user(
     user_id: uuid.UUID,
     payload: UserVerificationAction,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    admin_user: User = Depends(require_admin),
 ):
-    """Approve or reject a user registration."""
+    """Approve or reject a user registration. Sends an in-app notification to the user."""
+    from app.models.message import Message
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -237,12 +239,27 @@ async def admin_verify_user(
         user.is_verified = True
         user.is_active = True
         user.verification_status = "approved"
+
+        notif = Message(
+            sender_id=admin_user.id,
+            recipient_id=user.id,
+            body=f"✅ Your account has been verified! You can now apply for tasks and start earning.",
+        )
+        db.add(notif)
         await db.flush()
         return {"status": "approved", "user_id": str(user.id)}
     elif action == "reject":
         user.verification_status = "rejected"
         user.rejection_reason = payload.reason or "No specific reason provided"
         user.is_active = True  # Keep account active so they can re-upload
+
+        reason_text = payload.reason or "No specific reason provided"
+        notif = Message(
+            sender_id=admin_user.id,
+            recipient_id=user.id,
+            body=f"❌ Your verification was rejected. Reason: {reason_text}. Please update your information and resubmit.",
+        )
+        db.add(notif)
         await db.flush()
         return {"status": "rejected", "reason": user.rejection_reason, "user_id": str(user.id)}
 

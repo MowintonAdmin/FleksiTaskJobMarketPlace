@@ -23,9 +23,18 @@ const ACADEMIC_QUALIFICATIONS = [
 
 const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
 
+function verifyStatus(user) {
+  if (!user) return 'pending'
+  if (user.verification_status === 'approved') return 'approved'
+  if (user.verification_status === 'submitted') return 'submitted'
+  if (user.verification_status === 'rejected') return 'rejected'
+  if (user.is_verified) return 'approved'
+  return 'pending'
+}
+
 function VerificationStatus({ user, onResubmit }) {
   if (!user) return null
-  const status = user.verification_status || (user.is_verified ? 'approved' : 'pending')
+  const status = verifyStatus(user)
 
   if (status === 'approved') {
     return (
@@ -79,7 +88,7 @@ function VerificationStatus({ user, onResubmit }) {
         <span className="text-2xl">🛡️</span>
         <div>
           <p className="font-semibold text-yellow-800 text-sm">Complete Your Profile</p>
-          <p className="text-xs text-yellow-600">Fill in your personal details and upload your bank QR code, then submit for verification.</p>
+          <p className="text-xs text-yellow-600">Fill in your personal details, upload your selfie with ID, then submit for verification.</p>
         </div>
       </div>
       {onResubmit && (
@@ -94,18 +103,27 @@ function VerificationStatus({ user, onResubmit }) {
   )
 }
 
+function extractFieldErrors(err) {
+  const detail = err.response?.data?.detail
+  if (Array.isArray(detail)) {
+    return detail.join(', ')
+  }
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail
+  }
+  return null
+}
+
 export default function Profile() {
   const dispatch = useDispatch()
   const { user } = useSelector((s) => s.auth)
   const photoRef = useRef()
   const bankQrRef = useRef()
   const selfieRef = useRef()
-  const idPhotoRef = useRef()
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingBankQr, setUploadingBankQr] = useState(false)
   const [uploadingSelfie, setUploadingSelfie] = useState(false)
-  const [uploadingIdPhoto, setUploadingIdPhoto] = useState(false)
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     bio: user?.bio || '',
@@ -137,6 +155,20 @@ export default function Profile() {
     })
   }, [user])
 
+  // Periodically refetch current user so verification status updates in real-time
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(async () => {
+      try {
+        const updated = await authApi.getMe()
+        dispatch(setUser(updated))
+      } catch {
+        // silent – ignore refresh errors
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [user, dispatch])
+
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
 
   const addSkill = (skill) => {
@@ -163,8 +195,13 @@ export default function Profile() {
       const updated = await authApi.updateMe(form)
       dispatch(setUser(updated))
       toast.success('Profile updated!')
-    } catch {
-      toast.error('Failed to save profile')
+    } catch (err) {
+      const msg = extractFieldErrors(err)
+      if (msg) {
+        toast.error(msg, { autoClose: 8000 })
+      } else {
+        toast.error('Failed to save profile')
+      }
     } finally {
       setSaving(false)
     }
@@ -210,7 +247,8 @@ export default function Profile() {
       dispatch(setUser(data))
       toast.success('Profile submitted for verification!')
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to submit')
+      const msg = extractFieldErrors(e)
+      toast.error(msg || e.response?.data?.detail || 'Failed to submit')
     }
   }
 
@@ -247,24 +285,25 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* ID Photos & Selfie */}
+      {/* Selfie with ID */}
       <div className="card mb-6">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Identity Documents</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Selfie with ID */}
-          <div>
-            <div className="relative mb-2">
-              {user?.selfie_with_id_url ? (
-                <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-32 rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
-              ) : (
-                <div className="w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🤳</div>
-              )}
-              {uploadingSelfie && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
-                  <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Identity Verification Photo</p>
+        <div className="flex items-start gap-4">
+          <div className="relative shrink-0 w-32 h-32">
+            {user?.selfie_with_id_url ? (
+              <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-full rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+            ) : (
+              <div className="w-full h-full rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🤳</div>
+            )}
+            {uploadingSelfie && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-gray-500 flex-1">
+            <p className="font-medium text-gray-700">Take a selfie holding your NRIC / Passport</p>
+            <p className="text-xs text-gray-400 mt-1">Make sure your face and ID details are clearly visible.</p>
             <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
@@ -280,45 +319,9 @@ export default function Profile() {
               } catch { toast.error('Failed to upload selfie') }
               finally { setUploadingSelfie(false) }
             }} />
-            <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 w-full">
+            <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-2">
               {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
             </button>
-            <p className="text-xs text-gray-400 mt-1">Hold your NRIC/Passport next to your face.</p>
-          </div>
-
-          {/* ID Photo Front */}
-          <div>
-            <div className="relative mb-2">
-              {user?.id_photo_front_url ? (
-                <img src={user.id_photo_front_url} alt="ID Front" className="w-full h-32 rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
-              ) : (
-                <div className="w-full h-32 rounded-xl bg-gray-100 flex items-center justify-center text-3xl border-2 border-dashed border-gray-300">🪪</div>
-              )}
-              {uploadingIdPhoto && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
-                  <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
-            <input ref={idPhotoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
-              const file = e.target.files?.[0]
-              if (!file) return
-              setUploadingIdPhoto(true)
-              try {
-                const formData = new FormData()
-                formData.append('file', file)
-                const { data } = await api.post('/users/me/id-photo-front', formData, {
-                  headers: { 'Content-Type': 'multipart/form-data' },
-                })
-                dispatch(setUser(data))
-                toast.success('ID photo uploaded!')
-              } catch { toast.error('Failed to upload ID photo') }
-              finally { setUploadingIdPhoto(false) }
-            }} />
-            <button onClick={() => idPhotoRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 w-full">
-              {user?.id_photo_front_url ? 'Change ID' : 'Upload ID (Front)'}
-            </button>
-            <p className="text-xs text-gray-400 mt-1">Clear photo of your NRIC/Passport front.</p>
           </div>
         </div>
       </div>

@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react'
 import { toast } from 'react-toastify'
 import { messagesApi } from '../api/messages'
 import { applicationsApi } from '../api/tasks'
+import { authApi } from '../api/auth'
+import { useDispatch } from 'react-redux'
+import { setUser } from '../store/authSlice'
 
 /**
  * Global notification hook — runs on every page for both user and admin.
@@ -11,11 +14,15 @@ import { applicationsApi } from '../api/tasks'
  *  - New unread messages (shows count)
  *  - Application status changes (approved/rejected)
  *  - New conversations
+ *  - Verification status changes (approved/rejected by admin)
  */
 export default function useNotifications(userId, accessToken) {
+  const dispatch = useDispatch()
+
   // Keep track of previous state to detect changes
   const prevUnreadRef = useRef(0)
   const prevAppsRef = useRef('') // JSON stringified IDs+statuses for comparison
+  const prevVerificationStatusRef = useRef(null)
 
   useEffect(() => {
     if (!accessToken || !userId) return
@@ -66,12 +73,44 @@ export default function useNotifications(userId, accessToken) {
         } catch {
           // Not logged in or not a worker — skip
         }
+
+        // 3. Check for verification status changes
+        try {
+          const updated = await authApi.getMe()
+          if (!cancelled && updated) {
+            const currentStatus = updated.verification_status || (updated.is_verified ? 'approved' : 'pending')
+            const prevStatus = prevVerificationStatusRef.current
+
+            if (prevStatus && prevStatus !== currentStatus) {
+              if (currentStatus === 'approved') {
+                toast.success(`✅ Your account has been verified! You can now apply for tasks.`, {
+                  autoClose: 8000,
+                  toastId: 'verification-approved',
+                })
+              } else if (currentStatus === 'rejected') {
+                const reason = updated.rejection_reason || 'No specific reason provided'
+                toast.error(`❌ Your verification was rejected. Reason: ${reason}`, {
+                  autoClose: 10000,
+                  toastId: 'verification-rejected',
+                })
+              }
+
+              // Update Redux store with latest user data so profile reflects change
+              if (dispatch) {
+                dispatch(setUser(updated))
+              }
+            }
+            prevVerificationStatusRef.current = currentStatus
+          }
+        } catch {
+          // silent
+        }
       } catch {
         // silent
       }
     }
 
-    // Initial check — set baseline without toast
+    // Initial check — set baseline without toasts
     const init = async () => {
       try {
         const unreadCount = await messagesApi.getUnreadCount()
@@ -81,6 +120,13 @@ export default function useNotifications(userId, accessToken) {
           const apps = await applicationsApi.getMyApplications()
           if (!cancelled) {
             prevAppsRef.current = apps.map(a => `${a.id}-${a.status}`).join('|')
+          }
+        } catch {}
+
+        try {
+          const updated = await authApi.getMe()
+          if (!cancelled && updated) {
+            prevVerificationStatusRef.current = updated.verification_status || (updated.is_verified ? 'approved' : 'pending')
           }
         } catch {}
       } catch {}
@@ -93,5 +139,5 @@ export default function useNotifications(userId, accessToken) {
       cancelled = true
       clearInterval(intervalId)
     }
-  }, [userId, accessToken])
+  }, [userId, accessToken, dispatch])
 }
