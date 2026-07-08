@@ -98,7 +98,7 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user with email and password. Account is immediately active."""
+    """Register a new user with email and password. Account requires admin approval."""
     if not payload.password:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password is required")
 
@@ -110,13 +110,12 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
         email=payload.email,
         full_name=payload.full_name,
         hashed_password=hash_password(payload.password),
-        is_verified=True,
-        verification_status="approved",
+        is_verified=False,
     )
     db.add(user)
     await db.flush()
 
-    return {"message": "Account created! Welcome to FlekxiTask. You can now log in and start applying for tasks."}
+    return {"message": "Account created! Welcome to FlekxiTask. Please log in, complete your profile, and submit for verification."}
 
 
 @router.post("/login", response_model=TokenResponse)
