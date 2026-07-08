@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from datetime import datetime, timezone
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, FCMTokenUpdate
@@ -136,6 +137,25 @@ async def upload_bank_qr(
         f.write(content)
 
     current_user.bank_qr_code_url = f"/media/bank-qr/{filename}"
+    db.add(current_user)
+    return current_user
+
+
+@router.post("/me/submit-verification", response_model=UserResponse)
+async def submit_for_verification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit your profile for admin verification.
+    Once submitted, the admin will review your information and approve or reject it.
+    """
+    if current_user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your account is already verified")
+    if current_user.verification_status == "submitted":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your verification is already pending review")
+
+    current_user.verification_status = "submitted"
+    current_user.verification_submitted_at = datetime.now(timezone.utc)
     db.add(current_user)
     return current_user
 

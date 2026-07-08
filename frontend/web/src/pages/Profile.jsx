@@ -23,7 +23,7 @@ const ACADEMIC_QUALIFICATIONS = [
 
 const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
 
-function VerificationStatus({ user }) {
+function VerificationStatus({ user, onResubmit }) {
   if (!user) return null
   const status = user.verification_status || (user.is_verified ? 'approved' : 'pending')
 
@@ -49,18 +49,42 @@ function VerificationStatus({ user }) {
             <p className="text-xs text-red-600">Reason: {user.rejection_reason || 'No specific reason provided'}</p>
           </div>
         </div>
-        <p className="text-xs text-red-500 mt-1">Please update your information and contact admin to re-submit.</p>
+        <p className="text-xs text-red-500 mt-1">Please update your information below and resubmit for review.</p>
+      </div>
+    )
+  }
+
+  if (status === 'submitted') {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">⏳</span>
+          <div>
+            <p className="font-semibold text-yellow-800 text-sm">Under Review</p>
+            <p className="text-xs text-yellow-600">Your profile has been submitted for admin verification. We'll notify you once it's reviewed.</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-      <span className="text-2xl">⏳</span>
-      <div>
-        <p className="font-semibold text-yellow-800 text-sm">Pending Verification</p>
-        <p className="text-xs text-yellow-600">Your account is awaiting admin approval. Some features may be limited.</p>
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="text-2xl">🛡️</span>
+        <div>
+          <p className="font-semibold text-yellow-800 text-sm">Complete Your Profile</p>
+          <p className="text-xs text-yellow-600">Fill in your personal details and upload your bank QR code, then submit for verification.</p>
+        </div>
       </div>
+      {onResubmit && (
+        <button
+          onClick={onResubmit}
+          className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+        >
+          Submit for Verification
+        </button>
+      )}
     </div>
   )
 }
@@ -154,12 +178,22 @@ export default function Profile() {
     }
   }
 
+  const handleSubmitVerification = async () => {
+    try {
+      const { data } = await api.post('/users/me/submit-verification')
+      dispatch(setUser(data))
+      toast.success('Profile submitted for verification!')
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to submit')
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
 
       {/* Verification Status Banner */}
-      <VerificationStatus user={user} />
+      <VerificationStatus user={user} onResubmit={handleSubmitVerification} />
 
       {/* Photo */}
       <div className="card mb-6 flex items-center gap-4">

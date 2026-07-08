@@ -102,11 +102,15 @@ async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """List all unverified users awaiting admin approval."""
+    """List all unverified users who have submitted their profile for admin approval."""
     result = await db.execute(
         select(User)
-        .where(User.is_verified == False, User.is_admin == False)
-        .order_by(User.created_at.desc())
+        .where(
+            User.is_verified == False,
+            User.is_admin == False,
+            User.verification_status == "submitted",
+        )
+        .order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
     )
     users = result.scalars().all()
     out = []
