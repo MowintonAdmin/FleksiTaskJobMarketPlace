@@ -22,6 +22,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   final _coverNoteCtrl = TextEditingController();
   bool _applying = false;
   bool _applied = false;
+  bool _checkingApplication = true;
   Application? _myApplication;
 
   @override
@@ -37,8 +38,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     try {
       final apps = await TaskService.getMyApplications();
       final app = apps.where((a) => a.taskId == widget.taskId).firstOrNull;
-      if (mounted) setState(() => _myApplication = app);
-    } catch (_) {}
+      if (mounted) setState(() { _myApplication = app; _checkingApplication = false; });
+    } catch (_) {
+      if (mounted) setState(() => _checkingApplication = false);
+    }
   }
 
   @override
@@ -178,8 +181,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ],
           const SizedBox(height: 16),
 
-          // My accepted application — can check in
-          if (_myApplication?.status == 'accepted') ...[
+          // My approved application — can check in
+          if (_myApplication?.status == 'approved') ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(16)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('✓ Application Approved!', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('Your application has been approved. Check in when you arrive at the location.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.success)),
+              ]),
+            ),
             ElevatedButton.icon(
               icon: const Icon(Icons.play_circle_outline),
               label: const Text('Start Task (Check In)'),
@@ -189,8 +202,28 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             const SizedBox(height: 8),
           ],
 
+          // Rejected
+          if (_myApplication?.status == 'rejected')
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(16)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Application Not Successful', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray500)),
+                const SizedBox(height: 4),
+                Text('Your application was not selected for this task.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray500)),
+              ]),
+            ),
+
+          // Withdrawn
+          if (_myApplication?.status == 'withdrawn')
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(16)),
+              child: Text('You withdrew your application for this task.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray500)),
+            ),
+
           // Apply section
-          if (canApply && _myApplication == null && !_applied)
+          if (canApply && !_checkingApplication && _myApplication == null && !_applied)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),

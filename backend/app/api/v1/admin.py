@@ -1,6 +1,11 @@
 import json
+import os
+import subprocess
+import tempfile
+import urllib.parse
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from pydantic import BaseModel
@@ -887,3 +892,141 @@ async def export_workers_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# ── Database Backup & Restore ─────────────────────────────────────────────────
+
+def _parse_db_url(database_url: str) -> dict:
+    """Parse a SQLAlchemy DATABASE_URL into pg_dump/psql-compatible parts."""
+    # Strip driver suffix: postgresql+asyncpg:// → postgresql://
+    normalized = database_url.split("+")[0] + "://" + database_url.split("://", 1)[1]
+    parsed = urllib.parse.urlparse(normalized)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "user": parsed.username or "postgres",
+        "password": parsed.password or "",
+        "dbname": (parsed.path or "/postgres").lstrip("/"),
+    }
+
+
+@router.get("/database/backup")
+async def database_backup(
+    _: User = Depends(require_admin),
+):
+    """
+    Stream a full pg_dump of the database as a .sql file download.
+    The dump uses --clean --if-exists so it can be used to fully restore later.
+    """
+    from app.config import get_settings as _get_settings
+    settings = _get_settings()
+    db_parts = _parse_db_url(settings.DATABASE_URL)
+
+    env = {**os.environ, "PGPASSWORD": db_parts["password"]}
+    args = [
+        "pg_dump",
+        "-h", db_parts["host"],
+        "-p", db_parts["port"],
+        "-U", db_parts["user"],
+        "--clean",
+        "--if-exists",
+        "--no-owner",
+        "--no-privileges",
+        db_parts["dbname"],
+    ]
+
+    try:
+        proc = subprocess.run(args, capture_output=True, env=env, timeout=300)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="pg_dump not found. Ensure postgresql-client is installed in the backend container.",
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="pg_dump timed out")
+
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"pg_dump failed: {proc.stderr.decode(errors='replace')[:500]}",
+        )
+
+    dump_bytes = proc.stdout
+    filename = f"fleksitask_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.sql"
+    return StreamingResponse(
+        iter([dump_bytes]),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/database/restore")
+async def database_restore(
+    file: UploadFile = File(...),
+    _: User = Depends(require_admin),
+):
+    """
+    Restore the database from a pg_dump .sql file.
+    WARNING: This drops and recreates all tables. All existing data will be replaced.
+    """
+    if not (file.filename or "").lower().endswith(".sql"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .sql files are accepted")
+
+    content = await file.read()
+    if len(content) < 10:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File appears to be empty or too small")
+
+    # Sanity check: pg_dump files start with a comment or SET statement
+    preview = content[:200].decode(errors="replace").lstrip()
+    if not (preview.startswith("--") or preview.startswith("SET") or preview.startswith("/*")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File does not appear to be a valid pg_dump SQL file",
+        )
+
+    from app.config import get_settings as _get_settings
+    settings = _get_settings()
+    db_parts = _parse_db_url(settings.DATABASE_URL)
+
+    # Write to a temp file and run psql
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".sql")
+    try:
+        os.write(tmp_fd, content)
+        os.close(tmp_fd)
+
+        env = {**os.environ, "PGPASSWORD": db_parts["password"]}
+        args = [
+            "psql",
+            "-h", db_parts["host"],
+            "-p", db_parts["port"],
+            "-U", db_parts["user"],
+            "-d", db_parts["dbname"],
+            "--single-transaction",
+            "-f", tmp_path,
+        ]
+
+        try:
+            proc = subprocess.run(args, capture_output=True, env=env, timeout=600)
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="psql not found. Ensure postgresql-client is installed in the backend container.",
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="psql restore timed out")
+
+        if proc.returncode != 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Restore failed: {proc.stderr.decode(errors='replace')[:500]}",
+            )
+
+        return {
+            "message": "Database restored successfully",
+            "filename": file.filename,
+            "size_bytes": len(content),
+        }
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+

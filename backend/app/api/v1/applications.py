@@ -46,7 +46,13 @@ async def apply_for_task(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Task start date has passed and is no longer accepting applications")
 
     existing = await db.execute(
-        select(Application).where(and_(Application.task_id == payload.task_id, Application.worker_id == current_user.id))
+        select(Application).where(
+            and_(
+                Application.task_id == payload.task_id,
+                Application.worker_id == current_user.id,
+                Application.status.notin_([ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN]),
+            )
+        )
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already applied for this task")

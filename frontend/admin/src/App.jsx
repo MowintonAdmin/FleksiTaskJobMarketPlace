@@ -16,6 +16,7 @@ import Withdrawals from './pages/Withdrawals'
 import TimeLogs from './pages/TimeLogs'
 import Analytics from './pages/Analytics'
 import Messages from './pages/Messages'
+import DatabaseBackup from './pages/DatabaseBackup'
 
 function AdminRoute({ children }) {
   const { token, user } = useSelector((s) => s.auth)
@@ -58,6 +59,7 @@ function AdminShell() {
             <Route path="/withdrawals" element={<Withdrawals />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/messages" element={<Messages />} />
+            <Route path="/database" element={<DatabaseBackup />} />
           </Routes>
         </main>
       </div>

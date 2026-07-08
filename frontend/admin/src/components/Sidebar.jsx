@@ -13,6 +13,7 @@ const links = [
   { to: '/withdrawals', label: 'Withdrawals', icon: '💸' },
   { to: '/messages', label: 'Messages', icon: '💬' },
   { to: '/analytics', label: 'Analytics', icon: '📈' },
+  { to: '/database', label: 'DB Backup', icon: '🗄️' },
 ]
 
 export default function Sidebar({ open, onClose }) {
