@@ -13,10 +13,12 @@ from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models.application import Application, ApplicationStatus
+from app.models.project import Project, ProjectStatus
 from app.models.task import Task
 from app.models.user import User
 from app.models.task_session import TaskSession, SessionStatus
 from app.schemas.application import ApplicationResponse, ApplicationWithDetails
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectListResponse
 from app.schemas.user import UserResponse, UserPublic
 from app.schemas.task import TaskResponse
 from app.core.deps import get_current_user
@@ -40,6 +42,12 @@ def build_user_public(user: User) -> UserPublic:
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
+
+async def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
     return current_user
 
 
@@ -606,6 +614,90 @@ import math
 import io
 import csv
 
+# ── Projects ──────────────────────────────────────────────────────────────────
+
+@router.get("/projects", response_model=ProjectListResponse)
+async def admin_list_projects(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all projects with task counts. Super admins see all; regular admins see only their own."""
+    q = select(Project).order_by(Project.created_at.desc())
+    if not current_user.is_super_admin:
+        q = q.where(Project.created_by_id == current_user.id)
+    result = await db.execute(q)
+    projects = result.scalars().all()
+    out = []
+    for p in projects:
+        task_count = await db.execute(
+            select(func.count()).select_from(Task).where(Task.project_id == p.id)
+        )
+        pd = ProjectResponse.model_validate(p)
+        pd.task_count = task_count.scalar_one()
+        out.append(pd)
+    return ProjectListResponse(projects=out, total=len(out))
+
+
+@router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_project(
+    payload: ProjectCreate,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Create a new project."""
+    project = Project(**payload.model_dump(), created_by_id=admin_user.id)
+    db.add(project)
+    await db.flush()
+    await db.refresh(project)
+    pd = ProjectResponse.model_validate(project)
+    pd.task_count = 0
+    return pd
+
+
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
+async def admin_update_project(
+    project_id: uuid.UUID,
+    payload: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Update a project."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
+    db.add(project)
+    await db.flush()
+    await db.refresh(project)
+    task_count = await db.execute(
+        select(func.count()).select_from(Task).where(Task.project_id == project.id)
+    )
+    pd = ProjectResponse.model_validate(project)
+    pd.task_count = task_count.scalar_one()
+    return pd
+
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_project(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Delete an empty project. Fails if project has tasks."""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    task_count = await db.execute(
+        select(func.count()).select_from(Task).where(Task.project_id == project.id)
+    )
+    if task_count.scalar_one() > 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete project with tasks. Remove tasks first.")
+    await db.delete(project)
+
+
 # ── Task Listing (Admin) ──────────────────────────────────────────────────────
 
 @router.get("/tasks/export")
@@ -656,10 +748,11 @@ async def admin_list_tasks(
     page_size: int = Query(15, ge=1, le=100),
     task_status: str | None = Query(None, alias="status"),
     search: str | None = Query(None),
+    project_id: uuid.UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """List all tasks regardless of status, with optional status/search filter."""
+    """List all tasks regardless of status, with optional status/search/project_id filter."""
     from app.models.task import TaskStatus
     from app.schemas.task import TaskListResponse
     filters = []
@@ -667,6 +760,8 @@ async def admin_list_tasks(
         filters.append(Task.status == task_status)
     if search:
         filters.append(Task.title.ilike(f"%{search}%"))
+    if project_id:
+        filters.append(Task.project_id == project_id)
 
     q = select(Task).order_by(Task.created_at.desc())
     if filters:

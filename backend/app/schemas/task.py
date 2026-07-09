@@ -16,6 +16,7 @@ class TaskBase(BaseModel):
     category: str
     max_applicants: int = 1
     starts_at: datetime | None = None
+    project_id: uuid.UUID | None = None
 
     @field_validator("pay_rate_per_minute")
     @classmethod

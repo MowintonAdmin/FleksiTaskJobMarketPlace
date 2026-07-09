@@ -10,7 +10,7 @@ const links = [
   { to: '/users', label: 'Workers', icon: '👥' },
   { to: '/user-verification', label: 'User Verification', icon: '🆕', badge: 'pendingVerif' },
   { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
-  { to: '/tasks', label: 'Tasks', icon: '📋' },
+  { to: '/tasks', label: 'Projects / Tasks', icon: '📋' },
   { to: '/applications', label: 'Applications', icon: '📝', badge: 'pendingApps' },
   { to: '/active-workers', label: 'Active Workers', icon: '🟢' },
   { to: '/session-approval', label: 'Session Approval', icon: '✅', badge: 'pendingSession' },

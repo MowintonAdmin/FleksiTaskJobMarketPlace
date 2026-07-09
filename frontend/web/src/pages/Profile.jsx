@@ -155,20 +155,6 @@ export default function Profile() {
     })
   }, [user])
 
-  // Periodically refetch current user so verification status updates in real-time
-  useEffect(() => {
-    if (!user) return
-    const interval = setInterval(async () => {
-      try {
-        const updated = await authApi.getMe()
-        dispatch(setUser(updated))
-      } catch {
-        // silent – ignore refresh errors
-      }
-    }, 15000)
-    return () => clearInterval(interval)
-  }, [user, dispatch])
-
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
 
   const addSkill = (skill) => {
