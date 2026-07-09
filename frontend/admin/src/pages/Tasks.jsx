@@ -270,7 +270,7 @@ function TaskModal({ task, onClose, onSaved }) {
           {/* Starts at */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-              Start Date &amp; Time <span className="text-gray-400 normal-case font-normal">(optional)</span>
+              Start Date & Time <span className="text-gray-400 normal-case font-normal">(optional)</span>
             </label>
             <input
               type="datetime-local" value={form.starts_at} onChange={e => set('starts_at', e.target.value)}
