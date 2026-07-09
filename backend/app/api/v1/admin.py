@@ -51,6 +51,18 @@ async def require_super_admin(current_user: User = Depends(get_current_user)) ->
     return current_user
 
 
+async def get_accessible_task_ids(db: AsyncSession, current_user: User) -> list[uuid.UUID] | None:
+    """Return task IDs this admin can see. None = super admin (no filter)."""
+    if current_user.is_super_admin:
+        return None
+    # Get all tasks from projects created by this admin
+    result = await db.execute(
+        select(Task.id).join(Project, Task.project_id == Project.id)
+        .where(Project.created_by_id == current_user.id)
+    )
+    return [r[0] for r in result.all()]
+
+
 # ── Applications ──────────────────────────────────────────────────────────────
 
 @router.get("/applications", response_model=list[ApplicationWithDetails])
@@ -58,7 +70,7 @@ async def admin_list_applications(
     task_id: uuid.UUID | None = Query(None),
     app_status: str | None = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     """List all applications, optionally filtered by task or status."""
     filters = []
@@ -66,6 +78,11 @@ async def admin_list_applications(
         filters.append(Application.task_id == task_id)
     if app_status:
         filters.append(Application.status == app_status)
+
+    # Regular admins can only see applications for tasks in their projects
+    accessible = await get_accessible_task_ids(db, current_user)
+    if accessible is not None:
+        filters.append(Application.task_id.in_(accessible))
 
     q = select(Application).order_by(Application.created_at.desc())
     if filters:
@@ -281,11 +298,15 @@ async def admin_verify_user(
 @router.get("/workers/active")
 async def admin_active_workers(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     """List all workers currently checked in (active sessions)."""
+    accessible = await get_accessible_task_ids(db, current_user)
+    filters = [TaskSession.status == SessionStatus.ACTIVE]
+    if accessible is not None:
+        filters.append(TaskSession.task_id.in_(accessible))
     result = await db.execute(
-        select(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE)
+        select(TaskSession).where(and_(*filters))
         .order_by(TaskSession.checked_in_at.asc())
     )
     sessions = result.scalars().all()
@@ -508,16 +529,24 @@ async def admin_time_logs(
     worker_id: uuid.UUID | None = Query(None),
     log_status: str | None = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     """All task sessions (active + completed) with full cost details."""
-    q = select(TaskSession).order_by(TaskSession.checked_in_at.desc())
+    filters = []
     if task_id:
-        q = q.where(TaskSession.task_id == task_id)
+        filters.append(TaskSession.task_id == task_id)
     if worker_id:
-        q = q.where(TaskSession.worker_id == worker_id)
+        filters.append(TaskSession.worker_id == worker_id)
     if log_status:
-        q = q.where(TaskSession.status == log_status)
+        filters.append(TaskSession.status == log_status)
+
+    accessible = await get_accessible_task_ids(db, current_user)
+    if accessible is not None:
+        filters.append(TaskSession.task_id.in_(accessible))
+
+    q = select(TaskSession).order_by(TaskSession.checked_in_at.desc())
+    if filters:
+        q = q.where(and_(*filters))
     result = await db.execute(q)
     sessions = result.scalars().all()
 
@@ -1378,12 +1407,16 @@ from app.models.message import Message as _MessageForApproval
 @router.get("/sessions/pending-approval")
 async def admin_pending_sessions(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
     """List all completed sessions awaiting admin approval/credit."""
+    accessible = await get_accessible_task_ids(db, current_user)
+    filters = [_TaskSessionForApproval.status == SessionStatus.COMPLETED]
+    if accessible is not None:
+        filters.append(_TaskSessionForApproval.task_id.in_(accessible))
     result = await db.execute(
         select(_TaskSessionForApproval)
-        .where(_TaskSessionForApproval.status == SessionStatus.COMPLETED)
+        .where(and_(*filters))
         .order_by(_TaskSessionForApproval.checked_out_at.desc())
     )
     sessions = result.scalars().all()

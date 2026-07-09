@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { ToastContainer } from 'react-toastify'
+import { toast, ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { fetchAdminUser } from './slices/authSlice'
 import useAdminNotifications from './hooks/useNotifications'
@@ -21,6 +21,20 @@ import DatabaseBackup from './pages/DatabaseBackup'
 import SessionApproval from './pages/SessionApproval'
 import UserVerification from './pages/UserVerification'
 
+// Deduplicate toasts: prevent multiple identical toasts from stacking.
+// Uses the toast message text as the toastId so duplicate messages
+// simply update the same toast instead of creating a new one.
+const _origError = toast.error
+toast.error = (msg, opts) => {
+  const id = (opts && opts.toastId) || String(msg)
+  return _origError(msg, { ...opts, toastId: id })
+}
+const _origSuccess = toast.success
+toast.success = (msg, opts) => {
+  const id = (opts && opts.toastId) || String(msg)
+  return _origSuccess(msg, { ...opts, toastId: id })
+}
+
 function AdminRoute({ children }) {
   const { token, user } = useSelector((s) => s.auth)
   if (!token) return <Navigate to="/login" replace />
@@ -32,7 +46,6 @@ function AdminShell() {
   const { user, token } = useSelector((s) => s.auth)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Global admin notifications — runs on every admin page
   useAdminNotifications(user?.id, token)
 
   return (
@@ -40,20 +53,14 @@ function AdminShell() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile top bar */}
         <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-            aria-label="Open sidebar"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Open sidebar">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <span className="font-bold text-gray-800">⚡ FlekxiTask Admin</span>
         </header>
-
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100">
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -88,13 +95,9 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<AdminLogin />} />
-        <Route path="/*" element={
-          <AdminRoute>
-            <AdminShell />
-          </AdminRoute>
-        } />
+        <Route path="/*" element={<AdminRoute><AdminShell /></AdminRoute>} />
       </Routes>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} limit={3} />
     </Router>
   )
 }

@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { ToastContainer } from 'react-toastify'
+import { toast, ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { fetchCurrentUser } from './store/authSlice'
 import useNotifications from './hooks/useNotifications'
@@ -18,6 +18,20 @@ import TaskTracking from './pages/TaskTracking'
 import Wallet from './pages/Wallet'
 import History from './pages/History'
 
+// Deduplicate toasts: prevent stacking multiple identical notifications.
+// Uses the message text as the toastId so duplicate messages update the
+// existing toast instead of creating a new one.
+const _origError = toast.error
+toast.error = (msg, opts) => {
+  const id = (opts && opts.toastId) || String(msg)
+  return _origError(msg, { ...opts, toastId: id })
+}
+const _origSuccess = toast.success
+toast.success = (msg, opts) => {
+  const id = (opts && opts.toastId) || String(msg)
+  return _origSuccess(msg, { ...opts, toastId: id })
+}
+
 function PrivateRoute({ children }) {
   const token = useSelector((s) => s.auth.accessToken)
   return token ? children : <Navigate to="/login" replace />
@@ -32,7 +46,6 @@ export default function App() {
     if (token) dispatch(fetchCurrentUser())
   }, [token, dispatch])
 
-  // Global notifications — runs on EVERY page for BOTH user and admin
   useNotifications(user?.id, token)
 
   return (
@@ -55,7 +68,6 @@ export default function App() {
           </Routes>
         </main>
 
-        {/* WhatsApp floating button — bottom left on all pages */}
         <a
           href="https://wa.me/60108282060"
           target="_blank"
@@ -69,7 +81,7 @@ export default function App() {
           </svg>
         </a>
       </div>
-      <ToastContainer position="top-right" autoClose={5000} />
+      <ToastContainer position="top-right" autoClose={5000} limit={3} />
     </Router>
   )
 }

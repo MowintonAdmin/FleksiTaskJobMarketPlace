@@ -32,7 +32,7 @@ function Badge({ count }) {
 
 export default function Sidebar({ open, onClose }) {
   const dispatch = useDispatch()
-  const { token } = useSelector((s) => s.auth)
+  const { token, user } = useSelector((s) => s.auth)
   const [unreadCount, setUnreadCount] = useState(0)
   const [pendingVerifCount, setPendingVerifCount] = useState(0)
   const [pendingSessionCount, setPendingSessionCount] = useState(0)
@@ -108,14 +108,16 @@ export default function Sidebar({ open, onClose }) {
         ].join(' ')}
       >
         <div className="px-6 py-5 border-b border-gray-700 flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="font-bold text-lg">⚡ FlekxiTask</p>
-            <p className="text-xs text-gray-400 mt-0.5">Admin Dashboard</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">
+              Welcome, {user?.full_name || user?.email || 'Admin'}
+            </p>
           </div>
           {/* Close button — mobile only */}
           <button
             onClick={onClose}
-            className="md:hidden p-1 rounded text-gray-400 hover:text-white"
+            className="md:hidden p-1 rounded text-gray-400 hover:text-white shrink-0"
             aria-label="Close sidebar"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
