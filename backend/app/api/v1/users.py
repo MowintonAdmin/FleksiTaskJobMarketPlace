@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from datetime import datetime, timezone
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, FCMTokenUpdate
@@ -73,6 +74,20 @@ async def update_my_profile(
     db: AsyncSession = Depends(get_db),
 ):
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Validate mandatory fields
+    errors = []
+    if "full_name" in update_data and not update_data["full_name"]:
+        errors.append("Full name is required")
+    if "phone" in update_data and not update_data["phone"]:
+        errors.append("Phone number is required")
+    if "nric_passport" in update_data and not update_data["nric_passport"]:
+        errors.append("NRIC/Passport number is required")
+    if "body_height_cm" in update_data and (update_data["body_height_cm"] is None or update_data["body_height_cm"] <= 0):
+        errors.append("Body height must be greater than 0")
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
+
     if "skills" in update_data and update_data["skills"] is not None:
         update_data["skills"] = json.dumps(update_data["skills"])
     for field, value in update_data.items():
@@ -107,6 +122,8 @@ async def upload_profile_photo(
 
     current_user.profile_photo_url = f"/media/profiles/{filename}"
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 
@@ -137,6 +154,92 @@ async def upload_bank_qr(
 
     current_user.bank_qr_code_url = f"/media/bank-qr/{filename}"
     db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.post("/me/id-photo-front", response_model=UserResponse)
+async def upload_id_photo_front(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a photo of the front of your NRIC/Passport."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    content = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+
+    media_path = Path(settings.MEDIA_DIR) / "id-photos"
+    media_path.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.id}_id_front.{ext}"
+    file_path = media_path / filename
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    current_user.id_photo_front_url = f"/media/id-photos/{filename}"
+    db.add(current_user)
+    return current_user
+
+
+@router.post("/me/selfie", response_model=UserResponse)
+async def upload_selfie(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a selfie with ID for identity verification."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
+
+    content = await file.read()
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+
+    media_path = Path(settings.MEDIA_DIR) / "selfies"
+    media_path.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.id}_selfie.{ext}"
+    file_path = media_path / filename
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    current_user.selfie_with_id_url = f"/media/selfies/{filename}"
+    db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.post("/me/submit-verification", response_model=UserResponse)
+async def submit_for_verification(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit your profile for admin verification.
+    Once submitted, the admin will review your information and approve or reject it.
+    """
+    if current_user.is_verified:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your account is already verified")
+    if current_user.verification_status == "submitted":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your verification is already pending review")
+    # Rejected users can resubmit
+
+    current_user.verification_status = "submitted"
+    current_user.verification_submitted_at = datetime.now(timezone.utc)
+    db.add(current_user)
+    await db.flush()
+    await db.refresh(current_user)
     return current_user
 
 

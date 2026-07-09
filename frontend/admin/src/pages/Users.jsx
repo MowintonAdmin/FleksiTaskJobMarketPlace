@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
+import SearchFilterBar from '../components/SearchFilterBar'
+import usePolling from '../hooks/usePolling'
 
 const formatStatusLabel = (status) =>
   String(status || '')
@@ -272,18 +274,23 @@ export default function Users() {
     return () => clearTimeout(t)
   }, [load])
 
+  // Auto-refresh users list every 5s
+  usePolling(load, 5000)
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
           Workers <span className="text-gray-400 font-normal text-lg">({users.length})</span>
         </h1>
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
       </div>
+
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by name or email…"
+        filters={[]}
+      />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">

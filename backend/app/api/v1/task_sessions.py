@@ -383,12 +383,13 @@ async def get_history(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Completed sessions with full task details for the worker's history page."""
+    """Settled sessions with full task details for the worker's history page.
+    Includes both completed (pending admin approval) and settled (approved & credited) sessions."""
     result = await db.execute(
         select(TaskSession)
         .where(
             TaskSession.worker_id == current_user.id,
-            TaskSession.status == SessionStatus.COMPLETED,
+            TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]),
         )
         .order_by(TaskSession.checked_out_at.desc())
     )

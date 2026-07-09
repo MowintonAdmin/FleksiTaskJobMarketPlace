@@ -11,6 +11,7 @@ class SessionStatus(str, Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
+    SETTLED = "settled"  # Admin approved and wallet credited
 
 
 class TaskSession(Base):

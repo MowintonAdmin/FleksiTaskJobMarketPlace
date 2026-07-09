@@ -55,6 +55,7 @@ class UserUpdate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     skills: list[str] | None = None
+    phone: str | None = None
     academic_qualification: str | None = None
     body_height_cm: float | None = None
     nationality: str | None = None
@@ -66,6 +67,13 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: uuid.UUID
     profile_photo_url: str | None = None
+    phone: str | None = None
+    phone_verified: bool = False
+    id_photo_front_url: str | None = None
+    selfie_with_id_url: str | None = None
+    verification_status: str = "pending"
+    rejection_reason: str | None = None
+    verification_submitted_at: datetime | None = None
     is_active: bool
     is_employer: bool
     is_admin: bool

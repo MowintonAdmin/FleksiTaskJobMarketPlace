@@ -1,25 +1,88 @@
+import { useEffect, useState, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
+import { messagesApi } from '../api/messages'
+import api from '../api/client'
 import { logout } from '../slices/authSlice'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: '📊' },
   { to: '/users', label: 'Workers', icon: '👥' },
-  { to: '/user-verification', label: 'User Verification', icon: '🆕' },
+  { to: '/user-verification', label: 'User Verification', icon: '🆕', badge: 'pendingVerif' },
   { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
   { to: '/tasks', label: 'Tasks', icon: '📋' },
-  { to: '/applications', label: 'Applications', icon: '📝' },
+  { to: '/applications', label: 'Applications', icon: '📝', badge: 'pendingApps' },
   { to: '/active-workers', label: 'Active Workers', icon: '🟢' },
-  { to: '/session-approval', label: 'Session Approval', icon: '✅' },
+  { to: '/session-approval', label: 'Session Approval', icon: '✅', badge: 'pendingSession' },
   { to: '/time-logs', label: 'Time & Payments', icon: '⏱️' },
-  { to: '/withdrawals', label: 'Withdrawals', icon: '💸' },
-  { to: '/messages', label: 'Messages', icon: '💬' },
+  { to: '/withdrawals', label: 'Withdrawals', icon: '💸', badge: 'pendingWithdrawals' },
+  { to: '/messages', label: 'Messages', icon: '💬', badge: 'unread' },
   { to: '/analytics', label: 'Analytics', icon: '📈' },
   { to: '/database', label: 'DB Backup', icon: '🗄️' },
 ]
 
+function Badge({ count }) {
+  if (!count) return null
+  return (
+    <span className="ml-auto min-w-[20px] h-5 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold px-1">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
 export default function Sidebar({ open, onClose }) {
   const dispatch = useDispatch()
+  const { token } = useSelector((s) => s.auth)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [pendingVerifCount, setPendingVerifCount] = useState(0)
+  const [pendingSessionCount, setPendingSessionCount] = useState(0)
+  const [pendingAppsCount, setPendingAppsCount] = useState(0)
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
+  const cancelledRef = useRef(false)
+
+  useEffect(() => {
+    if (!token) return
+    cancelledRef.current = false
+
+    const poll = async () => {
+      try {
+        const unread = await messagesApi.getUnreadCount()
+        if (!cancelledRef.current) setUnreadCount(unread)
+      } catch {}
+
+      try {
+        const { data } = await api.get('/admin/users/unverified')
+        if (!cancelledRef.current) setPendingVerifCount(Array.isArray(data) ? data.length : 0)
+      } catch {}
+
+      try {
+        const { data } = await api.get('/admin/sessions/pending-approval')
+        if (!cancelledRef.current) setPendingSessionCount(Array.isArray(data) ? data.length : 0)
+      } catch {}
+
+      try {
+        const { data } = await api.get('/admin/applications', { params: { status: 'pending' } })
+        if (!cancelledRef.current) setPendingAppsCount(Array.isArray(data) ? data.length : 0)
+      } catch {}
+
+      try {
+        const { data } = await api.get('/admin/withdrawals', { params: { status: 'PENDING' } })
+        if (!cancelledRef.current) setPendingWithdrawalsCount(Array.isArray(data) ? data.length : 0)
+      } catch {}
+    }
+
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => { cancelledRef.current = true; clearInterval(id) }
+  }, [token])
+
+  const badgeCounts = {
+    unread: unreadCount,
+    pendingVerif: pendingVerifCount,
+    pendingSession: pendingSessionCount,
+    pendingApps: pendingAppsCount,
+    pendingWithdrawals: pendingWithdrawalsCount,
+  }
 
   const handleNav = () => {
     if (onClose) onClose()
@@ -62,7 +125,7 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {links.map(({ to, label, icon }) => (
+          {links.map(({ to, label, icon, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -74,7 +137,9 @@ export default function Sidebar({ open, onClose }) {
                 }`
               }
             >
-              <span>{icon}</span> {label}
+              <span>{icon}</span>
+              <span className="flex-1">{label}</span>
+              {badge && <Badge count={badgeCounts[badge]} />}
             </NavLink>
           ))}
         </nav>

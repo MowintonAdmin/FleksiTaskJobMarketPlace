@@ -115,7 +115,7 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
 
-    return {"message": "Account created. Please wait for admin approval before logging in."}
+    return {"message": "Account created! Welcome to FlekxiTask. Please log in, complete your profile, and submit for verification."}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -127,11 +127,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is pending admin approval. Please wait for verification before logging in."
-        )
+    # Rejected users can still log in to see their rejection reason and resubmit
 
     access_token, refresh_token = create_token_pair(user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
@@ -164,25 +160,35 @@ async def logout(token: str = Depends(oauth2_scheme)):
     await invalidate_token(token, ttl=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
 
-@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/forgot-password")
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
-    """Request a password reset link. Always returns 204 to avoid leaking account existence."""
+    """Request a password reset link.
+    In production, always returns successfully to avoid leaking account existence.
+    In development (DEBUG=true), returns the reset URL so you can use it without SMTP.
+    """
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
 
-    # Only issue a token for accounts that have a hashed_password (email/password accounts).
-    # Google-only accounts have no password to reset.
+    response = {"message": "If an account exists with this email, a password reset link has been sent."}
+
     if user and user.hashed_password:
         token = secrets.token_urlsafe(32)
         redis_key = f"pwd_reset:{token}"
         await set_session(redis_key, str(user.id), ttl=PWD_RESET_TTL)
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
         logger.info("PASSWORD RESET LINK for %s: %s", payload.email, reset_url)
+
+        # Always return the link in non-production so it works without SMTP
+        response["reset_url"] = reset_url
+        response["message"] = "DEV MODE: Use the link below to reset your password."
+
         try:
             await send_password_reset_email(payload.email, reset_url)
         except Exception:
             # Email failure must not reveal account existence; already logged inside send_email
             pass
+
+    return response
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)

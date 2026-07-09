@@ -1,14 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import api from '../api/client'
+import usePolling from '../hooks/usePolling'
+import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
+
+const REJECTION_REASONS = [
+  'ID photo is unclear or blurry',
+  'Face does not match ID photo',
+  'ID document is expired',
+  'Name on ID does not match registration',
+  'Suspicious or altered document',
+  'Incomplete information provided',
+  'Other',
+]
 
 export default function UserVerification() {
   const [users, setUsers] = useState([])
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState(null)
+  const [rejectModal, setRejectModal] = useState(null) // user object being rejected
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectCustom, setRejectCustom] = useState('')
+  const [viewModal, setViewModal] = useState(null) // user object being viewed in detail
 
-  const load = async () => {
-    setLoading(true)
+  const load = useCallback(async () => {
     try {
       const { data } = await api.get('/admin/users/unverified')
       setUsers(data)
@@ -17,9 +34,12 @@ export default function UserVerification() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 5s
+  usePolling(load, 5000)
 
   const handleApprove = async (userId) => {
     setProcessingId(userId)
@@ -34,13 +54,26 @@ export default function UserVerification() {
     }
   }
 
-  const handleReject = async (userId) => {
-    if (!window.confirm('Reject this user? Their account will be permanently deleted.')) return
-    setProcessingId(userId)
+  const openRejectModal = (user) => {
+    setRejectModal(user)
+    setRejectReason('')
+    setRejectCustom('')
+  }
+
+  const handleReject = async () => {
+    const user = rejectModal
+    if (!user) return
+    const reason = rejectReason === 'Other' ? rejectCustom : rejectReason
+    if (!reason) {
+      toast.error('Please select or enter a rejection reason')
+      return
+    }
+    setProcessingId(user.id)
     try {
-      await api.post(`/admin/users/${userId}/verify`, { action: 'reject' })
-      toast.success('User rejected and removed.')
-      setUsers(prev => prev.filter(u => u.id !== userId))
+      await api.post(`/admin/users/${user.id}/verify`, { action: 'reject', reason })
+      toast.success('User rejected.')
+      setUsers(prev => prev.filter(u => u.id !== user.id))
+      setRejectModal(null)
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to reject user')
     } finally {
@@ -54,10 +87,16 @@ export default function UserVerification() {
         <h1 className="text-2xl font-bold text-gray-900">
           User Verification <span className="text-gray-400 font-normal text-lg">({users.length})</span>
         </h1>
-        <button onClick={load} disabled={loading} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700">
-          {loading ? '⟳ Refreshing...' : '⟳ Refresh'}
-        </button>
+        <RefreshButton onClick={load} loading={loading} />
       </div>
+
+      {/* Search + Filter */}
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by name or email…"
+        filters={[]}
+      />
 
       {loading ? (
         <div className="space-y-3">
@@ -76,46 +115,75 @@ export default function UserVerification() {
         </div>
       ) : (
         <div className="space-y-4">
-          {users.map(u => (
+          {users
+            .filter(u => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+            })
+            .map(u => (
             <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="p-5 space-y-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900">{u.full_name}</p>
                     <p className="text-sm text-gray-500">{u.email}</p>
+                    {u.phone && <p className="text-sm text-gray-500 mt-0.5">📞 {u.phone}</p>}
                     {u.location && <p className="text-sm text-gray-500 mt-0.5">📍 {u.location}</p>}
                     <p className="text-xs text-gray-400 mt-1">Joined: {new Date(u.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-gray-400">Sessions: {u.total_sessions || 0} ({u.completed_sessions || 0} completed)</p>
                   </div>
                   <div className="text-right shrink-0">
                     {u.profile_photo_url && (
-                      <img src={u.profile_photo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+                      <img src={u.profile_photo_url} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
                   {u.nationality && <p><span className="text-gray-500">Nationality:</span> {u.nationality}</p>}
                   {u.race && <p><span className="text-gray-500">Race:</span> {u.race}</p>}
                   {u.nric_passport && <p><span className="text-gray-500">NRIC/Passport:</span> {u.nric_passport}</p>}
-                  {u.academic_qualification && <p><span className="text-gray-500">Qualification:</span> {u.academic_qualification}</p>}
                   {u.body_height_cm && <p><span className="text-gray-500">Height:</span> {u.body_height_cm} cm</p>}
+                  {u.academic_qualification && <p><span className="text-gray-500">Education:</span> {u.academic_qualification}</p>}
                 </div>
 
-                {u.bank_qr_code_url && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Bank QR Code:</p>
-                    <img src={u.bank_qr_code_url} alt="Bank QR" className="w-24 h-24 rounded-lg object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
-                  </div>
-                )}
+                {/* Identity photos row */}
+                <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-100">
+                  {u.selfie_with_id_url && (
+                    <div className="text-center">
+                      <p className="text-xs text-gray-400 mb-1">Selfie with ID</p>
+                      <img
+                        src={u.selfie_with_id_url}
+                        alt="Selfie with ID"
+                        className="w-24 h-24 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setViewModal({ ...u, imageUrl: u.selfie_with_id_url, imageLabel: 'Selfie with ID' })}
+                        onError={e => { e.currentTarget.style.display = 'none' }}
+                      />
+                    </div>
+                  )}
+                  {u.bank_qr_code_url && (
+                    <div className="text-center">
+                      <p className="text-xs text-gray-400 mb-1">Bank QR</p>
+                      <img
+                        src={u.bank_qr_code_url}
+                        alt="Bank QR"
+                        className="w-24 h-24 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setViewModal({ ...u, imageUrl: u.bank_qr_code_url, imageLabel: 'Bank QR Code' })}
+                        onError={e => { e.currentTarget.style.display = 'none' }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex border-t border-gray-100">
                 <button
-                  onClick={() => handleReject(u.id)}
+                  onClick={() => openRejectModal(u)}
                   disabled={processingId === u.id}
                   className="flex-1 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 border-r border-gray-100"
                 >
-                  {processingId === u.id ? '⏳' : '✕ Reject & Delete'}
+                  {processingId === u.id ? '⏳' : '✕ Reject'}
                 </button>
                 <button
                   onClick={() => handleApprove(u.id)}
@@ -127,6 +195,72 @@ export default function UserVerification() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Photo view modal */}
+      {viewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setViewModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900">{viewModal.imageLabel}</h2>
+              <button onClick={() => setViewModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <img src={viewModal.imageUrl} alt={viewModal.imageLabel} className="w-full rounded-xl" />
+            <p className="text-sm text-gray-500 mt-2">{viewModal.full_name} — {viewModal.email}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection reason modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Reject User</h2>
+              <button onClick={() => setRejectModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <p className="text-sm text-gray-500">Why are you rejecting <strong>{rejectModal.full_name}</strong>?</p>
+
+            <div className="space-y-2">
+              {REJECTION_REASONS.map(r => (
+                <label key={r} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rejectReason"
+                    value={r}
+                    checked={rejectReason === r}
+                    onChange={e => setRejectReason(e.target.value)}
+                    className="w-4 h-4 text-red-600"
+                  />
+                  <span className="text-sm text-gray-700">{r}</span>
+                </label>
+              ))}
+            </div>
+
+            {rejectReason === 'Other' && (
+              <textarea
+                value={rejectCustom}
+                onChange={e => setRejectCustom(e.target.value)}
+                placeholder="Describe the reason..."
+                rows={3}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none resize-none"
+              />
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setRejectModal(null)} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={processingId || !rejectReason}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+              >
+                {processingId ? 'Rejecting...' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

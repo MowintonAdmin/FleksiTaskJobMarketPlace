@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
+import usePolling from '../hooks/usePolling'
+import SearchFilterBar from '../components/SearchFilterBar'
 
 // Route media through /api/v1/files/... — same proxy path as all API calls.
 // This avoids needing a separate nginx /media/ rule and works in all environments.
@@ -175,7 +177,7 @@ function TaskModal({ task, onClose, onSaved }) {
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Title *</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Title <span className="text-red-500">*</span></label>
             <input
               required value={form.title} onChange={e => set('title', e.target.value)}
               placeholder="e.g. Office Cleaning – Mon 9am"
@@ -185,7 +187,7 @@ function TaskModal({ task, onClose, onSaved }) {
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description *</label>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description <span className="text-red-500">*</span></label>
             <textarea
               required rows={3} value={form.description} onChange={e => set('description', e.target.value)}
               placeholder="Describe what needs to be done…"
@@ -208,7 +210,7 @@ function TaskModal({ task, onClose, onSaved }) {
           {/* Location + Category */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Location *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Location <span className="text-red-500">*</span></label>
               <input
                 required value={form.location} onChange={e => set('location', e.target.value)}
                 placeholder="e.g. KL City Centre"
@@ -216,7 +218,7 @@ function TaskModal({ task, onClose, onSaved }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category <span className="text-red-500">*</span></label>
               <select
                 value={form.category} onChange={e => set('category', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -229,7 +231,7 @@ function TaskModal({ task, onClose, onSaved }) {
           {/* Pay + Duration + Workers */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Pay/hour (RM) *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Pay/hour (RM) <span className="text-red-500">*</span></label>
               <input
                 required type="number" step="0.50" min="1"
                 value={form.pay_rate_per_hour} onChange={e => set('pay_rate_per_hour', e.target.value)}
@@ -238,7 +240,7 @@ function TaskModal({ task, onClose, onSaved }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Duration (hours) *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Duration (hours) <span className="text-red-500">*</span></label>
               <input
                 required type="number" step="0.5" min="0.5"
                 value={form.estimated_duration_hours} onChange={e => set('estimated_duration_hours', e.target.value)}
@@ -247,7 +249,7 @@ function TaskModal({ task, onClose, onSaved }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Workers needed *</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Workers needed <span className="text-red-500">*</span></label>
               <input
                 required type="number" step="1" min="1"
                 value={form.max_applicants} onChange={e => set('max_applicants', e.target.value)}
@@ -258,11 +260,11 @@ function TaskModal({ task, onClose, onSaved }) {
           </div>
 
           {/* Pay estimate */}
-          {parseFloat(form.pay_rate_per_hour) > 0 && parseInt(form.estimated_duration_hours) > 0 && (
+          {parseFloat(form.pay_rate_per_hour) > 0 && parseFloat(form.estimated_duration_hours) > 0 && (
             <div className="bg-blue-50 rounded-lg px-4 py-2.5 text-sm text-blue-700 flex flex-wrap gap-3">
-              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours)).toFixed(2)}</strong></span>
+              <span>💰 Per worker: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseFloat(form.estimated_duration_hours)).toFixed(2)}</strong></span>
               {parseInt(form.max_applicants) > 1 && (
-                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseInt(form.estimated_duration_hours) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
+                <span className="text-blue-500">· {form.max_applicants} workers total: <strong>RM {(parseFloat(form.pay_rate_per_hour) * parseFloat(form.estimated_duration_hours) * parseInt(form.max_applicants)).toFixed(2)}</strong></span>
               )}
             </div>
           )}
@@ -510,6 +512,9 @@ export default function Tasks() {
   useEffect(() => { load(1) }, [filterStatus])
   useEffect(() => { load(page) }, [page])
 
+  // Auto-refresh tasks list every 5s
+  usePolling(() => load(page), 5000)
+
   const displayedTasks = search
     ? data.tasks.filter(t =>
         t.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -546,23 +551,25 @@ export default function Tasks() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          type="text" placeholder="Search by title or location…"
-          value={search} onChange={e => setSearch(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        />
-        <select
-          value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All statuses</option>
-          <option value="open">OPEN</option>
-          <option value="in_progress">IN PROGRESS</option>
-          <option value="completed">COMPLETED</option>
-          <option value="cancelled">CANCELLED</option>
-        </select>
-      </div>
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by title or location…"
+        filters={[
+          {
+            value: filterStatus,
+            onChange: setFilterStatus,
+            onPageReset: () => setPage(1),
+            options: [
+              { value: '', label: 'All statuses' },
+              { value: 'open', label: 'Open' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'cancelled', label: 'Cancelled' },
+            ],
+          },
+        ]}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">

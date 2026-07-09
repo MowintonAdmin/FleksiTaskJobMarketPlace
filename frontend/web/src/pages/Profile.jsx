@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { toast } from 'react-toastify'
 import { setUser } from '../store/authSlice'
@@ -23,18 +23,112 @@ const ACADEMIC_QUALIFICATIONS = [
 
 const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
 
+function verifyStatus(user) {
+  if (!user) return 'pending'
+  if (user.verification_status === 'approved') return 'approved'
+  if (user.verification_status === 'submitted') return 'submitted'
+  if (user.verification_status === 'rejected') return 'rejected'
+  if (user.is_verified) return 'approved'
+  return 'pending'
+}
+
+function VerificationStatus({ user, onResubmit }) {
+  if (!user) return null
+  const status = verifyStatus(user)
+
+  if (status === 'approved') {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+        <span className="text-2xl">✅</span>
+        <div>
+          <p className="font-semibold text-green-800 text-sm">Account Verified</p>
+          <p className="text-xs text-green-600">Your identity has been verified. You can now apply for tasks.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'rejected') {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-2xl">❌</span>
+          <div>
+            <p className="font-semibold text-red-800 text-sm">Verification Rejected</p>
+            <p className="text-xs text-red-600">Reason: {user.rejection_reason || 'No specific reason provided'}</p>
+          </div>
+        </div>
+        <p className="text-xs text-red-500 mb-3">Please update your information below and resubmit for review.</p>
+        {onResubmit && (
+          <button onClick={onResubmit} className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            Resubmit for Verification
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  if (status === 'submitted') {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">⏳</span>
+          <div>
+            <p className="font-semibold text-yellow-800 text-sm">Under Review</p>
+            <p className="text-xs text-yellow-600">Your profile has been submitted for admin verification. We'll notify you once it's reviewed.</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="text-2xl">🛡️</span>
+        <div>
+          <p className="font-semibold text-yellow-800 text-sm">Complete Your Profile</p>
+          <p className="text-xs text-yellow-600">Fill in your personal details, upload your selfie with ID, then submit for verification.</p>
+        </div>
+      </div>
+      {onResubmit && (
+        <button
+          onClick={onResubmit}
+          className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+        >
+          Submit for Verification
+        </button>
+      )}
+    </div>
+  )
+}
+
+function extractFieldErrors(err) {
+  const detail = err.response?.data?.detail
+  if (Array.isArray(detail)) {
+    return detail.join(', ')
+  }
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail
+  }
+  return null
+}
+
 export default function Profile() {
   const dispatch = useDispatch()
   const { user } = useSelector((s) => s.auth)
   const photoRef = useRef()
   const bankQrRef = useRef()
+  const selfieRef = useRef()
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingBankQr, setUploadingBankQr] = useState(false)
+  const [uploadingSelfie, setUploadingSelfie] = useState(false)
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     bio: user?.bio || '',
     location: user?.location || '',
+    phone: user?.phone || '',
     skills: user?.skills || [],
     academic_qualification: user?.academic_qualification || '',
     body_height_cm: user?.body_height_cm ?? '',
@@ -43,6 +137,37 @@ export default function Profile() {
     nric_passport: user?.nric_passport || '',
   })
   const [skillInput, setSkillInput] = useState('')
+
+  // Sync form state when user data changes (e.g., after save or photo upload)
+  useEffect(() => {
+    if (!user) return
+    setForm({
+      full_name: user.full_name || '',
+      bio: user.bio || '',
+      location: user.location || '',
+      phone: user.phone || '',
+      skills: user.skills || [],
+      academic_qualification: user.academic_qualification || '',
+      body_height_cm: user.body_height_cm ?? '',
+      nationality: user.nationality || '',
+      race: user.race || '',
+      nric_passport: user.nric_passport || '',
+    })
+  }, [user])
+
+  // Periodically refetch current user so verification status updates in real-time
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(async () => {
+      try {
+        const updated = await authApi.getMe()
+        dispatch(setUser(updated))
+      } catch {
+        // silent – ignore refresh errors
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [user, dispatch])
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
 
@@ -70,8 +195,13 @@ export default function Profile() {
       const updated = await authApi.updateMe(form)
       dispatch(setUser(updated))
       toast.success('Profile updated!')
-    } catch {
-      toast.error('Failed to save profile')
+    } catch (err) {
+      const msg = extractFieldErrors(err)
+      if (msg) {
+        toast.error(msg, { autoClose: 8000 })
+      } else {
+        toast.error('Failed to save profile')
+      }
     } finally {
       setSaving(false)
     }
@@ -111,9 +241,42 @@ export default function Profile() {
     }
   }
 
+  const handleSubmitVerification = async () => {
+    // Validate all required fields before submitting
+    const missing = []
+    if (!form.full_name?.trim()) missing.push('Full Name')
+    if (!form.phone?.trim()) missing.push('Phone Number')
+    if (!form.nric_passport?.trim()) missing.push('NRIC / Passport No.')
+    if (!form.body_height_cm && form.body_height_cm !== 0) missing.push('Body Height')
+    if (!form.nationality?.trim()) missing.push('Nationality')
+    if (!form.race?.trim()) missing.push('Race')
+    if (!user?.selfie_with_id_url) missing.push('Selfie with ID upload')
+    if (!user?.bank_qr_code_url) missing.push('Bank QR Code upload')
+
+    if (missing.length > 0) {
+      toast.error(
+        `Please complete the following before submitting: ${missing.join(', ')}`,
+        { autoClose: 10000 }
+      )
+      return
+    }
+
+    try {
+      const { data } = await api.post('/users/me/submit-verification')
+      dispatch(setUser(data))
+      toast.success('Profile submitted for verification!')
+    } catch (e) {
+      const msg = extractFieldErrors(e)
+      toast.error(msg || e.response?.data?.detail || 'Failed to submit')
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
+
+      {/* Verification Status Banner */}
+      <VerificationStatus user={user} onResubmit={handleSubmitVerification} />
 
       {/* Photo */}
       <div className="card mb-6 flex items-center gap-4">
@@ -137,6 +300,44 @@ export default function Profile() {
           <input ref={photoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload} />
           <button onClick={() => photoRef.current.click()} className="btn-secondary text-xs px-3 py-1.5">
             Upload Photo
+          </button>
+        </div>
+      </div>
+
+      {/* Selfie with ID — single clean box */}
+      <div className="card mb-6 flex items-center gap-5">
+        <div className="relative shrink-0 w-28 h-28">
+          {user?.selfie_with_id_url ? (
+            <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-full rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
+          ) : (
+            <div className="w-full h-full rounded-xl bg-gray-100 flex items-center justify-center text-4xl border-2 border-dashed border-gray-300">🤳</div>
+          )}
+          {uploadingSelfie && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+              <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm">Identity Verification Photo</p>
+          <p className="text-xs text-gray-500 mt-1">Hold your NRIC / Passport (front) next to your face and take a selfie. Make sure both your face and ID details are clearly visible.</p>
+          <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            setUploadingSelfie(true)
+            try {
+              const formData = new FormData()
+              formData.append('file', file)
+              const { data } = await api.post('/users/me/selfie', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+              })
+              dispatch(setUser(data))
+              toast.success('Selfie uploaded!')
+            } catch { toast.error('Failed to upload selfie') }
+            finally { setUploadingSelfie(false) }
+          }} />
+          <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-3">
+            {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
           </button>
         </div>
       </div>
@@ -173,8 +374,21 @@ export default function Profile() {
       {/* Form */}
       <form onSubmit={handleSave} className="card space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
           <input name="full_name" value={form.full_name} onChange={handleChange} className="input" required />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
+          <input
+            name="phone"
+            type="tel"
+            value={form.phone}
+            onChange={handleChange}
+            className="input"
+            placeholder="e.g. +60 12-345 6789"
+            required
+          />
+          <p className="text-xs text-gray-400 mt-1">Used for identity verification and admin contact.</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
@@ -243,7 +457,7 @@ export default function Profile() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Body Height (cm)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Body Height (cm) <span className="text-red-500">*</span></label>
               <input
                 name="body_height_cm"
                 type="number"
@@ -254,12 +468,13 @@ export default function Profile() {
                 onChange={handleChange}
                 className="input"
                 placeholder="e.g. 170"
+                required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">NRIC / Passport No.</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">NRIC / Passport No. <span className="text-red-500">*</span></label>
             <input
               name="nric_passport"
               value={form.nric_passport}
@@ -267,6 +482,7 @@ export default function Profile() {
               className="input"
               placeholder="e.g. 900101-14-1234 or A12345678"
               autoComplete="off"
+              required
             />
             <p className="text-xs text-gray-400 mt-1">This information is kept confidential and only used for identity verification.</p>
           </div>

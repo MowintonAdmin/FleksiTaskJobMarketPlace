@@ -36,7 +36,18 @@ async def apply_for_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """One-tap task application."""
+    """One-tap task application. User must be verified."""
+    if not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account must be verified before you can apply for tasks. Please complete your profile and wait for admin verification.",
+        )
+    if not current_user.phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide a phone number in your profile before applying for tasks.",
+        )
+
     result = await db.execute(select(Task).where(Task.id == payload.task_id))
     task = result.scalar_one_or_none()
     if not task or task.status != TaskStatus.OPEN:
@@ -183,15 +194,35 @@ async def update_application_status(
     await db.flush()
     await db.refresh(application)
 
-    # Send push notification to the worker
+    # Send in-app message notification to the worker
+    from app.models.message import Message
     worker_result = await db.execute(select(User).where(User.id == application.worker_id))
     worker = worker_result.scalar_one_or_none()
+    if worker:
+        status_label = payload.status.value
+        if status_label == "approved":
+            notif_body = f"✅ Your application for \"{task.title}\" has been approved! You can now check in and start tracking your work."
+        elif status_label == "rejected":
+            notif_body = f"❌ Your application for \"{task.title}\" was not selected. Keep looking for other opportunities!"
+        else:
+            notif_body = f"Your application for \"{task.title}\" has been updated to: {status_label}"
+        db.add(Message(
+            sender_id=current_user.id,
+            recipient_id=application.worker_id,
+            body=notif_body,
+        ))
+        await db.flush()
+
+    # Also attempt FCM push notification (silently fails if Firebase not configured)
     if worker and worker.fcm_token:
-        await send_application_status_notification(
-            fcm_token=worker.fcm_token,
-            task_title=task.title,
-            status=payload.status.value,
-            task_id=str(task.id),
-        )
+        try:
+            await send_application_status_notification(
+                fcm_token=worker.fcm_token,
+                task_title=task.title,
+                status=payload.status.value,
+                task_id=str(task.id),
+            )
+        except Exception:
+            pass
 
     return application

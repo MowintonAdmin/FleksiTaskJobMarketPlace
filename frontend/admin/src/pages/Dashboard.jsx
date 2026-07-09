@@ -1,18 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import StatsCard from '../components/StatsCard'
 import api from '../api/client'
+import usePolling from '../hooks/usePolling'
 
 export default function Dashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    api.get('/admin/analytics/dashboard')
-      .then((r) => setData(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+  const load = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/analytics/dashboard')
+      setData(r.data)
+    } catch {}
   }, [])
+
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
+
+  // Auto-refresh dashboard stats every 5s
+  usePolling(load, 5000)
 
   const t = data?.tasks
   const r = data?.revenue

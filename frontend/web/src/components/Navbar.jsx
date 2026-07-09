@@ -23,7 +23,7 @@ export default function Navbar() {
 
   const close = () => setMenuOpen(false)
 
-  // Poll unread count every 30 s while logged in
+  // Poll unread count every 5s while logged in
   useEffect(() => {
     if (!accessToken) { setUnread(0); return }
     let cancelled = false
@@ -31,7 +31,7 @@ export default function Navbar() {
       messagesApi.getUnreadCount().then((n) => { if (!cancelled) setUnread(n) }).catch(() => {})
     }
     fetch()
-    const id = setInterval(fetch, 30000)
+    const id = setInterval(fetch, 5000)
     return () => { cancelled = true; clearInterval(id) }
   }, [accessToken])
 

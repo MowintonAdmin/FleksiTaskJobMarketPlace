@@ -18,6 +18,10 @@ class MessageCreate(BaseModel):
     body: str
 
 
+class ReactionRequest(BaseModel):
+    reaction: str | None  # emoji string or null to remove
+
+
 class MessageResponse(BaseModel):
     id: uuid.UUID
     sender_id: uuid.UUID
@@ -25,6 +29,9 @@ class MessageResponse(BaseModel):
     sender_name: str | None = None
     body: str
     is_read: bool
+    reaction: str | None = None
+    reply_to_id: uuid.UUID | None = None
+    reply_to_body: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -37,6 +44,17 @@ class ConversationSummary(BaseModel):
     last_message: str
     last_message_at: datetime
     unread_count: int
+
+
+# Quick reply templates for admin
+QUICK_REPLIES = [
+    {"text": "Thanks for your message! We'll review and get back to you.", "label": "Acknowledge"},
+    {"text": "Please provide more details about the task.", "label": "Request Details"},
+    {"text": "Your task has been approved. You can start work now.", "label": "Task Approved"},
+    {"text": "Your application has been received. We'll review it shortly.", "label": "App Received"},
+    {"text": "Thank you for your patience. We're looking into this.", "label": "Patient Reply"},
+    {"text": "Please upload a clearer photo of your ID.", "label": "Re-upload ID"},
+]
 
 
 @router.get("/conversations", response_model=list[ConversationSummary])
@@ -112,6 +130,7 @@ async def send_message(
     msg = Message(sender_id=current_user.id, recipient_id=payload.recipient_id, body=payload.body.strip())
     db.add(msg)
     await db.flush()
+    await db.refresh(msg)
     resp = MessageResponse.model_validate(msg)
     resp.sender_name = current_user.full_name
     return resp
@@ -179,6 +198,66 @@ async def get_read_statuses(
         )
     )
     return {"unread_ids": [str(row.id) for row in result.all()]}
+
+
+@router.get("/quick-replies")
+async def get_quick_replies():
+    """Return admin quick reply templates."""
+    return QUICK_REPLIES
+
+
+@router.post("/reaction/{message_id}", response_model=MessageResponse)
+async def react_to_message(
+    message_id: uuid.UUID,
+    payload: ReactionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """React to a message (add/change/remove emoji reaction)."""
+    result = await db.execute(select(Message).where(Message.id == message_id))
+    message = result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+
+    # Only sender or recipient can react
+    if message.sender_id != current_user.id and message.recipient_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorised to react to this message")
+
+    message.reaction = payload.reaction if payload.reaction else None
+    await db.flush()
+    await db.refresh(message)
+    resp = MessageResponse.model_validate(message)
+    if message.sender:
+        resp.sender_name = message.sender.full_name
+    return resp
+
+
+@router.post("/typing/{user_id}")
+async def typing_indicator(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+):
+    """Simple typing indicator — frontend polls to check if user is typing.
+    Stores the typing state in Redis with a short TTL.
+    """
+    from app.core.redis_client import set_session, get_session, delete_session
+
+    key = f"typing:{current_user.id}:{user_id}"
+    await set_session(key, "1", ttl=3)  # auto-expires after 3s
+    return {"status": "ok"}
+
+
+@router.get("/typing/{user_id}")
+async def check_typing(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+):
+    """Check if user user_id is currently typing to the current user."""
+    from app.core.redis_client import get_session
+
+    key = f"typing:{user_id}:{current_user.id}"
+    val = await get_session(key)
+    return {"typing": val is not None}
 
 
 @router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)

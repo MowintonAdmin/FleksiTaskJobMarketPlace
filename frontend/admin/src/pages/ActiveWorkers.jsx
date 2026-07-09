@@ -1,6 +1,8 @@
 ﻿import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
+import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
 
 function elapsed(minutes) {
   const h = Math.floor(minutes / 60)
@@ -42,6 +44,7 @@ function ConfirmModal({ worker, onConfirm, onCancel, loading }) {
 
 export default function ActiveWorkers() {
   const [workers, setWorkers] = useState([])
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(null)
   const [confirmTarget, setConfirmTarget] = useState(null)
@@ -93,15 +96,20 @@ export default function ActiveWorkers() {
           </h1>
           {lastRefresh && (
             <p className="text-xs text-gray-400 mt-0.5">
-              Last updated {lastRefresh.toLocaleTimeString()} · auto-refreshes every 30s
+              Auto-refreshes every 30s
             </p>
           )}
         </div>
-        <button onClick={load}
-          className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
-          ↻ Refresh
-        </button>
+        <RefreshButton onClick={load} loading={loading} lastRefresh={lastRefresh} />
       </div>
+
+      {/* Search */}
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by worker name, email or task…"
+        filters={[]}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -127,7 +135,15 @@ export default function ActiveWorkers() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workers.map(w => (
+          {workers
+            .filter(w => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return w.worker_name?.toLowerCase().includes(q) ||
+                     w.worker_email?.toLowerCase().includes(q) ||
+                     w.task_title?.toLowerCase().includes(q)
+            })
+            .map(w => (
             <div key={w.session_id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
               {/* Worker info */}
               <div className="flex items-center gap-3 mb-4">

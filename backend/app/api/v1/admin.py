@@ -102,11 +102,15 @@ async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """List all unverified users awaiting admin approval."""
+    """List all unverified users who have submitted their profile for admin approval."""
     result = await db.execute(
         select(User)
-        .where(User.is_verified == False, User.is_admin == False)
-        .order_by(User.created_at.desc())
+        .where(
+            User.is_verified == False,
+            User.is_admin == False,
+            User.verification_status == "submitted",
+        )
+        .order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
     )
     users = result.scalars().all()
     out = []
@@ -121,6 +125,7 @@ async def admin_unverified_users(
             "email": u.email,
             "full_name": u.full_name,
             "profile_photo_url": u.profile_photo_url,
+            "phone": u.phone,
             "location": u.location,
             "nationality": u.nationality,
             "race": u.race,
@@ -128,6 +133,7 @@ async def admin_unverified_users(
             "academic_qualification": u.academic_qualification,
             "body_height_cm": u.body_height_cm,
             "bank_qr_code_url": u.bank_qr_code_url,
+            "selfie_with_id_url": u.selfie_with_id_url,
             "total_sessions": len(sessions),
             "completed_sessions": len(completed),
             "created_at": u.created_at.isoformat(),
@@ -212,6 +218,7 @@ async def admin_get_user_sessions(
 
 class UserVerificationAction(BaseModel):
     action: str  # "approve" or "reject"
+    reason: str | None = None  # rejection reason
 
 
 @router.post("/users/{user_id}/verify")
@@ -219,9 +226,11 @@ async def admin_verify_user(
     user_id: uuid.UUID,
     payload: UserVerificationAction,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    admin_user: User = Depends(require_admin),
 ):
-    """Approve or reject a user registration."""
+    """Approve or reject a user registration. Sends an in-app notification to the user."""
+    from app.models.message import Message
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -231,12 +240,30 @@ async def admin_verify_user(
     if action == "approve":
         user.is_verified = True
         user.is_active = True
+        user.verification_status = "approved"
+
+        notif = Message(
+            sender_id=admin_user.id,
+            recipient_id=user.id,
+            body=f"✅ Your account has been verified! You can now apply for tasks and start earning.",
+        )
+        db.add(notif)
         await db.flush()
         return {"status": "approved", "user_id": str(user.id)}
     elif action == "reject":
-        await db.delete(user)
+        user.verification_status = "rejected"
+        user.rejection_reason = payload.reason or "No specific reason provided"
+        user.is_active = True  # Keep account active so they can re-upload
+
+        reason_text = payload.reason or "No specific reason provided"
+        notif = Message(
+            sender_id=admin_user.id,
+            recipient_id=user.id,
+            body=f"❌ Your verification was rejected. Reason: {reason_text}. Please update your information and resubmit.",
+        )
+        db.add(notif)
         await db.flush()
-        return {"status": "rejected", "user_id": str(user.id)}
+        return {"status": "rejected", "reason": user.rejection_reason, "user_id": str(user.id)}
 
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
 
@@ -576,8 +603,52 @@ async def admin_adjust_session_time(
 
 
 import math
+import io
+import csv
 
 # ── Task Listing (Admin) ──────────────────────────────────────────────────────
+
+@router.get("/tasks/export")
+async def export_tasks_csv(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export all tasks to CSV."""
+    from app.models.task import TaskStatus
+    result = await db.execute(select(Task).order_by(Task.created_at.desc()))
+    tasks = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Title", "Description", "Location", "Category",
+        "Pay Rate (RM/min)", "Est. Duration (min)", "Max Applicants",
+        "Status", "Start Date", "Created At",
+    ])
+
+    for t in tasks:
+        writer.writerow([
+            str(t.id),
+            t.title,
+            t.description,
+            t.location,
+            t.category,
+            t.pay_rate_per_minute,
+            t.estimated_duration_minutes,
+            t.max_applicants,
+            t.status,
+            t.starts_at.isoformat() if t.starts_at else "",
+            t.created_at.isoformat(),
+        ])
+
+    output.seek(0)
+    filename = f"tasks_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
 
 @router.get("/tasks")
 async def admin_list_tasks(
@@ -1223,6 +1294,9 @@ async def admin_pending_sessions(
     sessions = result.scalars().all()
     out = []
     for s in sessions:
+        # Skip sessions with no earnings (rejected)
+        if not s.earnings or s.earnings <= 0:
+            continue
         worker_result = await db.execute(select(User).where(User.id == s.worker_id))
         worker = worker_result.scalar_one_or_none()
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
@@ -1301,13 +1375,19 @@ async def admin_approve_session(
             body=f"✅ Your task \"{task.title}\" has been approved! RM {session.earnings:.2f} has been credited to your wallet.{reason}",
         ))
 
+        session.status = SessionStatus.SETTLED
+        db.add(session)
         await db.flush()
+        await db.refresh(session)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
 
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
         reason = f" Reason: {payload.notes}" if payload.notes else ""
+        # Zero out earnings so this session won't appear in pending-approval again
+        session.earnings = 0.0
+        db.add(session)
         db.add(_MessageForApproval(
             sender_id=admin_user.id,
             recipient_id=session.worker_id,
