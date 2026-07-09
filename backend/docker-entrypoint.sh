@@ -7,9 +7,8 @@ echo ">>> Running Alembic migrations..."
 if alembic upgrade head; then
     echo ">>> Migrations applied."
 else
-    echo ">>> Initial migration failed - stamping to 0002 and re-applying..."
-    alembic stamp 0002 || true
-    alembic upgrade head || echo "WARNING: Migration failed after stamp. Continuing anyway."
+    echo "ERROR: Alembic migrations failed. Check logs above. Aborting startup."
+    exit 1
 fi
 
 echo ">>> Starting uvicorn..."

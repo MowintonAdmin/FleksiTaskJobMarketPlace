@@ -29,6 +29,7 @@ async def create_or_update_admin(
                 full_name=normalized_full_name,
                 hashed_password=hash_password(password),
                 is_admin=True,
+                is_super_admin=True,
                 is_verified=True,
                 is_active=True,
             )
@@ -40,6 +41,7 @@ async def create_or_update_admin(
             if not user.full_name:
                 user.full_name = normalized_full_name
             user.is_admin = True
+            user.is_super_admin = True
             user.is_active = True
             user.is_verified = True
             action = "updated"

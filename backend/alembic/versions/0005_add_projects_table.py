@@ -15,7 +15,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create projects table (enum already created by SQLAlchemy on startup)
+    # Create the projectstatus enum type if it doesn't already exist.
+    # (SQLAlchemy's create_all also creates it, but alembic runs before uvicorn starts
+    # on a fresh DB so we must create it here to avoid a dependency race.)
+    op.execute("DO $$ BEGIN CREATE TYPE projectstatus AS ENUM ('active', 'completed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;")
+
     op.create_table(
         'projects',
         sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
