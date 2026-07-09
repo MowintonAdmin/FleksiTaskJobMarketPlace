@@ -140,9 +140,9 @@ class UserWithStats(UserResponse):
 @router.get("/users/unverified")
 async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_super_admin),
 ):
-    """List all unverified users."""
+    """List all unverified users (super admin only)."""
     result = await db.execute(
         select(User)
         .where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
@@ -245,7 +245,7 @@ async def admin_verify_user(
     user_id: uuid.UUID,
     payload: UserVerificationAction,
     db: AsyncSession = Depends(get_db),
-    admin_user: User = Depends(require_admin),
+    admin_user: User = Depends(require_super_admin),
 ):
     from app.models.message import Message
     result = await db.execute(select(User).where(User.id == user_id))
