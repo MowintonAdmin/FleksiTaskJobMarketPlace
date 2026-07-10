@@ -21,18 +21,18 @@ function ForgotPasswordModal({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const [resetUrl, setResetUrl] = useState(null)
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
       const data = await authApi.forgotPassword(email.trim())
-      if (data?.reset_url) {
-        setResetUrl(data.reset_url)
-      }
       setSent(true)
+      // If we got back a reset URL, redirect the user directly
+      if (data?.reset_url) {
+        window.location.href = data.reset_url
+        return
+      }
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -51,14 +51,8 @@ function ForgotPasswordModal({ onClose }) {
             <p className="text-4xl mb-3">📬</p>
             <h2 className="text-lg font-bold text-gray-900 mb-2">Check your inbox</h2>
             <p className="text-sm text-gray-500 mb-5">
-              If an account exists for <strong>{email}</strong>, a password reset link has been sent.
+              If an account exists for <strong>{email}</strong>, a password reset link has been sent to your email.
             </p>
-            {resetUrl && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-left">
-                <p className="text-xs text-blue-700 font-medium mb-1">🔧 Dev Mode — Reset Link:</p>
-                <a href={resetUrl} className="text-xs text-blue-600 underline break-all hover:text-blue-800">{resetUrl}</a>
-              </div>
-            )}
             <button onClick={onClose} className="btn-primary w-full">Done</button>
           </div>
         ) : (
