@@ -68,8 +68,19 @@ def upgrade() -> None:
         "UPDATE projects SET status = LOWER(status) WHERE status != LOWER(status)"
     ))
 
-    # 4. Drop the old ENUM type now that no column references it.
-    op.execute(sa.text("DROP TYPE IF EXISTS projectstatus"))
+    # 4. Drop the column DEFAULT (which references the enum type) so we can
+    #    drop the type without hitting DependentObjectsStillExistError.
+    op.execute(sa.text(
+        "ALTER TABLE projects ALTER COLUMN status DROP DEFAULT"
+    ))
+
+    # 5. Re-add the default as a plain string literal (no type dependency).
+    op.execute(sa.text(
+        "ALTER TABLE projects ALTER COLUMN status SET DEFAULT 'active'"
+    ))
+
+    # 6. Now drop the ENUM type — no objects depend on it any more.
+    op.execute(sa.text("DROP TYPE IF EXISTS projectstatus CASCADE"))
 
 
 def downgrade() -> None:
