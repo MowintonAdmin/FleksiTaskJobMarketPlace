@@ -63,7 +63,7 @@ export default function Register() {
         password: form.password,
         location: form.location.trim() || undefined,
       })
-      toast.success('Account created! Please wait for admin approval before signing in.')
+      toast.success('Your account has been created successfully! You can now sign in.')
       navigate('/login')
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Registration failed'
