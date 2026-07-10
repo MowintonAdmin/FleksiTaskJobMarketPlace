@@ -12,7 +12,7 @@ const links = [
   { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
   { to: '/tasks', label: 'Projects / Tasks', icon: '📋' },
   { to: '/applications', label: 'Applications', icon: '📝', badge: 'pendingApps' },
-  { to: '/active-workers', label: 'Active Workers', icon: '🟢' },
+  { to: '/active-workers', label: 'Active Workers', icon: '🟢', badge: 'activeWorkers' },
   { to: '/session-approval', label: 'Session Approval', icon: '✅', badge: 'pendingSession' },
   { to: '/time-logs', label: 'Time & Payments', icon: '⏱️' },
   { to: '/withdrawals', label: 'Withdrawals', icon: '💸', badge: 'pendingWithdrawals' },
@@ -38,6 +38,7 @@ export default function Sidebar({ open, onClose }) {
   const [pendingSessionCount, setPendingSessionCount] = useState(0)
   const [pendingAppsCount, setPendingAppsCount] = useState(0)
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
+  const [activeWorkersCount, setActiveWorkersCount] = useState(0)
   const cancelledRef = useRef(false)
 
   useEffect(() => {
@@ -69,6 +70,11 @@ export default function Sidebar({ open, onClose }) {
         const { data } = await api.get('/admin/withdrawals', { params: { status: 'PENDING' } })
         if (!cancelledRef.current) setPendingWithdrawalsCount(Array.isArray(data) ? data.length : 0)
       } catch {}
+
+      try {
+        const { data } = await api.get('/admin/workers/active')
+        if (!cancelledRef.current) setActiveWorkersCount(Array.isArray(data) ? data.length : 0)
+      } catch {}
     }
 
     poll()
@@ -82,6 +88,7 @@ export default function Sidebar({ open, onClose }) {
     pendingSession: pendingSessionCount,
     pendingApps: pendingAppsCount,
     pendingWithdrawals: pendingWithdrawalsCount,
+    activeWorkers: activeWorkersCount,
   }
 
   const handleNav = () => {
