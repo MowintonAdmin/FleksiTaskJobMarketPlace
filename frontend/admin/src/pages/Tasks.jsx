@@ -3,6 +3,7 @@ import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
+import TagBadge from '../utils/tagColors'
 
 // Route media through /api/v1/files/... — same proxy path as all API calls.
 const mediaUrl = (path) => {
@@ -375,6 +376,11 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onStatusChange, s
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 truncate">{task.title}</p>
             <p className="text-xs text-gray-500 mt-0.5">📍 {task.location} · {task.category} · RM {(parseFloat(task.pay_rate_per_minute) * 60).toFixed(2)}/hr</p>
+            {task.company_tag && (
+              <div className="mt-1">
+                <TagBadge tag={task.company_tag} size="xs" />
+              </div>
+            )}
             <div className="flex items-center gap-3 mt-1">
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
                 {task.status.replace('_', ' ').toUpperCase()}
@@ -558,6 +564,9 @@ export default function Tasks() {
                       <span>📋 {p.task_count} tasks</span>
                       {p.category && <span>🏷 {p.category}</span>}
                       {p.location && <span>📍 {p.location}</span>}
+                      {p.company_tag && (
+                        <TagBadge tag={p.company_tag} size="xs" />
+                      )}
                     </div>
                   </div>
                   <div className="border-t border-gray-100 flex opacity-0 group-hover:opacity-100 transition-opacity">

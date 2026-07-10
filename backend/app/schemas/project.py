@@ -27,6 +27,7 @@ class ProjectResponse(ProjectBase):
     id: uuid.UUID
     status: ProjectStatus
     created_by_id: uuid.UUID
+    company_tag: str | None = None
     task_count: int = 0
     created_at: datetime
     updated_at: datetime

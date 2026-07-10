@@ -78,6 +78,7 @@ class UserResponse(UserBase):
     is_employer: bool
     is_admin: bool
     is_super_admin: bool
+    company_tag: str | None = None
     is_verified: bool
     created_at: datetime
 

@@ -89,6 +89,7 @@ class CreateAdminRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
+    company_tag: str | None = None
 
 
 @router.post("/users/create-admin", status_code=status.HTTP_201_CREATED)
@@ -116,6 +117,7 @@ async def admin_create_admin(
         is_super_admin=False,  # Normal admin — not super admin
         is_verified=True,
         is_active=True,
+        company_tag=payload.company_tag.strip() if payload.company_tag else None,
     )
     db.add(user)
     await db.flush()
@@ -212,10 +214,13 @@ async def admin_unverified_users(
 async def admin_list_admins(
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
-    """List all admin users. Any admin can view the list for reference."""
-    q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
+    """List admin users. Super admin sees all; normal admins only see those with the same company_tag."""
+    if current_user.is_super_admin:
+        q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
+    else:
+        q = select(User).where(User.is_admin == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
     result = await db.execute(q)
     admins = result.scalars().all()
     if search:
@@ -578,7 +583,7 @@ async def admin_list_projects(
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def admin_create_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db), admin_user: User = Depends(require_admin)):
-    project = Project(**payload.model_dump(), created_by_id=admin_user.id)
+    project = Project(**payload.model_dump(), created_by_id=admin_user.id, company_tag=admin_user.company_tag)
     db.add(project); await db.flush(); await db.refresh(project)
     pd = ProjectResponse.model_validate(project); pd.task_count = 0
     return pd

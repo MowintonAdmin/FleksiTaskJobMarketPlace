@@ -91,7 +91,7 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    task = Task(**payload.model_dump(), employer_id=current_user.id)
+    task = Task(**payload.model_dump(), employer_id=current_user.id, company_tag=current_user.company_tag if current_user.is_admin else None)
     db.add(task)
     await db.flush()
     await db.refresh(task)

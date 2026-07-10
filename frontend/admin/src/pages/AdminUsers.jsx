@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
+import TagBadge from '../utils/tagColors'
 
 export default function AdminUsers() {
   const { user } = useSelector((s) => s.auth)
@@ -16,6 +17,7 @@ export default function AdminUsers() {
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newFullName, setNewFullName] = useState('')
+  const [newCompanyTag, setNewCompanyTag] = useState('')
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(() => {
@@ -48,12 +50,14 @@ export default function AdminUsers() {
         email: newEmail.trim(),
         password: newPassword,
         full_name: newFullName.trim() || null,
+        company_tag: newCompanyTag.trim() || null,
       })
       toast.success(data.message || 'Admin account created!')
       setShowCreateModal(false)
       setNewEmail('')
       setNewPassword('')
       setNewFullName('')
+      setNewCompanyTag('')
       load()
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to create admin account')
@@ -114,6 +118,7 @@ export default function AdminUsers() {
             <tr>
               <th className="px-5 py-3 text-left">Admin</th>
               <th className="px-5 py-3 text-left">Email</th>
+              <th className="px-5 py-3 text-left">Company</th>
               <th className="px-5 py-3 text-left">Type</th>
               <th className="px-5 py-3 text-left">Location</th>
               <th className="px-5 py-3 text-center">Joined</th>
@@ -122,12 +127,12 @@ export default function AdminUsers() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               [1, 2, 3].map(i => (
-                <tr key={i}>{[1, 2, 3, 4, 5].map(j => (
+                <tr key={i}>{[1, 2, 3, 4, 5, 6].map(j => (
                   <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                 ))}</tr>
               ))
             ) : admins.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-12 text-gray-400">No admin users found</td></tr>
+              <tr><td colSpan={6} className="text-center py-12 text-gray-400">No admin users found</td></tr>
             ) : admins.map(u => (
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
@@ -147,6 +152,9 @@ export default function AdminUsers() {
                   </div>
                 </td>
                 <td className="px-5 py-3 text-gray-500">{u.email}</td>
+                <td className="px-5 py-3">
+                  <TagBadge tag={u.company_tag} size="xs" />
+                </td>
                 <td className="px-5 py-3">
                   {u.is_super_admin ? (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">👑 Super</span>
@@ -182,6 +190,16 @@ export default function AdminUsers() {
                 />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Company Tag *</label>
+                <input
+                  required
+                  value={newCompanyTag} onChange={e => setNewCompanyTag(e.target.value)}
+                  placeholder="e.g. CleaningPro, TechServ, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">This tag helps identify which company this admin belongs to. Admins with the same tag will see each other's data.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Email *</label>
                 <input
                   required type="email"
@@ -199,9 +217,10 @@ export default function AdminUsers() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
               </div>
-              <div className="bg-purple-50 rounded-lg px-4 py-3 text-xs text-purple-700">
-                <p className="font-semibold mb-1">📌 Note</p>
+              <div className="bg-purple-50 rounded-lg px-4 py-3 text-xs text-purple-700 space-y-1">
+                <p className="font-semibold">📌 Note</p>
                 <p>The new admin will have <strong>normal</strong> privileges — they can create their own projects and manage tasks/workers within those projects. They <strong>cannot</strong> create other admin accounts or access super admin features.</p>
+                <p>They will only see other admins and data with the <strong>same company tag</strong>.</p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

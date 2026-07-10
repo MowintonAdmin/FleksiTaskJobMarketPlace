@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { apiHost } from '../api/client'
+import TagBadge from '../utils/tagColors'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
@@ -40,10 +41,13 @@ export default function TaskCard({ task }) {
           <p className="text-lg font-bold text-primary-600">RM {totalPay}</p>
         </div>
       </div>
-      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex-wrap">
         <span>👥 {task.application_count} applied</span>
         {task.starts_at && (
           <span>🗓 {new Date(task.starts_at).toLocaleDateString()}</span>
+        )}
+        {task.company_tag && (
+          <TagBadge tag={task.company_tag} size="xs" />
         )}
       </div>
     </Link>
