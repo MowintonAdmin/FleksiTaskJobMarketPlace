@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
 
 from app.database import get_db
@@ -22,6 +22,7 @@ from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, P
 from app.schemas.user import UserResponse, UserPublic
 from app.schemas.task import TaskResponse
 from app.core.deps import get_current_user
+from app.core.security import hash_password
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -79,6 +80,47 @@ async def get_accessible_worker_ids(db: AsyncSession, current_user: User, task_i
     )
     session_workers = [r[0] for r in result2.all()]
     return list(set(app_workers + session_workers))
+
+
+# ── Create Admin Account (Super Admin Only) ─────────────────────────────────────
+
+
+class CreateAdminRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str | None = None
+
+
+@router.post("/users/create-admin", status_code=status.HTTP_201_CREATED)
+async def admin_create_admin(
+    payload: CreateAdminRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Create a new normal admin account. Super admin only."""
+    # Check if email already exists
+    result = await db.execute(select(User).where(User.email == payload.email.strip().lower()))
+    existing = result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A user with this email already exists")
+
+    # Validate password length
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters")
+
+    user = User(
+        email=payload.email.strip().lower(),
+        full_name=payload.full_name.strip() if payload.full_name else "Admin User",
+        hashed_password=hash_password(payload.password),
+        is_admin=True,
+        is_super_admin=False,  # Normal admin — not super admin
+        is_verified=True,
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+    return {"message": f"Admin account created for {user.email}", "user_id": str(user.id), "email": user.email, "full_name": user.full_name}
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
@@ -164,6 +206,22 @@ async def admin_unverified_users(
             "created_at": u.created_at.isoformat(),
         })
     return out
+
+
+@router.get("/users/admins", response_model=list[UserResponse])
+async def admin_list_admins(
+    search: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """List all admin users. Any admin can view the list for reference."""
+    q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
+    result = await db.execute(q)
+    admins = result.scalars().all()
+    if search:
+        s = search.lower()
+        admins = [u for u in admins if s in u.full_name.lower() or s in u.email.lower()]
+    return [UserResponse.model_validate(u) for u in admins]
 
 
 @router.get("/users", response_model=list[UserResponse])
@@ -304,7 +362,6 @@ async def admin_force_stop_session(
     admin_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.wallet import Wallet, Transaction, TransactionType
     from app.models.message import Message
     result = await db.execute(select(TaskSession).where(TaskSession.id == session_id, TaskSession.status == SessionStatus.ACTIVE))
     session = result.scalar_one_or_none()
@@ -318,17 +375,10 @@ async def admin_force_stop_session(
     session.checked_out_at = now; session.earnings = earnings; session.status = SessionStatus.COMPLETED
     session.proof_notes = f"[Admin force-stopped by {admin_user.full_name or admin_user.email}]"
     db.add(session)
-    wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
-    wallet = wallet_result.scalar_one_or_none()
-    if not wallet:
-        wallet = Wallet(user_id=session.worker_id); db.add(wallet); await db.flush()
-    wallet.available_balance = round(wallet.available_balance + earnings, 2)
-    db.add(Transaction(user_id=session.worker_id, type=TransactionType.CREDIT, amount=earnings,
-        description=f"Earnings from task: {task.title} (admin force-stopped)", reference_id=str(session.id)))
     db.add(Message(sender_id=admin_user.id, recipient_id=session.worker_id,
-        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. You have been credited RM {earnings:.2f} for {elapsed_minutes:.0f} minutes worked."))
+        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. RM {earnings:.2f} has been recorded and is pending approval from the session approval page."))
     await db.flush()
-    return {"session_id": str(session.id), "elapsed_minutes": round(elapsed_minutes, 1), "earnings_credited": earnings, "status": session.status}
+    return {"session_id": str(session.id), "elapsed_minutes": round(elapsed_minutes, 1), "pending_earnings": earnings, "status": session.status}
 
 
 # ── Withdrawal Management ─────────────────────────────────────────────────────

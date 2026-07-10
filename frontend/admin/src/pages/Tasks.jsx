@@ -417,6 +417,7 @@ export default function Tasks() {
   // Projects state
   const [projects, setProjects] = useState([])
   const [loadingProjects, setLoadingProjects] = useState(true)
+  const [projectSearch, setProjectSearch] = useState('')
 
   // Tasks state
   const [tasks, setTasks] = useState([])
@@ -488,6 +489,16 @@ export default function Tasks() {
     setPage(1)
   }
 
+  // Filter projects by search
+  const filteredProjects = projectSearch
+    ? projects.filter(p => 
+        p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(projectSearch.toLowerCase())) ||
+        (p.category && p.category.toLowerCase().includes(projectSearch.toLowerCase())) ||
+        (p.location && p.location.toLowerCase().includes(projectSearch.toLowerCase()))
+      )
+    : projects
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -511,23 +522,29 @@ export default function Tasks() {
       {/* ── Projects View ──────────────────────────────────────────────────── */}
       {view === 'projects' && (
         <>
-          <div className="flex justify-end">
-            <button onClick={() => { setEditProject(null); setShowProjectModal(true) }} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
-              + New Project
-            </button>
-          </div>
+          <SearchFilterBar
+            search={projectSearch}
+            onSearchChange={setProjectSearch}
+            placeholder="Search projects by name, category, or location…"
+            filters={[]}
+            rightContent={
+              <button onClick={() => { setEditProject(null); setShowProjectModal(true) }} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors">
+                + New Project
+              </button>
+            }
+          />
 
           {loadingProjects ? (
             <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-white rounded-xl p-5 animate-pulse"><div className="h-5 bg-gray-200 rounded w-1/3 mb-2" /><div className="h-3 bg-gray-100 rounded w-1/2" /></div>)}</div>
-          ) : projects.length === 0 ? (
+          ) : filteredProjects.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center">
               <p className="text-5xl mb-3">📁</p>
-              <p className="font-semibold text-gray-600">No projects yet</p>
-              <p className="text-sm text-gray-400 mt-1">Create your first project to start organizing tasks.</p>
+              <p className="font-semibold text-gray-600">{projectSearch ? 'No projects match your search' : 'No projects yet'}</p>
+              <p className="text-sm text-gray-400 mt-1">{projectSearch ? 'Try a different search term.' : 'Create your first project to start organizing tasks.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.map(p => (
+              {filteredProjects.map(p => (
                 <div key={p.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group cursor-pointer" onClick={() => handleSelectProject(p)}>
                   <div className="p-5">
                     <div className="flex items-start justify-between mb-3">

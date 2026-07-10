@@ -77,6 +77,7 @@ class UserResponse(UserBase):
     is_active: bool
     is_employer: bool
     is_admin: bool
+    is_super_admin: bool
     is_verified: bool
     created_at: datetime
 
