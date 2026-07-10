@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import api from '../api/client'
 import usePolling from '../hooks/usePolling'
@@ -16,9 +17,13 @@ const REJECTION_REASONS = [
 ]
 
 export default function UserVerification() {
+  const { user } = useSelector((s) => s.auth)
+  const isSuperAdmin = user?.is_super_admin
+
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [processingId, setProcessingId] = useState(null)
   const [rejectModal, setRejectModal] = useState(null) // user object being rejected
   const [rejectReason, setRejectReason] = useState('')
@@ -29,8 +34,14 @@ export default function UserVerification() {
     try {
       const { data } = await api.get('/admin/users/unverified')
       setUsers(data)
-    } catch {
-      toast.error('Failed to load unverified users')
+      setAccessDenied(false)
+    } catch (err) {
+      const status = err.response?.status
+      if (status === 403) {
+        setAccessDenied(true)
+      } else {
+        toast.error('Failed to load unverified users')
+      }
     } finally {
       setLoading(false)
     }
@@ -91,14 +102,27 @@ export default function UserVerification() {
       </div>
 
       {/* Search + Filter */}
-      <SearchFilterBar
-        search={search}
-        onSearchChange={setSearch}
-        placeholder="Search by name or email…"
-        filters={[]}
-      />
+      {!accessDenied && (
+        <SearchFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Search by name or email…"
+          filters={[]}
+        />
+      )}
 
-      {loading ? (
+      {accessDenied ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">🔒</span>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+          <p className="text-gray-500 max-w-md mx-auto">
+            The User Verification feature is only available to <strong>Super Admin</strong> accounts. 
+            Please contact your system administrator if you need to verify user accounts.
+          </p>
+        </div>
+      ) : loading ? (
         <div className="space-y-3">
           {[1,2,3].map(i => (
             <div key={i} className="bg-white rounded-xl p-5 animate-pulse space-y-2">
