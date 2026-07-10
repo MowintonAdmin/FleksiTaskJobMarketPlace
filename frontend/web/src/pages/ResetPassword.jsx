@@ -8,6 +8,7 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || ''
 
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -21,6 +22,10 @@ export default function ResetPassword() {
     e.preventDefault()
     setError(null)
 
+    if (!email.trim()) {
+      setError('Please enter your email address.')
+      return
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.')
       return
@@ -32,7 +37,7 @@ export default function ResetPassword() {
 
     setLoading(true)
     try {
-      await authApi.resetPassword(token, password)
+      await authApi.resetPassword(token, password, email.trim())
       setDone(true)
       toast.success('Password updated! Please sign in.')
     } catch (err) {
@@ -79,6 +84,21 @@ export default function ResetPassword() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input"
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 New Password <span className="text-red-500">*</span>

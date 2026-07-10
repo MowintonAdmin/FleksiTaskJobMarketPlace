@@ -208,6 +208,10 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depen
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
 
+    # Verify the email matches for extra security
+    if user.email.lower() != payload.email.lower().strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email does not match the reset token")
+
     user.hashed_password = hash_password(payload.new_password)
     await delete_session(redis_key)
     logger.info("Password reset completed for user %s", user.id)
