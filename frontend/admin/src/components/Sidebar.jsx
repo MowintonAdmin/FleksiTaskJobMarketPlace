@@ -5,21 +5,27 @@ import { messagesApi } from '../api/messages'
 import api from '../api/client'
 import { logout } from '../slices/authSlice'
 
-const links = [
-  { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/users', label: 'Workers', icon: '👥' },
-  { to: '/user-verification', label: 'User Verification', icon: '🆕', badge: 'pendingVerif' },
-  { to: '/admin-users', label: 'Admin Users', icon: '🛡️' },
-  { to: '/tasks', label: 'Projects / Tasks', icon: '📋' },
-  { to: '/applications', label: 'Applications', icon: '📝', badge: 'pendingApps' },
-  { to: '/active-workers', label: 'Active Workers', icon: '🟢', badge: 'activeWorkers' },
-  { to: '/session-approval', label: 'Session Approval', icon: '✅', badge: 'pendingSession' },
-  { to: '/time-logs', label: 'Time & Payments', icon: '⏱️' },
-  { to: '/withdrawals', label: 'Withdrawals', icon: '💸', badge: 'pendingWithdrawals' },
-  { to: '/messages', label: 'Messages', icon: '💬', badge: 'unread' },
-  { to: '/analytics', label: 'Analytics', icon: '📈' },
-  { to: '/database', label: 'DB Backup', icon: '🗄️' },
-]
+function getLinks(user) {
+  const isSuperAdmin = user?.is_super_admin
+  return [
+    { to: '/', label: 'Dashboard', icon: '📊', adminOnly: false },
+    { to: '/users', label: 'Workers', icon: '👥', adminOnly: false },
+    { to: '/user-verification', label: 'User Verification', icon: '🆕', badge: 'pendingVerif', adminOnly: false },
+    { to: '/admin-users', label: 'Admin Users', icon: '🛡️', adminOnly: false },
+    { to: '/tasks', label: 'Projects / Tasks', icon: '📋', adminOnly: false },
+    { to: '/applications', label: 'Applications', icon: '📝', badge: 'pendingApps', adminOnly: false },
+    { to: '/active-workers', label: 'Active Workers', icon: '🟢', badge: 'activeWorkers', adminOnly: false },
+    { to: '/session-approval', label: 'Session Approval', icon: '✅', badge: 'pendingSession', adminOnly: false },
+    { to: '/time-logs', label: 'Time & Payments', icon: '⏱️', adminOnly: false },
+    { to: '/withdrawals', label: 'Withdrawals', icon: '💸', badge: 'pendingWithdrawals', adminOnly: false },
+    { to: '/messages', label: 'Messages', icon: '💬', badge: 'unread', adminOnly: false },
+    { to: '/analytics', label: 'Analytics', icon: '📈', adminOnly: false },
+    { to: '/database', label: 'DB Backup', icon: '🗄️', adminOnly: true, superOnly: true },
+  ].filter(link => {
+    if (link.superOnly && !isSuperAdmin) return false
+    return true
+  })
+}
 
 function Badge({ count }) {
   if (!count) return null
@@ -134,7 +140,7 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {links.map(({ to, label, icon, badge }) => (
+          {getLinks(user).map(({ to, label, icon, badge }) => (
             <NavLink
               key={to}
               to={to}

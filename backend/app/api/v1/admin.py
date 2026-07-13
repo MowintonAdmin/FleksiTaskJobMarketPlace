@@ -82,6 +82,14 @@ async def get_accessible_worker_ids(db: AsyncSession, current_user: User, task_i
     return list(set(app_workers + session_workers))
 
 
+async def get_accessible_user_ids(db: AsyncSession, current_user: User) -> list[uuid.UUID] | None:
+    """Return user IDs this admin can see. None = super admin (no filter)."""
+    if current_user.is_super_admin:
+        return None
+    accessible = await get_accessible_task_ids(db, current_user)
+    return await get_accessible_worker_ids(db, current_user, accessible)
+
+
 # ── Create Admin Account (Super Admin Only) ─────────────────────────────────────
 
 
@@ -134,7 +142,8 @@ async def admin_list_applications(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all applications, optionally filtered by task or status."""
+    """List all applications, optionally filtered by task or status.
+    Super admin sees all. Normal admin sees only their own project applications."""
     filters = []
     if task_id:
         filters.append(Application.task_id == task_id)
@@ -184,14 +193,17 @@ class UserWithStats(UserResponse):
 @router.get("/users/unverified")
 async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_super_admin),
+    current_user: User = Depends(require_admin),
 ):
-    """List all unverified users (super admin only)."""
-    result = await db.execute(
-        select(User)
-        .where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
-        .order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
-    )
+    """List unverified users. Super admin sees all. Normal admin sees only users from their projects."""
+    accessible = await get_accessible_user_ids(db, current_user)
+    q = select(User).where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
+    if accessible is not None:
+        if not accessible:
+            return []
+        q = q.where(User.id.in_(accessible))
+    q = q.order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
+    result = await db.execute(q)
     users = result.scalars().all()
     out = []
     for u in users:
@@ -235,17 +247,16 @@ async def admin_list_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all users. Regular admins only see workers who applied to their tasks."""
-    accessible = await get_accessible_task_ids(db, current_user)
+    """List all users. Super admin sees all. Regular admins only see workers who applied to their tasks."""
+    accessible = await get_accessible_user_ids(db, current_user)
     if accessible is None:
         q = select(User).order_by(User.created_at.desc())
         result = await db.execute(q)
         users = result.scalars().all()
     else:
-        worker_ids = await get_accessible_worker_ids(db, current_user, accessible)
-        if not worker_ids:
+        if not accessible:
             return []
-        q = select(User).where(User.id.in_(worker_ids)).order_by(User.created_at.desc())
+        q = select(User).where(User.id.in_(accessible)).order_by(User.created_at.desc())
         result = await db.execute(q)
         users = result.scalars().all()
     if search:
@@ -258,13 +269,21 @@ async def admin_list_users(
 async def admin_get_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
-    """Get a user's profile with session performance stats."""
+    """Get a user's profile with session performance stats.
+    Normal admins can only view users who participated in their projects."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None and user.id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view users from your own projects")
+
     sessions_result = await db.execute(select(TaskSession).where(TaskSession.worker_id == user_id))
     sessions = sessions_result.scalars().all()
     completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
@@ -278,9 +297,16 @@ async def admin_get_user(
 async def admin_get_user_sessions(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
 ):
-    """Get all task sessions for a worker (past performance)."""
+    """Get all task sessions for a worker (past performance).
+    Normal admins can only view sessions from their own projects."""
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None and user_id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view users from your own projects")
+
     sessions_result = await db.execute(select(TaskSession).where(TaskSession.worker_id == user_id).order_by(TaskSession.created_at.desc()))
     sessions = sessions_result.scalars().all()
     out = []
@@ -308,13 +334,20 @@ async def admin_verify_user(
     user_id: uuid.UUID,
     payload: UserVerificationAction,
     db: AsyncSession = Depends(get_db),
-    admin_user: User = Depends(require_super_admin),
+    admin_user: User = Depends(require_admin),
 ):
     from app.models.message import Message
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Normal admins can only verify users from their own projects/participants
+    if not admin_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, admin_user)
+        if accessible is not None and user.id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only verify users who participate in your projects")
+
     action = payload.action.lower()
     if action == "approve":
         user.is_verified = True; user.is_active = True; user.verification_status = "approved"
@@ -343,7 +376,6 @@ async def admin_active_workers(
     result = await db.execute(select(TaskSession).where(and_(*filters)).order_by(TaskSession.checked_in_at.asc()))
     sessions = result.scalars().all()
     out = []
-    from datetime import timezone
     now = datetime.now(timezone.utc)
     for s in sessions:
         worker_result = await db.execute(select(User).where(User.id == s.worker_id))
@@ -353,18 +385,19 @@ async def admin_active_workers(
         elapsed = round((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
         cap = float(task.estimated_duration_minutes) if task and task.estimated_duration_minutes > 0 else None
         capped_elapsed = round(min(elapsed, cap), 1) if cap else elapsed
-        current_earnings = round(capped_elapsed * (task.pay_rate_per_minute if task else 0), 2)
+        # Use fixed task total as the potential earnings, not live per-minute calculation
+        fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "worker_photo": worker.profile_photo_url if worker else None,
             "task_id": str(s.task_id), "task_title": task.title if task else "Unknown", "task_location": task.location if task else "",
-            "checked_in_at": s.checked_in_at.isoformat(), "elapsed_minutes": capped_elapsed, "current_earnings": current_earnings})
+            "checked_in_at": s.checked_in_at.isoformat(), "elapsed_minutes": capped_elapsed, "current_earnings": fixed_earnings, "total_pay": fixed_earnings})
     return out
 
 
 @router.post("/sessions/{session_id}/force-stop")
 async def admin_force_stop_session(
     session_id: uuid.UUID,
-    admin_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.message import Message
@@ -372,15 +405,22 @@ async def admin_force_stop_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active session not found")
+
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None and session.task_id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only manage sessions from your own projects")
+
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
     now = datetime.now(timezone.utc)
     elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
     earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
     session.checked_out_at = now; session.earnings = earnings; session.status = SessionStatus.COMPLETED
-    session.proof_notes = f"[Admin force-stopped by {admin_user.full_name or admin_user.email}]"
+    session.proof_notes = f"[Admin force-stopped by {current_user.full_name or current_user.email}]"
     db.add(session)
-    db.add(Message(sender_id=admin_user.id, recipient_id=session.worker_id,
+    db.add(Message(sender_id=current_user.id, recipient_id=session.worker_id,
         body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. RM {earnings:.2f} has been recorded and is pending approval from the session approval page."))
     await db.flush()
     return {"session_id": str(session.id), "elapsed_minutes": round(elapsed_minutes, 1), "pending_earnings": earnings, "status": session.status}
@@ -404,16 +444,14 @@ async def admin_list_withdrawals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List withdrawal requests. Regular admins only see withdrawals from their workers."""
+    """List withdrawal requests. Super admin sees all. Regular admins only see withdrawals from their workers."""
     q = select(WithdrawalRequest).order_by(WithdrawalRequest.created_at.desc())
-    # Regular admins: only see withdrawals from workers in their projects
-    accessible = await get_accessible_task_ids(db, current_user)
+    accessible = await get_accessible_user_ids(db, current_user)
     if accessible is not None:
-        worker_ids = await get_accessible_worker_ids(db, current_user, accessible)
-        if worker_ids:
-            q = q.where(WithdrawalRequest.user_id.in_(worker_ids))
+        if accessible:
+            q = q.where(WithdrawalRequest.user_id.in_(accessible))
         else:
-            return []  # No workers means no withdrawals
+            return []
     if req_status:
         q = q.where(WithdrawalRequest.status == req_status)
     result = await db.execute(q)
@@ -434,7 +472,7 @@ async def admin_list_withdrawals(
 async def admin_process_withdrawal(
     withdrawal_id: uuid.UUID,
     payload: WithdrawalAction,
-    admin_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(WithdrawalRequest).where(WithdrawalRequest.id == withdrawal_id))
@@ -443,13 +481,20 @@ async def admin_process_withdrawal(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
     if withdrawal.status != WithdrawalStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Withdrawal already processed")
+
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None and withdrawal.user_id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only process withdrawals from your own workers")
+
     now = datetime.now(timezone.utc)
     action = payload.action.lower()
     if action == "approve":
         withdrawal.status = WithdrawalStatus.APPROVED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
         db.add(Transaction(user_id=withdrawal.user_id, type=TransactionType.WITHDRAWAL_COMPLETED, amount=-withdrawal.amount,
             description=f"Withdrawal approved to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}", reference_id=str(withdrawal.id)))
-        db.add(Message(sender_id=admin_user.id, recipient_id=withdrawal.user_id,
+        db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id,
             body=f"✅ Your withdrawal of RM {withdrawal.amount:.2f} has been approved and transferred to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}. Please allow 1-3 business days."))
     elif action == "reject":
         withdrawal.status = WithdrawalStatus.REJECTED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
@@ -460,7 +505,7 @@ async def admin_process_withdrawal(
         db.add(Transaction(user_id=withdrawal.user_id, type=TransactionType.WITHDRAWAL_REJECTED, amount=withdrawal.amount,
             description=f"Withdrawal rejected — RM {withdrawal.amount:.2f} refunded to wallet", reference_id=str(withdrawal.id)))
         reason = f" Reason: {payload.notes}" if payload.notes else ""
-        db.add(Message(sender_id=admin_user.id, recipient_id=withdrawal.user_id,
+        db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id,
             body=f"❌ Your withdrawal of RM {withdrawal.amount:.2f} was rejected and has been refunded to your wallet.{reason}"))
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="action must be 'approve' or 'reject'")
@@ -501,15 +546,16 @@ async def admin_time_logs(
         worker = worker_result.scalar_one_or_none()
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
         task = task_result.scalar_one_or_none()
+        # Always use the fixed task total (pay_rate × duration) as the cost
+        total_cost = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         if s.status == SessionStatus.ACTIVE:
             elapsed = round((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
-            cost = round(elapsed * (task.pay_rate_per_minute if task else 0), 2)
         else:
             if s.checked_in_at and s.checked_out_at:
                 elapsed = round((s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
             else:
                 elapsed = None
-            cost = s.earnings
+        cost = s.earnings if s.earnings else total_cost
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
             "task_location": task.location if task else "", "pay_rate_per_minute": task.pay_rate_per_minute if task else 0,
@@ -531,23 +577,30 @@ class TimeAdjustment(BaseModel):
 async def admin_adjust_session_time(
     session_id: uuid.UUID,
     payload: TimeAdjustment,
-    admin_user: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(TaskSession).where(TaskSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None and session.task_id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only adjust sessions from your own projects")
+
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
+    # Always use the fixed task total (pay_rate × estimated_duration)
+    fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
     old_earnings = session.earnings or 0.0
     session.checked_in_at = payload.checked_in_at.replace(tzinfo=timezone.utc) if payload.checked_in_at.tzinfo is None else payload.checked_in_at
     if payload.checked_out_at:
         co = payload.checked_out_at.replace(tzinfo=timezone.utc) if payload.checked_out_at.tzinfo is None else payload.checked_out_at
         session.checked_out_at = co
-        elapsed = (co - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-        new_earnings = round(elapsed * task.pay_rate_per_minute, 2)
-        session.earnings = new_earnings; session.status = SessionStatus.COMPLETED
+        session.earnings = fixed_earnings; session.status = SessionStatus.COMPLETED
     else:
         new_earnings = None
     await db.flush()
@@ -583,9 +636,31 @@ async def admin_list_projects(
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def admin_create_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db), admin_user: User = Depends(require_admin)):
-    project = Project(**payload.model_dump(), created_by_id=admin_user.id, company_tag=admin_user.company_tag)
+    data = payload.model_dump()
+    if data.get("due_date"):
+        from datetime import timezone
+        data["due_date"] = data["due_date"].replace(tzinfo=timezone.utc) if data["due_date"].tzinfo is None else data["due_date"]
+    project = Project(**data, created_by_id=admin_user.id, company_tag=admin_user.company_tag)
     db.add(project); await db.flush(); await db.refresh(project)
     pd = ProjectResponse.model_validate(project); pd.task_count = 0
+    return pd
+
+
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
+async def admin_update_project(project_id: uuid.UUID, payload: ProjectUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    if update_data.get("due_date"):
+        from datetime import timezone
+        update_data["due_date"] = update_data["due_date"].replace(tzinfo=timezone.utc) if update_data["due_date"].tzinfo is None else update_data["due_date"]
+    for field, value in update_data.items():
+        setattr(project, field, value)
+    db.add(project); await db.flush(); await db.refresh(project)
+    task_count = await db.execute(select(func.count()).select_from(Task).where(Task.project_id == project.id))
+    pd = ProjectResponse.model_validate(project); pd.task_count = task_count.scalar_one()
     return pd
 
 
@@ -618,8 +693,13 @@ async def admin_delete_project(project_id: uuid.UUID, db: AsyncSession = Depends
 # ── Task Listing (Admin) ──────────────────────────────────────────────────────
 
 @router.get("/tasks/export")
-async def export_tasks_csv(_: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Task).order_by(Task.created_at.desc()))
+async def export_tasks_csv(current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    q = select(Task).order_by(Task.created_at.desc())
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None:
+            q = q.where(Task.id.in_(accessible))
+    result = await db.execute(q)
     tasks = result.scalars().all()
     output = io.StringIO()
     writer = csv.writer(output)
@@ -634,7 +714,7 @@ async def export_tasks_csv(_: User = Depends(require_admin), db: AsyncSession = 
 @router.get("/tasks")
 async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15, ge=1, le=100),
     task_status: str | None = Query(None, alias="status"), search: str | None = Query(None),
-    project_id: uuid.UUID | None = Query(None), db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+    project_id: uuid.UUID | None = Query(None), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     from app.schemas.task import TaskListResponse
     filters = []
     if task_status:
@@ -643,6 +723,10 @@ async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15
         filters.append(Task.title.ilike(f"%{search}%"))
     if project_id:
         filters.append(Task.project_id == project_id)
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None:
+            filters.append(Task.id.in_(accessible))
     q = select(Task).order_by(Task.created_at.desc())
     if filters:
         q = q.where(and_(*filters))
@@ -663,11 +747,16 @@ async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15
 
 
 @router.get("/tasks/{task_id}/cost")
-async def admin_task_cost(task_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+async def admin_task_cost(task_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     task_result = await db.execute(select(Task).where(Task.id == task_id))
     task = task_result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None and task.id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view costs for your own tasks")
     sessions_result = await db.execute(select(TaskSession).where(TaskSession.task_id == task_id))
     sessions = sessions_result.scalars().all()
     now = datetime.now(timezone.utc)
@@ -683,8 +772,13 @@ async def admin_task_cost(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/tasks/costs")
-async def admin_all_task_costs(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    tasks_result = await db.execute(select(Task).order_by(Task.created_at.desc()))
+async def admin_all_task_costs(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
+    q = select(Task).order_by(Task.created_at.desc())
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None:
+            q = q.where(Task.id.in_(accessible))
+    tasks_result = await db.execute(q)
     tasks = tasks_result.scalars().all()
     sessions_result = await db.execute(select(TaskSession))
     all_sessions = sessions_result.scalars().all()
@@ -706,29 +800,87 @@ from calendar import monthrange
 
 
 @router.get("/analytics/dashboard")
-async def analytics_dashboard(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     from app.models.wallet import WithdrawalRequest, WithdrawalStatus
+
+    # Determine scoping based on admin type
+    accessible = await get_accessible_user_ids(db, current_user)
+    accessible_tasks = await get_accessible_task_ids(db, current_user)
+
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
-    total_tasks = (await db.execute(select(func.count()).select_from(Task))).scalar_one()
-    total_apps = (await db.execute(select(func.count()).select_from(Application))).scalar_one()
-    active_workers = (await db.execute(select(func.count()).select_from(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE))).scalar_one()
-    tasks_result = await db.execute(select(Task)); all_tasks = tasks_result.scalars().all()
+
+    if current_user.is_super_admin:
+        total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
+        total_tasks = (await db.execute(select(func.count()).select_from(Task))).scalar_one()
+        total_apps = (await db.execute(select(func.count()).select_from(Application))).scalar_one()
+        active_workers = (await db.execute(select(func.count()).select_from(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE))).scalar_one()
+        tasks_result = await db.execute(select(Task))
+        all_tasks = tasks_result.scalars().all()
+        all_apps_raw = await db.execute(select(Application))
+        all_apps = all_apps_raw.scalars().all()
+        sessions_result = await db.execute(select(TaskSession))
+        all_sessions = sessions_result.scalars().all()
+        pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING"))).scalar_one()
+    else:
+        # Normal admin: scoped to their workers and tasks
+        if accessible is not None:
+            total_users = len(accessible)
+            total_users_q = (await db.execute(select(func.count()).select_from(User).where(User.id.in_(accessible)))).scalar_one() if accessible else 0
+        else:
+            total_users = 0
+        total_users = total_users_q if 'total_users_q' in dir() else 0
+
+        if accessible_tasks is not None:
+            total_tasks = (await db.execute(select(func.count()).select_from(Task).where(Task.id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
+            all_tasks_raw = await db.execute(select(Task).where(Task.id.in_(accessible_tasks)))
+        else:
+            total_tasks = 0
+            all_tasks_raw = await db.execute(select(Task))
+        all_tasks = all_tasks_raw.scalars().all()
+
+        if accessible_tasks is not None:
+            total_apps = (await db.execute(select(func.count()).select_from(Application).where(Application.task_id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
+        else:
+            total_apps = 0
+
+        if accessible_tasks is not None:
+            active_workers = (await db.execute(select(func.count()).select_from(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE, TaskSession.task_id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
+        else:
+            active_workers = 0
+
+        if accessible_tasks is not None:
+            all_apps_raw = await db.execute(select(Application).where(Application.task_id.in_(accessible_tasks))) if accessible_tasks else select(Application).where(Application.task_id == -1)
+            all_apps = all_apps_raw.scalars().all() if accessible_tasks else []
+        else:
+            all_apps_raw = await db.execute(select(Application))
+            all_apps = all_apps_raw.scalars().all()
+
+        sessions_q = select(TaskSession)
+        if accessible_tasks is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible_tasks))
+        sessions_result = await db.execute(sessions_q)
+        all_sessions = sessions_result.scalars().all()
+
+        if accessible is not None and accessible:
+            pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING", WithdrawalRequest.user_id.in_(accessible)))).scalar_one()
+        elif accessible is not None:
+            pend_wd = 0
+        else:
+            pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING"))).scalar_one()
+
     open_tasks = sum(1 for t in all_tasks if t.status == "open")
     completed_tasks = sum(1 for t in all_tasks if t.status == "completed")
     cancelled_tasks = sum(1 for t in all_tasks if t.status == "cancelled")
-    sessions_result = await db.execute(select(TaskSession)); all_sessions = sessions_result.scalars().all()
     completed_sessions = [s for s in all_sessions if s.status == SessionStatus.COMPLETED]
     total_revenue = sum(s.earnings or 0 for s in completed_sessions)
     live_cost = sum((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60 * next((t.pay_rate_per_minute for t in all_tasks if t.id == s.task_id), 0) for s in all_sessions if s.status == SessionStatus.ACTIVE)
     today_sessions = [s for s in completed_sessions if s.checked_out_at and s.checked_out_at.replace(tzinfo=timezone.utc) >= today_start]
     today_revenue = sum(s.earnings or 0 for s in today_sessions)
-    pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING"))).scalar_one()
-    apps_result = await db.execute(select(Application)); all_apps = apps_result.scalars().all()
     completion_rate = round(completed_tasks / total_tasks * 100, 1) if total_tasks else 0
     rated = [s for s in completed_sessions if s.rating is not None]
     avg_rating = round(sum(s.rating for s in rated) / len(rated), 2) if rated else None
+
     return {"users": {"total": total_users}, "tasks": {"total": total_tasks, "open": open_tasks, "completed": completed_tasks, "cancelled": cancelled_tasks, "completion_rate": completion_rate},
         "applications": {"total": total_apps, "pending": sum(1 for a in all_apps if a.status == "pending"), "approved": sum(1 for a in all_apps if a.status == "approved")},
         "sessions": {"total": len(all_sessions), "completed": len(completed_sessions), "active_now": active_workers},
@@ -737,11 +889,18 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), _: User = Depe
 
 
 @router.get("/analytics/monthly")
-async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
+async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     now = datetime.now(timezone.utc)
     target_year = year or now.year
-    sessions_result = await db.execute(select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED))
+
+    sessions_q = select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED)
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible))
+    sessions_result = await db.execute(sessions_q)
     sessions = sessions_result.scalars().all()
+
     monthly = []
     for month in range(1, 13):
         last_day = monthrange(target_year, month)[1]
@@ -755,8 +914,14 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
 
 
 @router.get("/analytics/task-completion")
-async def analytics_task_completion(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    tasks_result = await db.execute(select(Task)); all_tasks = tasks_result.scalars().all()
+async def analytics_task_completion(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
+    q = select(Task)
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None:
+            q = q.where(Task.id.in_(accessible))
+    tasks_result = await db.execute(q)
+    all_tasks = tasks_result.scalars().all()
     categories = {}
     for t in all_tasks:
         cat = t.category or "Other"
@@ -775,11 +940,27 @@ async def analytics_task_completion(db: AsyncSession = Depends(get_db), _: User 
 
 
 @router.get("/analytics/export/workers")
-async def export_workers_csv(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    users_result = await db.execute(select(User).where(User.is_admin == False).order_by(User.created_at.desc()))
+async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
+    from app.models.wallet import WithdrawalRequest
+
+    users_q = select(User).where(User.is_admin == False).order_by(User.created_at.desc())
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None:
+            if not accessible:
+                return StreamingResponse(iter([""]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=no_data.csv"})
+            users_q = users_q.where(User.id.in_(accessible))
+    users_result = await db.execute(users_q)
     users = users_result.scalars().all()
-    sessions_result = await db.execute(select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED))
+
+    sessions_q = select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED)
+    if not current_user.is_super_admin:
+        accessible_tasks = await get_accessible_task_ids(db, current_user)
+        if accessible_tasks is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible_tasks))
+    sessions_result = await db.execute(sessions_q)
     all_sessions = sessions_result.scalars().all()
+
     output = io.StringIO(); writer = csv.writer(output)
     writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified"])
     for u in users:
@@ -795,14 +976,30 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), _: User = Depen
 
 
 @router.get("/export/workers-detailed")
-async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    from app.models.wallet import WithdrawalRequest, Wallet
-    users_result = await db.execute(select(User).where(User.is_admin == False).order_by(User.created_at.desc()))
+async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
+    from app.models.wallet import WithdrawalRequest, Wallet, Transaction as Txn
+
+    users_q = select(User).where(User.is_admin == False).order_by(User.created_at.desc())
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None:
+            if not accessible:
+                return StreamingResponse(iter([""]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=no_data.csv"})
+            users_q = users_q.where(User.id.in_(accessible))
+    users_result = await db.execute(users_q)
     users = users_result.scalars().all()
-    sessions_result = await db.execute(select(TaskSession).order_by(TaskSession.created_at.desc()))
+
+    sessions_q = select(TaskSession).order_by(TaskSession.created_at.desc())
+    if not current_user.is_super_admin:
+        accessible_tasks = await get_accessible_task_ids(db, current_user)
+        if accessible_tasks is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible_tasks))
+    sessions_result = await db.execute(sessions_q)
     all_sessions = sessions_result.scalars().all()
-    withdrawals_result = await db.execute(select(WithdrawalRequest)); all_withdrawals = withdrawals_result.scalars().all()
-    now = datetime.now(timezone.utc)
+
+    withdrawals_result = await db.execute(select(WithdrawalRequest))
+    all_withdrawals = withdrawals_result.scalars().all()
+
     output = io.StringIO(); writer = csv.writer(output)
     writer.writerow(["Full Name","Email","Phone","Location","Nationality","Race","Academic Qualification","Body Height (cm)","NRIC / Passport",
         "Bank QR Image URL","Is Verified","Joined Date","Task Title","Task Category","Task Location","Check-In","Check-Out","Duration (min)",
@@ -828,7 +1025,6 @@ async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), _: Use
                     wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == u.id))
                     wallet = wallet_result.scalar_one_or_none()
                     if wallet:
-                        from app.models.wallet import Transaction as Txn
                         txn_result = await db.execute(select(Txn).where(Txn.reference_id == str(s.id), Txn.type == "CREDIT"))
                         txn = txn_result.scalar_one_or_none()
                         if txn: payment_status = "Approved & Credited"
@@ -855,7 +1051,8 @@ def _parse_db_url(database_url: str) -> dict:
 
 
 @router.get("/database/backup")
-async def database_backup(_: User = Depends(require_admin)):
+async def database_backup(_: User = Depends(require_super_admin)):
+    """Backup entire database. Super admin only."""
     from app.config import get_settings as _get_settings
     settings = _get_settings(); db_parts = _parse_db_url(settings.DATABASE_URL)
     env = {**os.environ, "PGPASSWORD": db_parts["password"]}
@@ -873,7 +1070,8 @@ async def database_backup(_: User = Depends(require_admin)):
 
 
 @router.post("/database/restore")
-async def database_restore(file: UploadFile = File(...), _: User = Depends(require_admin)):
+async def database_restore(file: UploadFile = File(...), _: User = Depends(require_super_admin)):
+    """Restore database from backup. Super admin only."""
     if not (file.filename or "").lower().endswith(".sql"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .sql files are accepted")
     content = await file.read()
@@ -920,15 +1118,17 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
     sessions = result.scalars().all()
     out = []
     for s in sessions:
-        if not s.earnings or s.earnings <= 0: continue
         worker_result = await db.execute(select(User).where(User.id == s.worker_id))
         worker = worker_result.scalar_one_or_none()
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
         task = task_result.scalar_one_or_none()
+        # ALWAYS use fixed task total — ignore whatever is stored
+        fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
+        if fixed_earnings <= 0: continue
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
             "task_location": task.location if task else "", "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
-            "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": s.earnings, "proof_notes": s.proof_notes,
+            "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": fixed_earnings, "proof_notes": s.proof_notes,
             "proof_photo_url": s.proof_photo_url, "status": s.status})
     return out
 
@@ -939,13 +1139,20 @@ class SessionApprovalAction(BaseModel):
 
 
 @router.post("/sessions/{session_id}/approve")
-async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalAction, admin_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalAction, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(_TaskSessionForApproval).where(_TaskSessionForApproval.id == session_id, _TaskSessionForApproval.status == SessionStatus.COMPLETED))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Completed session not found")
     if not session.earnings or session.earnings <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
+
+    # Check scope for normal admin
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_task_ids(db, current_user)
+        if accessible is not None and session.task_id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only approve sessions from your own projects")
+
     action = payload.action.lower()
     if action == "approve":
         wallet_result = await db.execute(select(_WalletForApproval).where(_WalletForApproval.user_id == session.worker_id))
@@ -959,7 +1166,7 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
             description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
         if task.status != _TaskStatusForApproval.COMPLETED: task.status = _TaskStatusForApproval.COMPLETED
         reason = f" Notes: {payload.notes}" if payload.notes else ""
-        db.add(_MessageForApproval(sender_id=admin_user.id, recipient_id=session.worker_id,
+        db.add(_MessageForApproval(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"✅ Your task \"{task.title}\" has been approved! RM {session.earnings:.2f} has been credited to your wallet.{reason}"))
         session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
@@ -968,7 +1175,7 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         task = task_result.scalar_one()
         reason = f" Reason: {payload.notes}" if payload.notes else ""
         session.earnings = 0.0; db.add(session)
-        db.add(_MessageForApproval(sender_id=admin_user.id, recipient_id=session.worker_id,
+        db.add(_MessageForApproval(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason}"))
         await db.flush()
         return {"status": "rejected", "session_id": str(session.id)}

@@ -48,6 +48,7 @@ function ProjectModal({ project, onClose, onSaved }) {
   const [description, setDescription] = useState(project?.description || '')
   const [category, setCategory] = useState(project?.category || '')
   const [location, setLocation] = useState(project?.location || '')
+  const [dueDate, setDueDate] = useState(project?.due_date ? project.due_date.slice(0, 16) : '')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e) => {
@@ -55,7 +56,13 @@ function ProjectModal({ project, onClose, onSaved }) {
     if (!name.trim()) { toast.error('Project name is required'); return }
     setSaving(true)
     try {
-      const payload = { name: name.trim(), description: description.trim() || null, category: category || null, location: location.trim() || null }
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || null,
+        category: category || null,
+        location: location.trim() || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      }
       if (project) {
         await api.put(`/admin/projects/${project.id}`, payload)
         toast.success('Project updated!')
@@ -99,6 +106,14 @@ function ProjectModal({ project, onClose, onSaved }) {
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Location</label>
               <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. KL City Centre" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+              Due Date & Time <span className="text-gray-400 normal-case font-normal">(project auto-closes on this date)</span>
+            </label>
+            <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -568,6 +583,13 @@ export default function Tasks() {
                         <TagBadge tag={p.company_tag} size="xs" />
                       )}
                     </div>
+                    {p.due_date && (
+                      <div className="mt-2">
+                        <span className="text-[10px] text-gray-400">
+                          🗓 Due: {new Date(p.due_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t border-gray-100 flex opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); setEditProject(p); setShowProjectModal(true) }} className="flex-1 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-r border-gray-100">

@@ -49,13 +49,8 @@ async def finalize_checkout(
     photo_url: str | None = None,
 ) -> TaskSessionResponse:
     now = datetime.now(timezone.utc)
-    elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-    # Cap elapsed time at the task's duration limit so the worker is never billed
-    # for time spent filling out the checkout form after the timer auto-stopped.
-    if task.estimated_duration_minutes > 0:
-        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
-    earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
-    minimum_duration_met = elapsed_minutes >= task.estimated_duration_minutes
+    # ALWAYS use fixed task total (pay_rate × estimated_duration) — never calculate per-minute
+    earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
 
     session.checked_out_at = now
     session.earnings = earnings
@@ -303,7 +298,7 @@ async def get_earnings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get real-time earnings for an active session."""
+    """Get earnings for a session — always returns fixed task total."""
     result = await db.execute(
         select(TaskSession).where(
             TaskSession.id == session_id,
@@ -317,20 +312,15 @@ async def get_earnings(
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
 
-    now = datetime.now(timezone.utc)
-    ref_time = session.checked_out_at or now
-    elapsed_minutes = (ref_time.replace(tzinfo=timezone.utc) - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-    # Cap at task duration limit so live earnings display matches what will be paid
-    if task.estimated_duration_minutes > 0:
-        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
-    current_earnings = session.earnings if session.status == SessionStatus.COMPLETED else round(elapsed_minutes * task.pay_rate_per_minute, 2)
+    # ALWAYS use fixed task total (pay_rate × estimated_duration)
+    fixed_total = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
 
     return EarningsResponse(
         session_id=session.id,
         checked_in_at=session.checked_in_at,
-        elapsed_minutes=round(elapsed_minutes, 2),
+        elapsed_minutes=round(task.estimated_duration_minutes, 2),
         pay_rate_per_minute=task.pay_rate_per_minute,
-        current_earnings=current_earnings,
+        current_earnings=fixed_total,
         status=session.status,
     )
 

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime as _datetime
 from pydantic import BaseModel
 from app.models.project import ProjectStatus
 
@@ -9,6 +9,7 @@ class ProjectBase(BaseModel):
     description: str | None = None
     category: str | None = None
     location: str | None = None
+    due_date: _datetime | None = None
 
 
 class ProjectCreate(ProjectBase):
@@ -21,6 +22,7 @@ class ProjectUpdate(BaseModel):
     category: str | None = None
     location: str | None = None
     status: ProjectStatus | None = None
+    due_date: _datetime | None = None
 
 
 class ProjectResponse(ProjectBase):
@@ -29,8 +31,9 @@ class ProjectResponse(ProjectBase):
     created_by_id: uuid.UUID
     company_tag: str | None = None
     task_count: int = 0
-    created_at: datetime
-    updated_at: datetime
+    due_date: _datetime | None = None
+    created_at: _datetime
+    updated_at: _datetime
 
     model_config = {"from_attributes": True}
 
