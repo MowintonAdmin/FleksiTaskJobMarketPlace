@@ -195,15 +195,12 @@ async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List unverified users. Super admin sees all. Normal admin sees only users from their projects."""
-    accessible = await get_accessible_user_ids(db, current_user)
-    q = select(User).where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
-    if accessible is not None:
-        if not accessible:
-            return []
-        q = q.where(User.id.in_(accessible))
-    q = q.order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
-    result = await db.execute(q)
+    """List all unverified users. All admins can view and verify any user."""
+    result = await db.execute(
+        select(User)
+        .where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
+        .order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
+    )
     users = result.scalars().all()
     out = []
     for u in users:
@@ -342,12 +339,7 @@ async def admin_verify_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Normal admins can only verify users from their own projects/participants
-    if not admin_user.is_super_admin:
-        accessible = await get_accessible_user_ids(db, admin_user)
-        if accessible is not None and user.id not in accessible:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only verify users who participate in your projects")
-
+    # All admins can verify any user
     action = payload.action.lower()
     if action == "approve":
         user.is_verified = True; user.is_active = True; user.verification_status = "approved"
