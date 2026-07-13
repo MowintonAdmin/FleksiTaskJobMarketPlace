@@ -1121,7 +1121,10 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
             "task_location": task.location if task else "", "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": fixed_earnings, "proof_notes": s.proof_notes,
-            "proof_photo_url": s.proof_photo_url, "status": s.status})
+            "proof_photo_url": s.proof_photo_url, "status": s.status,
+            "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
+            "worker_id_photo_front_url": worker.id_photo_front_url if worker else None,
+            "worker_selfie_url": worker.selfie_with_id_url if worker else None})
     return out
 
 

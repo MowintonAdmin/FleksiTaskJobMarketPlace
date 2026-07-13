@@ -123,6 +123,33 @@ export default function SessionApproval() {
                   />
                 )}
 
+                {/* Worker verification photos */}
+                {(s.worker_bank_qr_url || s.worker_id_photo_front_url || s.worker_selfie_url) && (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Worker Verification Documents</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {s.worker_bank_qr_url && (
+                        <div>
+                          <p className="text-[10px] text-gray-400 mb-1">🏦 Bank QR</p>
+                          <img src={s.worker_bank_qr_url} alt="Bank QR" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_bank_qr_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                        </div>
+                      )}
+                      {s.worker_id_photo_front_url && (
+                        <div>
+                          <p className="text-[10px] text-gray-400 mb-1">🆔 ID Photo</p>
+                          <img src={s.worker_id_photo_front_url} alt="ID Front" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_id_photo_front_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                        </div>
+                      )}
+                      {s.worker_selfie_url && (
+                        <div>
+                          <p className="text-[10px] text-gray-400 mb-1">🤳 Selfie with ID</p>
+                          <img src={s.worker_selfie_url} alt="Selfie" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_selfie_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Admin notes (optional)</label>
                   <input
