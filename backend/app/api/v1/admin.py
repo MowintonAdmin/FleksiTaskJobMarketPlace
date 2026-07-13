@@ -658,20 +658,6 @@ async def admin_update_project(project_id: uuid.UUID, payload: ProjectUpdate, db
     return pd
 
 
-@router.put("/projects/{project_id}", response_model=ProjectResponse)
-async def admin_update_project(project_id: uuid.UUID, payload: ProjectUpdate, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(project, field, value)
-    db.add(project); await db.flush(); await db.refresh(project)
-    task_count = await db.execute(select(func.count()).select_from(Task).where(Task.project_id == project.id))
-    pd = ProjectResponse.model_validate(project); pd.task_count = task_count.scalar_one()
-    return pd
-
-
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_delete_project(project_id: uuid.UUID, db: AsyncSession = Depends(get_db), _: User = Depends(require_admin)):
     result = await db.execute(select(Project).where(Project.id == project_id))
