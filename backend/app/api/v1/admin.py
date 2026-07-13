@@ -456,7 +456,9 @@ async def admin_list_withdrawals(
             "worker_email": worker.email if worker else "", "amount": w.amount, "status": w.status,
             "bank_name": w.bank_name, "account_number": "*" * (len(w.account_number) - 4) + w.account_number[-4:],
             "account_holder_name": w.account_holder_name, "admin_notes": w.admin_notes,
-            "processed_at": w.processed_at.isoformat() if w.processed_at else None, "created_at": w.created_at.isoformat()})
+            "processed_at": w.processed_at.isoformat() if w.processed_at else None, "created_at": w.created_at.isoformat(),
+            "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
+            "worker_profile_photo": worker.profile_photo_url if worker else None})
     return out
 
 

@@ -20,6 +20,7 @@ const formatStatusLabel = (status) =>
 function ProcessModal({ withdrawal, onClose, onDone }) {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [previewImage, setPreviewImage] = useState(null)
 
   const process = async (action) => {
     setSubmitting(true)
@@ -36,55 +37,81 @@ function ProcessModal({ withdrawal, onClose, onDone }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Process Withdrawal</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
-        </div>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">Process Withdrawal</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+          </div>
 
-        {/* Summary */}
-        <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-2">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Worker</span>
-            <span className="font-semibold text-gray-900">{withdrawal.worker_name}</span>
+          {/* Summary */}
+          <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Worker</span>
+              <span className="font-semibold text-gray-900">{withdrawal.worker_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Amount</span>
+              <span className="font-bold text-gray-900 text-base">RM {withdrawal.amount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Bank</span>
+              <span className="font-semibold text-gray-900">{withdrawal.bank_name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Account</span>
+              <span className="font-semibold text-gray-900">{withdrawal.account_holder_name} · {withdrawal.account_number}</span>
+            </div>
+            {withdrawal.worker_bank_qr_url && (
+              <div className="pt-2 border-t border-gray-200">
+                <p className="text-xs text-gray-400 mb-2">🏦 Bank QR Code — click to preview, scan to pay</p>
+                <img
+                  src={withdrawal.worker_bank_qr_url}
+                  alt="Bank QR"
+                  className="w-32 h-32 rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity mx-auto"
+                  onClick={() => setPreviewImage(withdrawal.worker_bank_qr_url)}
+                  style={{ objectFit: 'contain' }}
+                />
+              </div>
+            )}
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Amount</span>
-            <span className="font-bold text-gray-900 text-base">RM {withdrawal.amount.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Bank</span>
-            <span className="font-semibold text-gray-900">{withdrawal.bank_name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Account</span>
-            <span className="font-semibold text-gray-900">{withdrawal.account_holder_name} · {withdrawal.account_number}</span>
-          </div>
-        </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Notes (optional)</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            placeholder="Add a note to the worker…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none" />
-        </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Notes (optional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="Add a note to the worker…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none" />
+          </div>
 
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
-            Cancel
-          </button>
-          <button onClick={() => process('reject')} disabled={submitting}
-            className="flex-1 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-sm font-semibold disabled:opacity-50">
-            ✗ Reject
-          </button>
-          <button onClick={() => process('approve')} disabled={submitting}
-            className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
-            ✓ Approve
-          </button>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button onClick={() => process('reject')} disabled={submitting}
+              className="flex-1 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-sm font-semibold disabled:opacity-50">
+              ✗ Reject
+            </button>
+            <button onClick={() => process('approve')} disabled={submitting}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
+              ✓ Approve
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-w-2xl w-full max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-10 right-0 text-white hover:text-gray-300 text-2xl font-bold z-10">
+              ✕ Close
+            </button>
+            <img src={previewImage} alt="Preview" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain" />
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -145,6 +172,7 @@ export default function Withdrawals() {
               <th className="px-5 py-3 text-left">Worker</th>
               <th className="px-5 py-3 text-left">Amount</th>
               <th className="px-5 py-3 text-left">Bank</th>
+              <th className="px-5 py-3 text-left">QR Code</th>
               <th className="px-5 py-3 text-left">Requested</th>
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Actions</th>
@@ -153,13 +181,13 @@ export default function Withdrawals() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               [1,2,3].map(i => (
-                <tr key={i}>{[1,2,3,4,5,6].map(j => (
+                <tr key={i}>{[1,2,3,4,5,6,7].map(j => (
                   <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                 ))}</tr>
               ))
             ) : withdrawals.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-gray-400">
+                <td colSpan={7} className="text-center py-12 text-gray-400">
                   <p className="text-3xl mb-2">✅</p>
                   <p>No {formatStatusLabel(filterStatus) || ''} withdrawal requests</p>
                 </td>
@@ -176,6 +204,19 @@ export default function Withdrawals() {
                 <td className="px-5 py-3 text-gray-600">
                   <p>{w.bank_name}</p>
                   <p className="text-xs text-gray-400">{w.account_holder_name} · {w.account_number}</p>
+                </td>
+                <td className="px-5 py-3">
+                  {w.worker_bank_qr_url ? (
+                    <img
+                      src={w.worker_bank_qr_url}
+                      alt="QR"
+                      className="w-10 h-10 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => setSelected({ ...w, _previewQr: true })}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-gray-400 text-xs">
                   {new Date(w.created_at).toLocaleString()}
