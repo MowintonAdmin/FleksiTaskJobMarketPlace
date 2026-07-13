@@ -9,6 +9,7 @@ export default function SessionApproval() {
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState(null)
   const [notes, setNotes] = useState({})
+  const [previewImage, setPreviewImage] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -131,19 +132,19 @@ export default function SessionApproval() {
                       {s.worker_bank_qr_url && (
                         <div>
                           <p className="text-[10px] text-gray-400 mb-1">🏦 Bank QR</p>
-                          <img src={s.worker_bank_qr_url} alt="Bank QR" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_bank_qr_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                          <img src={s.worker_bank_qr_url} alt="Bank QR" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(s.worker_bank_qr_url)} style={{ maxHeight: '120px', objectFit: 'contain' }} />
                         </div>
                       )}
                       {s.worker_id_photo_front_url && (
                         <div>
                           <p className="text-[10px] text-gray-400 mb-1">🆔 ID Photo</p>
-                          <img src={s.worker_id_photo_front_url} alt="ID Front" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_id_photo_front_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                          <img src={s.worker_id_photo_front_url} alt="ID Front" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(s.worker_id_photo_front_url)} style={{ maxHeight: '120px', objectFit: 'contain' }} />
                         </div>
                       )}
                       {s.worker_selfie_url && (
                         <div>
                           <p className="text-[10px] text-gray-400 mb-1">🤳 Selfie with ID</p>
-                          <img src={s.worker_selfie_url} alt="Selfie" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => window.open(s.worker_selfie_url, '_blank')} style={{ maxHeight: '120px', objectFit: 'contain' }} />
+                          <img src={s.worker_selfie_url} alt="Selfie" className="w-full rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(s.worker_selfie_url)} style={{ maxHeight: '120px', objectFit: 'contain' }} />
                         </div>
                       )}
                     </div>
@@ -180,6 +181,18 @@ export default function SessionApproval() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-w-2xl w-full max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-10 right-0 text-white hover:text-gray-300 text-2xl font-bold z-10">
+              ✕ Close
+            </button>
+            <img src={previewImage} alt="Preview" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain" />
+          </div>
         </div>
       )}
     </div>
