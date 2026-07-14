@@ -133,8 +133,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const handleDelete = async (messageId) => {
     if (!window.confirm('Delete this message?')) return
     try {
-      await messagesApi.deleteMessage(messageId)
-      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+      const updated = await messagesApi.deleteMessage(messageId)
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, body: updated.body, reaction: null } : m))
       onNewMessage?.()
     } catch {
       // silent
@@ -275,7 +275,11 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       ? 'bg-primary-600 text-white rounded-br-sm'
                       : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
                   }`}>
-                    <p className="break-words">{msg.body}</p>
+                    {msg.body === "This message was deleted" ? (
+                      <p className="italic text-gray-400 text-xs">This message was deleted</p>
+                    ) : (
+                      <p className="break-words">{msg.body}</p>
+                    )}
                     {msg.reaction && (
                       <span className="absolute -bottom-3 -right-1 text-base bg-white rounded-full px-1 shadow-sm border border-gray-100">
                         {msg.reaction}
@@ -287,14 +291,16 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                         <span className="ml-1">{msg.is_read ? '✓✓' : '✓'}</span>
                       )}
                     </p>
-                    {/* Delete button - shows on hover, like WhatsApp */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}
-                      className="absolute -top-2 -right-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-gray-200 text-xs text-gray-400 hover:text-red-500"
-                      title="Delete message"
-                    >
-                      ✕
-                    </button>
+                    {/* Delete button - shows on hover, like WhatsApp (only for non-deleted messages) */}
+                    {msg.body !== "This message was deleted" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}
+                        className="absolute -top-2 -right-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-gray-200 text-xs text-gray-400 hover:text-red-500"
+                        title="Delete message"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                   {!isMine && (
                     <button

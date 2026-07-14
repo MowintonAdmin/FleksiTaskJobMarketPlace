@@ -285,18 +285,22 @@ async def check_typing(
     return {"typing": val is not None}
 
 
-@router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{message_id}", response_model=MessageResponse)
 async def delete_message(
     message_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a message. Both the sender and recipient can delete (like WhatsApp)."""
+    """Delete a message. Both the sender and recipient can delete (like WhatsApp).
+    The message body is replaced with 'This message was deleted' so both
+    participants can see it was removed, rather than disappearing entirely."""
     result = await db.execute(select(Message).where(Message.id == message_id))
     message = result.scalar_one_or_none()
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     if message.sender_id != current_user.id and message.recipient_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorised to delete this message")
-    await db.delete(message)
+    message.body = "This message was deleted"
+    message.reaction = None
     await db.flush()
+    return MessageResponse.model_validate(message)
