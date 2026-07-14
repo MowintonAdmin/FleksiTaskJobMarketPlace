@@ -270,7 +270,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       😊
                     </button>
                   )}
-                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm relative ${
+                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm relative group/bubble ${
                     isMine
                       ? 'bg-primary-600 text-white rounded-br-sm'
                       : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
@@ -287,6 +287,14 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                         <span className="ml-1">{msg.is_read ? '✓✓' : '✓'}</span>
                       )}
                     </p>
+                    {/* Delete button - shows on hover, like WhatsApp */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-gray-200 text-xs text-gray-400 hover:text-red-500"
+                      title="Delete message"
+                    >
+                      ✕
+                    </button>
                   </div>
                   {!isMine && (
                     <button

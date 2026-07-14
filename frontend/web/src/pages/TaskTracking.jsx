@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { taskSessionsApi, applicationsApi, tasksApi } from '../api/tasks'
@@ -6,17 +6,16 @@ import { apiHost } from '../api/client'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
-function formatDuration(seconds) {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  return [h > 0 ? `${h}h` : null, `${m}m`, `${s}s`].filter(Boolean).join(' ')
-}
-
 /** Parse a datetime string from the backend, always treating it as UTC. */
 function parseUTC(str) {
   if (!str) return null
   return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '—'
+  const d = parseUTC(iso)
+  return d.toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export default function TaskTracking() {
@@ -29,38 +28,10 @@ export default function TaskTracking() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
-  const [elapsed, setElapsed] = useState(0)
-  const timerRef = useRef(null)
-  const maxSecondsRef = useRef(0)
-
   const [proofNotes, setProofNotes] = useState('')
   const [proofPhoto, setProofPhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [showCheckout, setShowCheckout] = useState(false)
-
-  const minimumDurationSeconds = (task?.estimated_duration_minutes ?? 0) * 60
-
-  const startTimer = useCallback((checkedInAt, maxSeconds) => {
-    clearInterval(timerRef.current)
-    const cap = Number(maxSeconds) > 0 ? Number(maxSeconds) : 0
-    maxSecondsRef.current = cap
-    const origin = parseUTC(checkedInAt).getTime()
-    const nowSecs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
-    if (cap > 0 && nowSecs >= cap) {
-      setElapsed(cap)
-      return
-    }
-    timerRef.current = setInterval(() => {
-      const secs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
-      if (cap > 0 && secs >= cap) {
-        setElapsed(cap)
-        clearInterval(timerRef.current)
-      } else {
-        setElapsed(secs)
-      }
-    }, 250)
-  }, [])
-
 
   useEffect(() => {
     async function load() {
@@ -87,15 +58,6 @@ export default function TaskTracking() {
         const existing = sessions.find((s) => s.application_id === applicationId)
         if (existing) {
           setSession(existing)
-          if (existing.status === 'active') {
-            const maxSecs = (taskData?.estimated_duration_minutes ?? 0) * 60
-            const secs = Math.min(
-              Math.max(0, Math.floor((Date.now() - parseUTC(existing.checked_in_at).getTime()) / 1000)),
-              maxSecs || Infinity
-            )
-            setElapsed(secs)
-            startTimer(existing.checked_in_at, maxSecs)
-          }
         }
       } catch (err) {
         console.error('Task tracking load error:', err?.response?.data || err?.message || err)
@@ -105,8 +67,7 @@ export default function TaskTracking() {
       }
     }
     load()
-    return () => clearInterval(timerRef.current)
-  }, [applicationId, navigate, startTimer])
+  }, [applicationId, navigate])
 
   const handleCheckIn = async () => {
     setActionLoading(true)
@@ -114,14 +75,7 @@ export default function TaskTracking() {
     try {
       const newSession = await taskSessionsApi.checkIn(applicationId)
       setSession(newSession)
-      const maxSecs = (task?.estimated_duration_minutes ?? 0) * 60
-      const secs = Math.min(
-        Math.max(0, Math.floor((Date.now() - parseUTC(newSession.checked_in_at).getTime()) / 1000)),
-        maxSecs || Infinity
-      )
-      setElapsed(secs)
-      startTimer(newSession.checked_in_at, maxSecs)
-      toast.success(resuming ? 'Task tracking resumed.' : 'Checked in! Your time is now being tracked.')
+      toast.success(resuming ? 'Task tracking resumed.' : 'Checked in! Clock started.')
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Check-in failed')
     } finally {
@@ -133,9 +87,7 @@ export default function TaskTracking() {
     setActionLoading(true)
     try {
       const completed = await taskSessionsApi.checkOut(session.id, proofNotes, proofPhoto)
-      clearInterval(timerRef.current)
       setSession(completed)
-      setElapsed(0)
       setShowCheckout(false)
       toast.success('Work submitted! Awaiting admin approval.')
     } catch (e) {
@@ -204,17 +156,16 @@ export default function TaskTracking() {
         </div>
       ) : session.status === 'active' ? (
         <div className="space-y-4">
-          {/* Timer display */}
+          {/* Static check-in time display */}
           <div className="card text-center">
-            <p className="text-4xl font-bold text-gray-900">{formatDuration(elapsed)}</p>
-            <p className="text-sm text-gray-400 mt-1">
-              {elapsed >= minimumDurationSeconds ? '⏰ Time limit reached — ready to check out?' : '👷 Working...'}
-            </p>
+            <p className="text-4xl mb-2">👷</p>
+            <p className="text-sm text-gray-500">Checked in at</p>
+            <p className="text-lg font-bold text-gray-900">{formatDateTime(session.checked_in_at)}</p>
           </div>
 
           {!showCheckout ? (
             <button
-              onClick={() => { clearInterval(timerRef.current); setShowCheckout(true) }}
+              onClick={() => setShowCheckout(true)}
               disabled={actionLoading}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
             >
@@ -270,7 +221,7 @@ export default function TaskTracking() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setShowCheckout(false); startTimer(session.checked_in_at, (task?.estimated_duration_minutes ?? 0) * 60) }}
+                  onClick={() => setShowCheckout(false)}
                   className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50"
                 >
                   Cancel
@@ -321,7 +272,10 @@ export default function TaskTracking() {
           <div className="bg-blue-50 rounded-xl p-4 space-y-1 text-center">
             <p className="text-sm text-blue-700 font-medium">✅ Work submitted — awaiting admin approval</p>
             <p className="text-xs text-blue-600">
-              Started at {parseUTC(session.checked_in_at).toLocaleTimeString()} · Ended at {parseUTC(session.checked_out_at).toLocaleTimeString()}
+              Checked in: {formatDateTime(session.checked_in_at)}
+            </p>
+            <p className="text-xs text-blue-600">
+              Checked out: {formatDateTime(session.checked_out_at)}
             </p>
             {session.proof_notes && (
               <p className="text-xs text-blue-600 mt-1">📝 {session.proof_notes}</p>

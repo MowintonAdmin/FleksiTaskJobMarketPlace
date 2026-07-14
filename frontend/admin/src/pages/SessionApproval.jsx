@@ -10,6 +10,9 @@ export default function SessionApproval() {
   const [processingId, setProcessingId] = useState(null)
   const [notes, setNotes] = useState({})
   const [previewImage, setPreviewImage] = useState(null)
+  const [ratings, setRatings] = useState({})
+  const [feedbacks, setFeedbacks] = useState({})
+  const [ratingErrors, setRatingErrors] = useState({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -29,13 +32,20 @@ export default function SessionApproval() {
   usePolling(load, 5000)
 
   const handleApprove = async (sessionId) => {
+    const rating = ratings[sessionId]
+    if (!rating || rating < 1) {
+      setRatingErrors(prev => ({ ...prev, [sessionId]: 'Please select a rating (1-5 stars) before approving' }))
+      return
+    }
     setProcessingId(sessionId)
     try {
       await api.post(`/admin/sessions/${sessionId}/approve`, {
         action: 'approve',
         notes: notes[sessionId] || null,
+        rating: rating,
+        feedback: feedbacks[sessionId] || null,
       })
-      toast.success('Session approved! Worker credited.')
+      toast.success(`Session approved! Worker credited. Rating: ${rating} ⭐`)
       setSessions(prev => prev.filter(s => s.session_id !== sessionId))
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to approve session')
@@ -151,13 +161,56 @@ export default function SessionApproval() {
                   </div>
                 )}
 
+                {/* Rating stars */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    ⭐ Rating <span className="text-red-500">*required</span>
+                  </label>
+                  <div className="flex items-center gap-1 mb-2">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => {
+                          setRatings(prev => ({ ...prev, [s.session_id]: star }))
+                          setRatingErrors(prev => ({ ...prev, [s.session_id]: null }))
+                        }}
+                        className={`text-2xl transition-transform hover:scale-125 ${
+                          (ratings[s.session_id] || 0) >= star ? 'text-amber-400' : 'text-gray-200'
+                        }`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                    {ratings[s.session_id] && (
+                      <span className="text-sm text-gray-500 ml-2">
+                        {ratings[s.session_id]}/5
+                      </span>
+                    )}
+                  </div>
+                  {ratingErrors[s.session_id] && (
+                    <p className="text-xs text-red-500 mb-2">{ratingErrors[s.session_id]}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Feedback <span className="text-gray-400">(optional)</span></label>
+                  <textarea
+                    rows={2}
+                    value={feedbacks[s.session_id] || ''}
+                    onChange={(e) => setFeedbacks(prev => ({ ...prev, [s.session_id]: e.target.value }))}
+                    placeholder="e.g. Great work! Completed on time and followed instructions."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Admin notes (optional)</label>
                   <input
                     type="text"
                     value={notes[s.session_id] || ''}
                     onChange={(e) => setNotes(prev => ({ ...prev, [s.session_id]: e.target.value }))}
-                    placeholder="Add a note for the worker..."
+                    placeholder="Add an internal note..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>

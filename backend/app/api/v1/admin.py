@@ -1119,6 +1119,8 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
 class SessionApprovalAction(BaseModel):
     action: str
     notes: str | None = None
+    rating: float | None = None
+    feedback: str | None = None
 
 
 @router.post("/sessions/{session_id}/approve")
@@ -1127,8 +1129,6 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Completed session not found")
-    if not session.earnings or session.earnings <= 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
 
     # Check scope for normal admin
     if not current_user.is_super_admin:
@@ -1138,21 +1138,38 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
 
     action = payload.action.lower()
     if action == "approve":
+        if payload.rating is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Rating is required (1-5) to approve a session")
+        if not (1.0 <= payload.rating <= 5.0):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Rating must be between 1 and 5")
+
+        # Recalculate earnings from the task's fixed total, ignoring whatever is stored
+        task_result = await db.execute(select(Task).where(Task.id == session.task_id))
+        task = task_result.scalar_one()
+        fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+        if fixed_earnings <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
+        session.earnings = fixed_earnings
+
         wallet_result = await db.execute(select(_WalletForApproval).where(_WalletForApproval.user_id == session.worker_id))
         wallet = wallet_result.scalar_one_or_none()
         if not wallet:
             wallet = _WalletForApproval(user_id=session.worker_id); db.add(wallet); await db.flush()
-        wallet.available_balance = round(wallet.available_balance + session.earnings, 2)
-        task_result = await db.execute(select(Task).where(Task.id == session.task_id))
-        task = task_result.scalar_one()
-        db.add(_TransactionForApproval(user_id=session.worker_id, type=_TransactionTypeForApproval.CREDIT, amount=session.earnings,
+        wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
+        db.add(_TransactionForApproval(user_id=session.worker_id, type=_TransactionTypeForApproval.CREDIT, amount=fixed_earnings,
             description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
         if task.status != _TaskStatusForApproval.COMPLETED: task.status = _TaskStatusForApproval.COMPLETED
+
+        # Store rating and feedback
+        session.rating = round(payload.rating, 1)
+        session.feedback = payload.feedback or None
+
         reason = f" Notes: {payload.notes}" if payload.notes else ""
+        rating_stars = "⭐" * round(payload.rating)
         db.add(_MessageForApproval(sender_id=current_user.id, recipient_id=session.worker_id,
-            body=f"✅ Your task \"{task.title}\" has been approved! RM {session.earnings:.2f} has been credited to your wallet.{reason}"))
+            body=f"✅ Your task \"{task.title}\" has been approved! RM {fixed_earnings:.2f} has been credited to your wallet.{reason}"))
         session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
-        return {"status": "approved", "session_id": str(session.id), "amount_credited": session.earnings}
+        return {"status": "approved", "session_id": str(session.id), "amount_credited": fixed_earnings, "rating": session.rating, "feedback": session.feedback}
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()

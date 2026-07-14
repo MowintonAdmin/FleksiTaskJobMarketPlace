@@ -427,11 +427,11 @@ async def get_performance_stats(
     last_day = monthrange(today.year, today.month)[1]
     month_end = datetime(today.year, today.month, last_day, 23, 59, 59, tzinfo=timezone.utc)
 
-    # All completed sessions
+    # All completed and settled sessions
     all_result = await db.execute(
         select(TaskSession).where(
             TaskSession.worker_id == current_user.id,
-            TaskSession.status == SessionStatus.COMPLETED,
+            TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]),
         )
     )
     all_sessions = all_result.scalars().all()

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import api, { apiHost } from '../api/client'
 import { toast } from 'react-toastify'
+import usePolling from '../hooks/usePolling'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
@@ -44,6 +45,9 @@ export default function History() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 10s to sync with session approval
+  usePolling(load, 10000)
 
   if (loading) {
     return (
