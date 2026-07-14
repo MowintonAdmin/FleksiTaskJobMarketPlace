@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { taskSessionsApi, applicationsApi, tasksApi } from '../api/tasks'
 import { apiHost } from '../api/client'
+import ConsentModal from '../components/ConsentModal'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
@@ -32,6 +33,7 @@ export default function TaskTracking() {
   const [proofPhoto, setProofPhoto] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [showConsent, setShowConsent] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -69,13 +71,28 @@ export default function TaskTracking() {
     load()
   }, [applicationId, navigate])
 
-  const handleCheckIn = async () => {
+  const handleCheckIn = async (consentSignature) => {
     setActionLoading(true)
     const resuming = session?.status === 'paused'
     try {
-      const newSession = await taskSessionsApi.checkIn(applicationId)
+      const newSession = await taskSessionsApi.checkIn(applicationId, consentSignature)
       setSession(newSession)
+      setShowConsent(false)
       toast.success(resuming ? 'Task tracking resumed.' : 'Checked in! Clock started.')
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Check-in failed')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleResumeCheckIn = async () => {
+    // Resume (paused session) skips consent — signature already on record
+    setActionLoading(true)
+    try {
+      const newSession = await taskSessionsApi.checkIn(applicationId, '')
+      setSession(newSession)
+      toast.success('Task tracking resumed.')
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Check-in failed')
     } finally {
@@ -116,6 +133,14 @@ export default function TaskTracking() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-5">
+      {showConsent && (
+        <ConsentModal
+          taskTitle={task?.title}
+          onConfirm={handleCheckIn}
+          onCancel={() => setShowConsent(false)}
+          loading={actionLoading}
+        />
+      )}
       {/* Task Header */}
       <div className="card">
         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Task</p>
@@ -143,13 +168,13 @@ export default function TaskTracking() {
           ) : (
             <>
               <p className="text-gray-600 font-medium">Ready to start work?</p>
-              <p className="text-sm text-gray-400">Check in to begin tracking your time.</p>
+              <p className="text-sm text-gray-400">You must read and sign the consent form before checking in.</p>
               <button
-                onClick={handleCheckIn}
+                onClick={() => setShowConsent(true)}
                 disabled={actionLoading}
                 className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
               >
-                {actionLoading ? 'Checking in…' : '✅ Check In & Start Work'}
+                📋 Review Consent & Check In
               </button>
             </>
           )}
@@ -246,7 +271,7 @@ export default function TaskTracking() {
 
           <div className="space-y-3">
             <button
-              onClick={handleCheckIn}
+              onClick={handleResumeCheckIn}
               disabled={actionLoading}
               className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
             >

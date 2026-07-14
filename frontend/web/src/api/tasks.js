@@ -40,8 +40,8 @@ export const applicationsApi = {
 }
 
 export const taskSessionsApi = {
-  checkIn: async (applicationId) => {
-    const { data } = await api.post('/task-sessions/checkin', { application_id: applicationId })
+  checkIn: async (applicationId, consentSignature) => {
+    const { data } = await api.post('/task-sessions/checkin', { application_id: applicationId, consent_signature: consentSignature })
     return data
   },
   checkOut: async (sessionId, proofNotes, proofPhoto) => {

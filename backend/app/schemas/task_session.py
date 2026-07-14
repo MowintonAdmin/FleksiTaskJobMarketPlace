@@ -6,6 +6,7 @@ from app.models.task_session import SessionStatus
 
 class CheckInRequest(BaseModel):
     application_id: uuid.UUID
+    consent_signature: str | None = None  # required for fresh check-in; omitted on resume
 
 
 class CheckOutRequest(BaseModel):
@@ -25,6 +26,8 @@ class TaskSessionResponse(BaseModel):
     proof_notes: str | None = None
     rating: float | None = None
     feedback: str | None = None
+    consent_signature: str | None = None
+    consent_given_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

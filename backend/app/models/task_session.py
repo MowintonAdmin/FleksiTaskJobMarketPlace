@@ -29,6 +29,8 @@ class TaskSession(Base):
     proof_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)        # 1.0 – 5.0
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consent_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)  # typed name e-signature
+    consent_given_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     task = relationship("Task", foreign_keys=[task_id])

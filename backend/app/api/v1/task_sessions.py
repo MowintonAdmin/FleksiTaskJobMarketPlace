@@ -151,10 +151,19 @@ async def check_in(
             detail="This task session has already been completed",
         )
 
+    # Require e-consent signature for a fresh check-in
+    if not payload.consent_signature or not payload.consent_signature.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="E-consent signature is required before starting work",
+        )
+
     session = TaskSession(
         task_id=application.task_id,
         worker_id=current_user.id,
         application_id=payload.application_id,
+        consent_signature=payload.consent_signature.strip(),
+        consent_given_at=datetime.now(timezone.utc),
     )
     db.add(session)
 
