@@ -118,6 +118,7 @@ function ProcessModal({ withdrawal, onClose, onDone }) {
 export default function Withdrawals() {
   const [withdrawals, setWithdrawals] = useState([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('PENDING')
   const [selected, setSelected] = useState(null)
 
@@ -147,9 +148,9 @@ export default function Withdrawals() {
           )}
         </h1>
         <SearchFilterBar
-          search=""
-          onSearchChange={() => {}}
-          placeholder=""
+          search={search}
+          onSearchChange={setSearch}
+          placeholder="Search by worker name or email…"
           filters={[
             {
               value: filterStatus,
@@ -189,10 +190,25 @@ export default function Withdrawals() {
               <tr>
                 <td colSpan={7} className="text-center py-12 text-gray-400">
                   <p className="text-3xl mb-2">✅</p>
-                  <p>No {formatStatusLabel(filterStatus) || ''} withdrawal requests</p>
+                  <p>{search ? 'No withdrawals match your search' : `No ${formatStatusLabel(filterStatus) || ''} withdrawal requests`}</p>
                 </td>
               </tr>
-            ) : withdrawals.map(w => (
+            ) : withdrawals.filter(w => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return (w.worker_name || '').toLowerCase().includes(q) || (w.worker_email || '').toLowerCase().includes(q)
+            }).length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-gray-400">
+                  <p className="text-3xl mb-2">🔍</p>
+                  <p>No withdrawals match your search</p>
+                </td>
+              </tr>
+            ) : withdrawals.filter(w => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return (w.worker_name || '').toLowerCase().includes(q) || (w.worker_email || '').toLowerCase().includes(q)
+            }).map(w => (
               <tr key={w.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <p className="font-medium text-gray-900">{w.worker_name}</p>

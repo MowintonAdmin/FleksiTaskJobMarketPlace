@@ -85,7 +85,7 @@ async def auto_close_overdue_projects():
             import logging
             logger = logging.getLogger(__name__)
             logger.exception("Error in auto_close_overdue_projects")
-        await asyncio.sleep(300)  # Check every 5 minutes
+        await asyncio.sleep(60)  # Check every 1 minute
 
 
 @asynccontextmanager

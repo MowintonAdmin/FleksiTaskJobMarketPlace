@@ -194,6 +194,7 @@ export default function TimeLogs() {
   const [tasks, setTasks] = useState([])
   const [loadingLogs, setLoadingLogs] = useState(true)
   const [loadingCosts, setLoadingCosts] = useState(true)
+  const [search, setSearch] = useState('')
   const [filterTask, setFilterTask] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [tab, setTab] = useState('logs')     // 'logs' | 'costs'
@@ -255,11 +256,11 @@ export default function TimeLogs() {
       {/* ── Time Logs Tab ── */}
       {tab === 'logs' && (
         <>
-          {/* Filters */}
+          {/* Search + Filters */}
           <SearchFilterBar
-            search=""
-            onSearchChange={() => {}}
-            placeholder=""
+            search={search}
+            onSearchChange={setSearch}
+            placeholder="Search by worker name or task title…"
             filters={[
               {
                 value: filterTask,
@@ -302,9 +303,21 @@ export default function TimeLogs() {
                       <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                     ))}</tr>
                   ))
-                ) : logs.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">No sessions found</td></tr>
-                ) : logs.map(log => (
+                ) : logs.filter(l => {
+                  if (!search) return true
+                  const q = search.toLowerCase()
+                  return (l.worker_name || '').toLowerCase().includes(q) ||
+                         (l.worker_email || '').toLowerCase().includes(q) ||
+                         (l.task_title || '').toLowerCase().includes(q)
+                }).length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">{search ? 'No sessions match your search' : 'No sessions found'}</td></tr>
+                ) : logs.filter(l => {
+                  if (!search) return true
+                  const q = search.toLowerCase()
+                  return (l.worker_name || '').toLowerCase().includes(q) ||
+                         (l.worker_email || '').toLowerCase().includes(q) ||
+                         (l.task_title || '').toLowerCase().includes(q)
+                }).map(log => (
                   <tr key={log.session_id} className={`hover:bg-gray-50 transition-colors ${log.status === 'active' ? 'bg-green-50/40' : ''}`}>
                     <td className="px-5 py-3">
                       <p className="font-medium text-gray-900">{log.worker_name}</p>

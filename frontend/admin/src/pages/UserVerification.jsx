@@ -31,6 +31,7 @@ export default function UserVerification() {
   const [viewModal, setViewModal] = useState(null) // user object being viewed in detail
 
   const load = useCallback(async () => {
+    setLoading(true)
     try {
       const { data } = await api.get('/admin/users/unverified')
       setUsers(data)

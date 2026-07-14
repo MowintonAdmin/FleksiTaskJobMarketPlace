@@ -51,6 +51,7 @@ export default function ActiveWorkers() {
   const [stopping, setStopping] = useState(false)
 
   const load = useCallback(async () => {
+    setLoading(true)
     try {
       const { data } = await api.get('/admin/workers/active')
       setWorkers(data)

@@ -48,7 +48,6 @@ export default function TaskTracking() {
     const nowSecs = Math.max(0, Math.floor((Date.now() - origin) / 1000))
     if (cap > 0 && nowSecs >= cap) {
       setElapsed(cap)
-      setShowCheckout(true)
       return
     }
     timerRef.current = setInterval(() => {
@@ -56,27 +55,12 @@ export default function TaskTracking() {
       if (cap > 0 && secs >= cap) {
         setElapsed(cap)
         clearInterval(timerRef.current)
-        setShowCheckout(true)
       } else {
         setElapsed(secs)
       }
     }, 250)
   }, [])
 
-  useEffect(() => {
-    const cap = maxSecondsRef.current
-    if (session?.status === 'active' && cap > 0 && elapsed >= cap && !showCheckout) {
-      clearInterval(timerRef.current)
-      setElapsed(cap)
-      setShowCheckout(true)
-    }
-  }, [elapsed, session, showCheckout])
-
-  useEffect(() => {
-    if (showCheckout) {
-      clearInterval(timerRef.current)
-    }
-  }, [showCheckout])
 
   useEffect(() => {
     async function load() {
@@ -220,16 +204,22 @@ export default function TaskTracking() {
         </div>
       ) : session.status === 'active' ? (
         <div className="space-y-4">
+          {/* Timer display */}
+          <div className="card text-center">
+            <p className="text-4xl font-bold text-gray-900">{formatDuration(elapsed)}</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {elapsed >= minimumDurationSeconds ? '⏰ Time limit reached — ready to check out?' : '👷 Working...'}
+            </p>
+          </div>
+
           {!showCheckout ? (
-            <div className="flex gap-3">
-              <button
-                onClick={() => { clearInterval(timerRef.current); setShowCheckout(true) }}
-                disabled={actionLoading}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
-              >
-                🏁 Check Out
-              </button>
-            </div>
+            <button
+              onClick={() => { clearInterval(timerRef.current); setShowCheckout(true) }}
+              disabled={actionLoading}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+            >
+              🏁 Check Out
+            </button>
           ) : (
             <div className="card space-y-4">
               <h2 className="font-semibold text-gray-900">Submit Completion Proof</h2>

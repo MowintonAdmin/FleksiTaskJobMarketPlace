@@ -25,7 +25,7 @@ export const messagesApi = {
     return data
   },
   getWorkers: async () => {
-    const { data } = await api.get('/users', { params: { limit: 200 } })
+    const { data } = await api.get('/admin/users')
     return data
   },
   getQuickReplies: async () => {

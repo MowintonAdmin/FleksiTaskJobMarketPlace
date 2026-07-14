@@ -203,6 +203,7 @@ export default function Applications() {
   const [apps, setApps] = useState([])
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
   const [filterTask, setFilterTask] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [selectedWorker, setSelectedWorker] = useState(null)
@@ -242,11 +243,11 @@ export default function Applications() {
         Applications <span className="text-gray-400 font-normal text-lg">({apps.length})</span>
       </h1>
 
-      {/* Filters */}
+      {/* Search + Filters */}
       <SearchFilterBar
-        search=""
-        onSearchChange={() => {}}
-        placeholder=""
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by worker name, email or task title…"
         filters={[
           {
             value: filterTask,
@@ -290,9 +291,21 @@ export default function Applications() {
                   <td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                 ))}</tr>
               ))
-            ) : apps.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-12 text-gray-400">No applications found</td></tr>
-            ) : apps.map(app => (
+            ) : apps.filter(a => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return (a.worker?.full_name || '').toLowerCase().includes(q) ||
+                     (a.worker?.email || '').toLowerCase().includes(q) ||
+                     (a.task?.title || '').toLowerCase().includes(q)
+            }).length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-12 text-gray-400">No applications match your search</td></tr>
+            ) : apps.filter(a => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return (a.worker?.full_name || '').toLowerCase().includes(q) ||
+                     (a.worker?.email || '').toLowerCase().includes(q) ||
+                     (a.task?.title || '').toLowerCase().includes(q)
+            }).map(app => (
               <tr key={app.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <button onClick={() => setSelectedWorker(app.worker)} className="flex items-center gap-2 hover:text-blue-600 text-left">

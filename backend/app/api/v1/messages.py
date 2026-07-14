@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.message import Message
 from app.models.user import User
 from app.core.deps import get_current_user
+from app.core.firebase import send_push_notification
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -226,6 +227,30 @@ async def react_to_message(
     message.reaction = payload.reaction if payload.reaction else None
     await db.flush()
     await db.refresh(message)
+
+    # Send push notification to the other participant about the reaction
+    if message.reaction:
+        if current_user.id == message.sender_id:
+            # Reactor is the sender → notify recipient
+            recipient = await db.execute(select(User).where(User.id == message.recipient_id))
+            target_user = recipient.scalar_one_or_none()
+        else:
+            # Reactor is the recipient → notify sender
+            sender = await db.execute(select(User).where(User.id == message.sender_id))
+            target_user = sender.scalar_one_or_none()
+
+        if target_user and target_user.fcm_token:
+            await send_push_notification(
+                fcm_token=target_user.fcm_token,
+                title="Reaction Received",
+                body=f"{current_user.full_name} reacted {message.reaction} to your message",
+                data={
+                    "type": "message_reaction",
+                    "conversation_with": str(current_user.id),
+                    "message_id": str(message.id),
+                },
+            )
+
     resp = MessageResponse.model_validate(message)
     if message.sender:
         resp.sender_name = message.sender.full_name

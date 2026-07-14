@@ -459,6 +459,7 @@ export default function Tasks() {
   const [savingStatus, setSavingStatus] = useState(null)
 
   const loadProjects = async () => {
+    setLoadingProjects(true)
     try {
       const { data } = await api.get('/admin/projects')
       setProjects(data.projects || [])
