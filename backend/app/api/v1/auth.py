@@ -80,7 +80,8 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
                 full_name=full_name,
                 google_id=google_id,
                 profile_photo_url=picture,
-                is_verified=True,
+                is_verified=False,
+                verification_status="pending",
             )
             db.add(user)
             await db.flush()
@@ -90,7 +91,6 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
     if picture and (not user.profile_photo_url or _is_google_photo(user.profile_photo_url)):
         user.profile_photo_url = picture
     user.google_id = google_id
-    user.is_verified = True
 
     access_token, refresh_token = create_token_pair(user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
