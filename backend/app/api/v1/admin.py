@@ -1084,6 +1084,7 @@ async def database_restore(file: UploadFile = File(...), _: User = Depends(requi
 
 from app.models.task_session import TaskSession as _TaskSessionForApproval
 from app.models.task import TaskStatus as _TaskStatusForApproval
+from app.models.wallet import BankAccount as _BankAccountForApproval
 from app.models.wallet import Wallet as _WalletForApproval, Transaction as _TransactionForApproval, TransactionType as _TransactionTypeForApproval
 from app.models.message import Message as _MessageForApproval
 
@@ -1105,6 +1106,9 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
         # ALWAYS use fixed task total — ignore whatever is stored
         fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         if fixed_earnings <= 0: continue
+        # Fetch worker's payment account details
+        bank_result = await db.execute(select(_BankAccountForApproval).where(_BankAccountForApproval.user_id == s.worker_id))
+        bank = bank_result.scalar_one_or_none()
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
             "task_location": task.location if task else "", "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
@@ -1112,7 +1116,12 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
             "proof_photo_url": s.proof_photo_url, "status": s.status,
             "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
             "worker_id_photo_front_url": worker.id_photo_front_url if worker else None,
-            "worker_selfie_url": worker.selfie_with_id_url if worker else None})
+            "worker_selfie_url": worker.selfie_with_id_url if worker else None,
+            "worker_payment_type": bank.payment_type if bank else None,
+            "worker_bank_name": bank.bank_name if bank else None,
+            "worker_account_number": bank.account_number if bank else None,
+            "worker_account_holder": bank.account_holder_name if bank else None,
+            "worker_phone_number": bank.phone_number if bank else None})
     return out
 
 

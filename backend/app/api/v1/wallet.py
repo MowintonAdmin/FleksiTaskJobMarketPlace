@@ -104,18 +104,23 @@ async def get_bank_account(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get saved bank account (account number masked)."""
+    """Get saved payment account (bank or eWallet)."""
     result = await db.execute(select(BankAccount).where(BankAccount.user_id == current_user.id))
     account = result.scalar_one_or_none()
     if not account:
         return None
-    # Mask all but last 4 digits
-    masked = "*" * (len(account.account_number) - 4) + account.account_number[-4:]
+    # Mask all but last 4 digits for bank accounts
+    if account.payment_type == "bank_transfer" and account.account_number:
+        masked = "*" * (len(account.account_number) - 4) + account.account_number[-4:]
+    else:
+        masked = account.account_number
     return BankAccountResponse(
         id=account.id,
+        payment_type=account.payment_type,
         bank_name=account.bank_name,
         account_number=masked,
         account_holder_name=account.account_holder_name,
+        phone_number=account.phone_number,
         created_at=account.created_at,
     )
 
@@ -126,7 +131,7 @@ async def upsert_bank_account(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add or update bank account details."""
+    """Add or update payment account (bank transfer or Touch 'n Go eWallet)."""
     # Cross-field length check (bank-specific digit count)
     try:
         payload.validate_account_length()
@@ -135,24 +140,29 @@ async def upsert_bank_account(
     result = await db.execute(select(BankAccount).where(BankAccount.user_id == current_user.id))
     account = result.scalar_one_or_none()
     if account:
-        account.bank_name = payload.bank_name
-        account.account_number = payload.account_number
-        account.account_holder_name = payload.account_holder_name
+        account.payment_type = payload.payment_type
+        account.bank_name = payload.bank_name if payload.payment_type == "bank_transfer" else None
+        account.account_number = payload.account_number if payload.payment_type == "bank_transfer" else None
+        account.account_holder_name = payload.account_holder_name if payload.payment_type == "bank_transfer" else None
+        account.phone_number = payload.phone_number if payload.payment_type == "tng_ewallet" else None
     else:
         account = BankAccount(
             user_id=current_user.id,
-            bank_name=payload.bank_name,
-            account_number=payload.account_number,
-            account_holder_name=payload.account_holder_name,
+            payment_type=payload.payment_type,
+            bank_name=payload.bank_name if payload.payment_type == "bank_transfer" else None,
+            account_number=payload.account_number if payload.payment_type == "bank_transfer" else None,
+            account_holder_name=payload.account_holder_name if payload.payment_type == "bank_transfer" else None,
+            phone_number=payload.phone_number if payload.payment_type == "tng_ewallet" else None,
         )
         db.add(account)
     await db.flush()
-    masked = "*" * (len(account.account_number) - 4) + account.account_number[-4:]
     return BankAccountResponse(
         id=account.id,
+        payment_type=account.payment_type,
         bank_name=account.bank_name,
-        account_number=masked,
+        account_number=account.account_number,
         account_holder_name=account.account_holder_name,
+        phone_number=account.phone_number,
         created_at=account.created_at,
     )
 
@@ -190,13 +200,13 @@ async def request_withdrawal(
             detail=f"Insufficient balance. Available: RM {wallet.available_balance:.2f}",
         )
 
-    # Must have a bank account
+    # Must have a payment account
     bank_result = await db.execute(select(BankAccount).where(BankAccount.user_id == current_user.id))
     bank = bank_result.scalar_one_or_none()
     if not bank:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please add your bank account before withdrawing",
+            detail="Please add your payment account before withdrawing",
         )
 
     # Deduct from wallet and mark as pending
@@ -206,19 +216,25 @@ async def request_withdrawal(
     withdrawal = WithdrawalRequest(
         user_id=current_user.id,
         amount=payload.amount,
+        payment_type=bank.payment_type,
         bank_name=bank.bank_name,
         account_number=bank.account_number,
         account_holder_name=bank.account_holder_name,
+        phone_number=bank.phone_number,
     )
     db.add(withdrawal)
     await db.flush()
 
     # Transaction record
+    if bank.payment_type == "tng_ewallet":
+        desc = f"Withdrawal request to Touch 'n Go eWallet · {bank.phone_number}"
+    else:
+        desc = f"Withdrawal request to {bank.bank_name} ···{bank.account_number[-4:]}"
     txn = Transaction(
         user_id=current_user.id,
         type=TransactionType.WITHDRAWAL_PENDING,
         amount=-payload.amount,
-        description=f"Withdrawal request to {bank.bank_name} ···{bank.account_number[-4:]}",
+        description=desc,
         reference_id=str(withdrawal.id),
     )
     db.add(txn)

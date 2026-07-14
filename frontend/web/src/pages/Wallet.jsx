@@ -60,26 +60,39 @@ const WD_COLORS = {
 
 /* ── Bank Account Modal ─────────────────────────────────────────────────── */
 function BankAccountModal({ existing, onClose, onSaved }) {
+  const [paymentType, setPaymentType] = useState(existing?.payment_type || 'bank_transfer')
   const [form, setForm] = useState({
     bank_name: existing?.bank_name || '',
     account_number: '',          // always cleared for security
     account_holder_name: existing?.account_holder_name || '',
+    phone_number: existing?.phone_number || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const save = async () => {
-    const validationError = validateBankFields(form.bank_name, form.account_number, form.account_holder_name)
-    if (validationError) { setError(validationError); return }
+    if (paymentType === 'bank_transfer') {
+      const validationError = validateBankFields(form.bank_name, form.account_number, form.account_holder_name)
+      if (validationError) { setError(validationError); return }
+    } else {
+      if (!form.phone_number.trim()) { setError('Phone number is required for Touch\'n Go eWallet'); return }
+    }
     setSaving(true)
     setError('')
     try {
-      await walletApi.upsertBankAccount({ ...form, account_number: form.account_number.replace(/\s+/g, '') })
-      toast.success('Bank account saved')
+      const payload = {
+        payment_type: paymentType,
+        bank_name: paymentType === 'bank_transfer' ? form.bank_name : null,
+        account_number: paymentType === 'bank_transfer' ? form.account_number.replace(/\s+/g, '') : null,
+        account_holder_name: paymentType === 'bank_transfer' ? form.account_holder_name : null,
+        phone_number: paymentType === 'tng_ewallet' ? form.phone_number : null,
+      }
+      await walletApi.upsertBankAccount(payload)
+      toast.success(paymentType === 'tng_ewallet' ? 'Touch\'n Go eWallet saved!' : 'Bank account saved')
       onSaved()
       onClose()
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed to save bank account')
+      setError(e.response?.data?.detail || 'Failed to save payment account')
     } finally {
       setSaving(false)
     }
@@ -89,34 +102,77 @@ function BankAccountModal({ existing, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">🏦 Bank Account Details</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {paymentType === 'tng_ewallet' ? '📱 Touch\'n Go eWallet' : '🏦 Bank Account Details'}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+        {/* Payment type selector */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Payment Method</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setPaymentType('bank_transfer'); setError('') }}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                paymentType === 'bank_transfer'
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              🏦 Bank Transfer
+            </button>
+            <button
+              onClick={() => { setPaymentType('tng_ewallet'); setError('') }}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                paymentType === 'tng_ewallet'
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              📱 Touch'n Go
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Bank Name</label>
-            <select value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white">
-              <option value="">— Select your bank —</option>
-              {MY_BANKS.map(b => (
-                <option key={b.name} value={b.name}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Account Number</label>
-            <input value={form.account_number} onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
-              placeholder="Digits only"
-              inputMode="numeric"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Account Holder Name</label>
-            <input value={form.account_holder_name} onChange={e => setForm(f => ({ ...f, account_holder_name: e.target.value }))}
-              placeholder="Full name as per bank records"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-          </div>
+          {paymentType === 'bank_transfer' ? (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Bank Name</label>
+                <select value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none bg-white">
+                  <option value="">— Select your bank —</option>
+                  {MY_BANKS.map(b => (
+                    <option key={b.name} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Account Number</label>
+                <input value={form.account_number} onChange={e => setForm(f => ({ ...f, account_number: e.target.value }))}
+                  placeholder="Digits only"
+                  inputMode="numeric"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Account Holder Name</label>
+                <input value={form.account_holder_name} onChange={e => setForm(f => ({ ...f, account_holder_name: e.target.value }))}
+                  placeholder="Full name as per bank records"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Phone Number</label>
+              <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))}
+                placeholder="e.g. 0123456789"
+                inputMode="tel"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+              <p className="text-xs text-gray-400 mt-1">The phone number linked to your Touch'n Go eWallet account</p>
+            </div>
+          )}
         </div>
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
@@ -165,8 +221,17 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>
         <div className="bg-gray-50 rounded-xl p-3 text-sm">
-          <p className="text-gray-500">Transfer to: <span className="font-semibold text-gray-800">{bankAccount?.bank_name}</span></p>
-          <p className="text-gray-500">Account: <span className="font-semibold text-gray-800">{bankAccount?.account_number}</span></p>
+          {bankAccount?.payment_type === 'tng_ewallet' ? (
+            <>
+              <p className="text-gray-500">📱 Touch 'n Go eWallet</p>
+              <p className="text-gray-500">Phone: <span className="font-semibold text-gray-800">{bankAccount?.phone_number}</span></p>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-500">Transfer to: <span className="font-semibold text-gray-800">{bankAccount?.bank_name}</span></p>
+              <p className="text-gray-500">Account: <span className="font-semibold text-gray-800">{bankAccount?.account_number}</span></p>
+            </>
+          )}
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         <div>

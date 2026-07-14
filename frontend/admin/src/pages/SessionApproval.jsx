@@ -134,6 +134,25 @@ export default function SessionApproval() {
                   />
                 )}
 
+                {/* Worker Payment Details */}
+                {(s.worker_payment_type || s.worker_bank_name || s.worker_account_number || s.worker_account_holder || s.worker_phone_number) && (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">💰 Worker Payment Details</p>
+                    {s.worker_payment_type === 'tng_ewallet' ? (
+                      <>
+                        <p className="text-sm text-gray-700">📱 Touch 'n Go eWallet</p>
+                        <p className="text-sm text-gray-700">📞 {s.worker_phone_number}</p>
+                      </>
+                    ) : s.worker_bank_name ? (
+                      <>
+                        <p className="text-sm text-gray-700">🏦 {s.worker_bank_name}</p>
+                        {s.worker_account_holder && <p className="text-sm text-gray-700">👤 {s.worker_account_holder}</p>}
+                        {s.worker_account_number && <p className="text-sm text-gray-700">🔢 {s.worker_account_number}</p>}
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
                 {/* Worker verification photos */}
                 {(s.worker_bank_qr_url || s.worker_id_photo_front_url || s.worker_selfie_url) && (
                   <div className="bg-gray-50 rounded-lg p-3 space-y-2">

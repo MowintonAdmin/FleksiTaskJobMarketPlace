@@ -49,46 +49,82 @@ class TransactionResponse(BaseModel):
 
 
 class BankAccountRequest(BaseModel):
-    bank_name: str
-    account_number: str
-    account_holder_name: str
+    payment_type: str = "bank_transfer"
+    bank_name: str | None = None
+    account_number: str | None = None
+    account_holder_name: str | None = None
+    phone_number: str | None = None
+
+    @field_validator("payment_type")
+    @classmethod
+    def validate_payment_type(cls, v: str) -> str:
+        if v not in ("bank_transfer", "tng_ewallet"):
+            raise ValueError("payment_type must be 'bank_transfer' or 'tng_ewallet'")
+        return v
 
     @field_validator("bank_name")
     @classmethod
-    def validate_bank_name(cls, v: str) -> str:
-        if v not in MALAYSIA_BANKS:
-            raise ValueError(
-                f"'{v}' is not a recognised Malaysian bank. "
-                f"Accepted banks: {', '.join(MALAYSIA_BANKS)}"
-            )
+    def validate_bank_name(cls, v: str | None, info) -> str | None:
+        values = info.data
+        if values.get("payment_type") == "bank_transfer":
+            if not v:
+                raise ValueError("Bank name is required for bank transfer")
+            if v not in MALAYSIA_BANKS:
+                raise ValueError(
+                    f"'{v}' is not a recognised Malaysian bank. "
+                    f"Accepted banks: {', '.join(MALAYSIA_BANKS)}"
+                )
         return v
 
     @field_validator("account_number")
     @classmethod
-    def validate_account_number(cls, v: str) -> str:
-        digits = v.replace(" ", "")
-        if not digits.isdigit():
-            raise ValueError("Account number must contain digits only.")
-        return digits
+    def validate_account_number(cls, v: str | None, info) -> str | None:
+        values = info.data
+        if values.get("payment_type") == "bank_transfer":
+            if not v:
+                raise ValueError("Account number is required for bank transfer")
+            digits = v.replace(" ", "")
+            if not digits.isdigit():
+                raise ValueError("Account number must contain digits only.")
+            return digits
+        return v
 
     @field_validator("account_holder_name")
     @classmethod
-    def validate_account_holder_name(cls, v: str) -> str:
-        name = v.strip()
-        if len(name) < 2:
-            raise ValueError("Account holder name is too short.")
-        if not re.match(r"^[A-Za-z\s'@/\-]+$", name):
-            raise ValueError("Account holder name must contain only letters and spaces.")
-        return name
+    def validate_account_holder_name(cls, v: str | None, info) -> str | None:
+        values = info.data
+        if values.get("payment_type") == "bank_transfer":
+            if not v:
+                raise ValueError("Account holder name is required for bank transfer")
+            name = v.strip()
+            if len(name) < 2:
+                raise ValueError("Account holder name is too short.")
+            if not re.match(r"^[A-Za-z\s'@/\-]+$", name):
+                raise ValueError("Account holder name must contain only letters and spaces.")
+            return name
+        return v
 
+    @field_validator("phone_number")
     @classmethod
-    def model_post_init(cls, __context):
-        pass  # cross-field validation handled in the API layer
+    def validate_phone(cls, v: str | None, info) -> str | None:
+        values = info.data
+        if values.get("payment_type") == "tng_ewallet":
+            if not v:
+                raise ValueError("Phone number is required for Touch 'n Go eWallet")
+            digits = v.replace(" ", "").replace("-", "")
+            if not digits.isdigit():
+                raise ValueError("Phone number must contain digits only")
+            if len(digits) < 10 or len(digits) > 12:
+                raise ValueError("Phone number must be 10-12 digits")
+            return digits
+        return v
 
     def validate_account_length(self) -> None:
-        """Call after both bank_name and account_number are validated."""
+        """Call after both bank_name and account_number are validated (bank_transfer only)."""
+        if self.payment_type != "bank_transfer" or not self.bank_name or not self.account_number:
+            return
         if self.bank_name not in MALAYSIA_BANKS:
-            return  # already caught above
+            return
         min_len, max_len = MALAYSIA_BANKS[self.bank_name]
         length = len(self.account_number)
         if not (min_len <= length <= max_len):
@@ -101,9 +137,11 @@ class BankAccountRequest(BaseModel):
 
 class BankAccountResponse(BaseModel):
     id: uuid.UUID
-    bank_name: str
-    account_number: str         # masked on read
-    account_holder_name: str
+    payment_type: str
+    bank_name: str | None = None
+    account_number: str | None = None
+    account_holder_name: str | None = None
+    phone_number: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -118,11 +156,13 @@ class WithdrawalResponse(BaseModel):
     user_id: uuid.UUID
     amount: float
     status: str
-    bank_name: str
-    account_number: str
-    account_holder_name: str
-    admin_notes: str | None
-    processed_at: datetime | None
+    payment_type: str
+    bank_name: str | None = None
+    account_number: str | None = None
+    account_holder_name: str | None = None
+    phone_number: str | None = None
+    admin_notes: str | None = None
+    processed_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
