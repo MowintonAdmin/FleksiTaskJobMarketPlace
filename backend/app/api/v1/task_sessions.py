@@ -59,6 +59,11 @@ async def finalize_checkout(
     if photo_url:
         session.proof_photo_url = photo_url
 
+    # Auto-mark the task as completed when the worker checks out
+    if task.status == TaskStatus.IN_PROGRESS:
+        task.status = TaskStatus.COMPLETED
+        db.add(task)
+
     await db.flush()
     await db.refresh(session)
     return TaskSessionResponse.model_validate(session)
