@@ -298,8 +298,8 @@ async def delete_message(
     message = result.scalar_one_or_none()
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
-    if message.sender_id != current_user.id and message.recipient_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorised to delete this message")
+    if message.sender_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own messages")
     message.body = "This message was deleted"
     message.reaction = None
     await db.flush()

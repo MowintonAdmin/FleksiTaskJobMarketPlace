@@ -18,7 +18,8 @@ export const messagesApi = {
     return data.count
   },
   deleteMessage: async (messageId) => {
-    await api.delete(`/messages/${messageId}`)
+    const { data } = await api.delete(`/messages/${messageId}`)
+    return data
   },
   getReadStatuses: async (userId) => {
     const { data } = await api.get(`/messages/conversation/${userId}/read-statuses`, { _skipRedirect: true })

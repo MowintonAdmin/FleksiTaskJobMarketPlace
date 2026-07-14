@@ -387,8 +387,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                         </span>
                       )}
                     </p>
-                    {/* Delete button - shows on hover, like WhatsApp (only for non-deleted messages) */}
-                    {msg.body !== "This message was deleted" && (
+                    {/* Delete button - shows on hover for own messages only */}
+                    {isMine && msg.body !== "This message was deleted" && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(msg.id) }}
                         className="absolute -top-2 -right-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-gray-200 text-xs text-gray-400 hover:text-red-500"
