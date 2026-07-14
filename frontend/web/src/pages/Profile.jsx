@@ -330,7 +330,7 @@ export default function Profile() {
 
       {/* Bank QR Code Upload */}
       <div className="card mb-6">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Bank QR Code</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Bank QR Code <span className="text-red-500 normal-case font-normal">*</span></p>
         <div className="flex items-center gap-4">
           <div className="relative shrink-0">
             {user?.bank_qr_code_url ? (
@@ -412,22 +412,23 @@ export default function Profile() {
 
         {/* Personal Details */}
         <div className="border-t border-gray-100 pt-4 space-y-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personal Details</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personal Details <span className="text-red-500 normal-case font-normal">(required for verification)</span></p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Nationality</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Nationality <span className="text-red-500">*</span></label>
               <input
                 name="nationality"
                 value={form.nationality}
                 onChange={handleChange}
                 className="input"
                 placeholder="e.g. Malaysian"
+                required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Race</label>
-              <select name="race" value={form.race} onChange={handleChange} className="input">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Race <span className="text-red-500">*</span></label>
+              <select name="race" value={form.race} onChange={handleChange} className="input" required>
                 <option value="">— Select —</option>
                 {RACES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>

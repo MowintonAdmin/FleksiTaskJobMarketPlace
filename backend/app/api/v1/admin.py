@@ -393,10 +393,10 @@ async def admin_force_stop_session(
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.message import Message
-    result = await db.execute(select(TaskSession).where(TaskSession.id == session_id, TaskSession.status == SessionStatus.ACTIVE))
+    result = await db.execute(select(TaskSession).where(TaskSession.id == session_id, TaskSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED, SessionStatus.COMPLETED])))
     session = result.scalar_one_or_none()
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active session not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or already settled")
 
     # Check scope for normal admin
     if not current_user.is_super_admin:
