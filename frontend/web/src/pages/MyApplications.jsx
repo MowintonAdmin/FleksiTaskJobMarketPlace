@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { applicationsApi } from '../api/tasks'
+import { applicationsApi, taskSessionsApi } from '../api/tasks'
 import usePolling from '../hooks/usePolling'
 import api from '../api/client'
 
@@ -13,13 +13,18 @@ const STATUS_STYLES = {
 
 export default function MyApplications() {
   const [applications, setApplications] = useState([])
+  const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchApplications = useCallback(async () => {
     try {
-      const data = await applicationsApi.getMyApplications()
+      const [data, sessData] = await Promise.all([
+        applicationsApi.getMyApplications(),
+        taskSessionsApi.getMySessions().catch(() => []),
+      ])
       setApplications(data)
+      setSessions(sessData)
       setError(null)
     } catch {
       if (loading) setError('Failed to load applications')
@@ -104,7 +109,12 @@ export default function MyApplications() {
                   </div>
                 </div>
               )}
-              {app.status === 'approved' && app.task?.status !== 'completed' && app.task?.status !== 'cancelled' && (
+              {(() => {
+                // Hide Track Work if a completed/settled session already exists for this application
+                const appSession = sessions.find(s => s.application_id === app.id)
+                const hasCompletedSession = appSession && (appSession.status === 'completed' || appSession.status === 'settled')
+                return app.status === 'approved' && !hasCompletedSession && app.task?.status !== 'completed' && app.task?.status !== 'cancelled'
+              })() && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <Link
                     to={`/track/${app.id}`}
