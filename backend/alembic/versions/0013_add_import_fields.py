@@ -45,26 +45,36 @@ depends_on = None
 
 
 def _column_exists(table: str, column: str) -> bool:
-    from sqlalchemy import inspect
     bind = op.get_bind()
-    return column in [c["name"] for c in inspect(bind).get_columns(table)]
+    result = bind.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :t AND column_name = :c"
+        ),
+        {"t": table, "c": column},
+    )
+    return result.fetchone() is not None
 
 
 def _index_exists(index_name: str) -> bool:
     bind = op.get_bind()
     result = bind.execute(
-        sa.text(
-            "SELECT 1 FROM pg_indexes WHERE indexname = :name"
-        ),
+        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
         {"name": index_name},
     )
     return result.fetchone() is not None
 
 
 def _table_exists(table: str) -> bool:
-    from sqlalchemy import inspect
     bind = op.get_bind()
-    return inspect(bind).has_table(table)
+    result = bind.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = :t"
+        ),
+        {"t": table},
+    )
+    return result.fetchone() is not None
 
 
 def upgrade() -> None:
