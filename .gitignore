@@ -17,3 +17,4 @@ build/
 media/
 staticfiles/
 "backend/local.db"  
+.env
