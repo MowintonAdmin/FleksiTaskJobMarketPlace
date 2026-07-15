@@ -44,87 +44,113 @@ branch_labels = None
 depends_on = None
 
 
+def _column_exists(table: str, column: str) -> bool:
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    return column in [c["name"] for c in inspect(bind).get_columns(table)]
+
+
+def _index_exists(index_name: str) -> bool:
+    bind = op.get_bind()
+    result = bind.execute(
+        sa.text(
+            "SELECT 1 FROM pg_indexes WHERE indexname = :name"
+        ),
+        {"name": index_name},
+    )
+    return result.fetchone() is not None
+
+
+def _table_exists(table: str) -> bool:
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    return inspect(bind).has_table(table)
+
+
 def upgrade() -> None:
     # ── users ──────────────────────────────────────────────────────────────────
-    # Add source column (APP | IMPORTED | API). Existing records default to 'APP'.
-    op.add_column(
-        "users",
-        sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
-    )
-    # Add legacy_participant_id for mapping imported historical workers
-    op.add_column(
-        "users",
-        sa.Column("legacy_participant_id", sa.String(100), nullable=True),
-    )
-    op.create_index(
-        "ix_users_legacy_participant_id", "users", ["legacy_participant_id"],
-        postgresql_using="btree",
-    )
+    if not _column_exists("users", "source"):
+        op.add_column(
+            "users",
+            sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
+        )
+    if not _column_exists("users", "legacy_participant_id"):
+        op.add_column(
+            "users",
+            sa.Column("legacy_participant_id", sa.String(100), nullable=True),
+        )
+    if not _index_exists("ix_users_legacy_participant_id"):
+        op.create_index(
+            "ix_users_legacy_participant_id", "users", ["legacy_participant_id"],
+            postgresql_using="btree",
+        )
 
     # ── task_sessions ──────────────────────────────────────────────────────────
-    # Add source column. Existing records default to 'APP'.
-    op.add_column(
-        "task_sessions",
-        sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
-    )
-    # Add import_reference for mapping historical session codes (e.g., MW-A0194)
-    op.add_column(
-        "task_sessions",
-        sa.Column("import_reference", sa.String(100), nullable=True),
-    )
-    op.create_index(
-        "ix_task_sessions_import_reference", "task_sessions", ["import_reference"],
-        postgresql_using="btree",
-    )
-    # Add duration_minutes — pre-calculated total from Excel (QC + Expected)
-    op.add_column(
-        "task_sessions",
-        sa.Column("duration_minutes", sa.Float(), nullable=True),
-    )
-    # Add nature_of_work — description of the type of work (e.g., "Recycle", "Mini Mart")
-    op.add_column(
-        "task_sessions",
-        sa.Column("nature_of_work", sa.String(255), nullable=True),
-    )
-    # Add work_environment — location type (e.g., "Office / Indoor desk", "Kitchen")
-    op.add_column(
-        "task_sessions",
-        sa.Column("work_environment", sa.String(255), nullable=True),
-    )
-    # Add legacy_device_id — Device ID from historical tracker
-    op.add_column(
-        "task_sessions",
-        sa.Column("legacy_device_id", sa.String(100), nullable=True),
-    )
-    # Add raw_import_data — full original Excel row as JSON for traceability
-    op.add_column(
-        "task_sessions",
-        sa.Column("raw_import_data", postgresql.JSONB(), nullable=True),
-    )
+    if not _column_exists("task_sessions", "source"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
+        )
+    if not _column_exists("task_sessions", "import_reference"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("import_reference", sa.String(100), nullable=True),
+        )
+    if not _index_exists("ix_task_sessions_import_reference"):
+        op.create_index(
+            "ix_task_sessions_import_reference", "task_sessions", ["import_reference"],
+            postgresql_using="btree",
+        )
+    if not _column_exists("task_sessions", "duration_minutes"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("duration_minutes", sa.Float(), nullable=True),
+        )
+    if not _column_exists("task_sessions", "nature_of_work"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("nature_of_work", sa.String(255), nullable=True),
+        )
+    if not _column_exists("task_sessions", "work_environment"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("work_environment", sa.String(255), nullable=True),
+        )
+    if not _column_exists("task_sessions", "legacy_device_id"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("legacy_device_id", sa.String(100), nullable=True),
+        )
+    if not _column_exists("task_sessions", "raw_import_data"):
+        op.add_column(
+            "task_sessions",
+            sa.Column("raw_import_data", postgresql.JSONB(), nullable=True),
+        )
 
     # ── import_logs (new table) ────────────────────────────────────────────────
-    op.create_table(
-        "import_logs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("filename", sa.String(255), nullable=False),
-        sa.Column("worksheet_name", sa.String(100), nullable=True),
-        sa.Column("import_version", sa.String(20), nullable=False, server_default="1.0"),
-        sa.Column(
-            "imported_by_id", postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id"), nullable=False,
-        ),
-        sa.Column("status", sa.String(20), nullable=False, server_default="running"),
-        sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("valid_rows", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("duplicate_rows", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("workers_created", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("workers_matched", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("sessions_imported", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("failed_rows_details", postgresql.JSONB(), nullable=True),
-        sa.Column("error_log", postgresql.JSONB(), nullable=True),
-        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-    )
+    if not _table_exists("import_logs"):
+        op.create_table(
+            "import_logs",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column("filename", sa.String(255), nullable=False),
+            sa.Column("worksheet_name", sa.String(100), nullable=True),
+            sa.Column("import_version", sa.String(20), nullable=False, server_default="1.0"),
+            sa.Column(
+                "imported_by_id", postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("users.id"), nullable=False,
+            ),
+            sa.Column("status", sa.String(20), nullable=False, server_default="running"),
+            sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("valid_rows", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("duplicate_rows", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("workers_created", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("workers_matched", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("sessions_imported", sa.Integer(), nullable=False, server_default="0"),
+            sa.Column("failed_rows_details", postgresql.JSONB(), nullable=True),
+            sa.Column("error_log", postgresql.JSONB(), nullable=True),
+            sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+            sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        )
 
 
 def downgrade() -> None:
