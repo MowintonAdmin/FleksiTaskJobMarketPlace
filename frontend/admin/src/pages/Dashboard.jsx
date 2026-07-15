@@ -6,12 +6,17 @@ import usePolling from '../hooks/usePolling'
 
 export default function Dashboard() {
   const [data, setData] = useState(null)
+  const [importCount, setImportCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get('/admin/analytics/dashboard')
-      setData(r.data)
+      const [dashRes, logsRes] = await Promise.all([
+        api.get('/admin/analytics/dashboard'),
+        api.get('/admin/import/logs'),
+      ])
+      setData(dashRes.data)
+      setImportCount(logsRes.data?.length ?? 0)
     } catch {}
   }, [])
 
@@ -46,11 +51,17 @@ export default function Dashboard() {
             <StatsCard label="Applications" value={data?.applications?.total ?? '—'} icon="📝" color="yellow" />
             <StatsCard label="Active Workers" value={s?.active_now ?? '—'} icon="🟢" color="purple" />
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatsCard label="Total Paid Out" value={r ? `RM ${r.total_paid.toLocaleString()}` : '—'} icon="💰" color="green" />
             <StatsCard label="Today's Spending" value={r ? `RM ${r.today}` : '—'} icon="📅" color="blue" />
             <StatsCard label="Completion Rate" value={t ? `${t.completion_rate}%` : '—'} icon="✅" color="purple" />
             <StatsCard label="Pending Withdrawals" value={data?.withdrawals?.pending ?? '—'} icon="💸" color="yellow" />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatsCard label="Total Sessions" value={s?.total?.toLocaleString() ?? '—'} icon="🚀" color="indigo" />
+            <StatsCard label="Completed Sessions" value={s?.completed?.toLocaleString() ?? '—'} icon="🏁" color="indigo" />
+            <StatsCard label="Avg Rating" value={data?.rating?.average ? `⭐ ${data.rating.average}` : '—'} icon="🌟" color="yellow" />
+            <StatsCard label="Import Logs" value={importCount} icon="📥" color="indigo" />
           </div>
         </>
       )}

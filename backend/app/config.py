@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Frontend (used for password reset links in emails/logs)
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Import / Historical Data
+    IMPORT_MATCH_PRIORITY: list[str] = ["nric", "phone", "email"]
+    IMPORT_VERSION: str = "1.0"
+
     # Email / SMTP
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

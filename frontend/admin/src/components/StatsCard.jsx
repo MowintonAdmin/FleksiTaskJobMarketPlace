@@ -4,6 +4,7 @@ export default function StatsCard({ label, value, icon, color = 'blue' }) {
     green: 'bg-green-50 text-green-600',
     yellow: 'bg-yellow-50 text-yellow-600',
     purple: 'bg-purple-50 text-purple-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
   }
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">

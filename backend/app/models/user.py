@@ -4,6 +4,7 @@ from sqlalchemy import String, Boolean, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
+from app.models.enums import DataSource
 
 
 class User(Base):
@@ -41,5 +42,7 @@ class User(Base):
     is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     company_tag: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[DataSource] = mapped_column(String(20), default=DataSource.APP, nullable=False)
+    legacy_participant_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

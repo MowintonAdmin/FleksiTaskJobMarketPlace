@@ -412,23 +412,18 @@ function CompletionTab() {
 function ExportTab() {
   const [loading, setLoading] = useState(false)
 
-  const handleExport = async () => {
+  const handleExport = async (endpoint, filename) => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('admin_access_token')
-      const res = await fetch(`${apiBaseUrl}/admin/analytics/export/workers`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error('Export failed')
-      const disposition = res.headers.get('Content-Disposition') || ''
-      const match = disposition.match(/filename=([^;]+)/)
-      const filename = match ? match[1] : 'workers.csv'
-      const blob = await res.blob()
+      const res = await api.get(endpoint, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = filename
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch {
       alert('Export failed. Please try again.')
@@ -442,36 +437,38 @@ function ExportTab() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h3 className="font-semibold text-gray-800 text-lg mb-1">Export Worker Data</h3>
         <p className="text-sm text-gray-500 mb-6">
-          Download a CSV file containing all registered workers with their session history,
-          total earnings, average rating, and verification status. Opens directly in Excel.
+          Download CSV reports with full worker details, session history, and earnings.
         </p>
         <div className="space-y-2 text-sm text-gray-600 mb-6">
           {[
             'Full Name & Email',
-            'Location',
-            'Date Joined',
-            'Total Sessions Completed',
-            'Total Hours Worked',
-            'Total Earnings (RM)',
-            'Average Rating',
-            'Verified Status',
+            'NRIC / Passport',
+            'Phone Number',
+            'Location & Nationality',
+            'Body Height & Academic Qualification',
+            'Bank QR Image URL',
+            'Task Title & Nature of Work',
+            'Check-In / Check-Out Times',
+            'Duration & Earnings (RM)',
+            'Source, Legacy Session ID, Import Reference',
+            'Verification & Rating Status',
+            'Withdrawal Status & Amount',
           ].map((item) => (
             <div key={item} className="flex items-center gap-2">
               <span className="text-green-500">✓</span> {item}
             </div>
           ))}
         </div>
-        <button
-          onClick={handleExport}
-          disabled={loading}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
-        >
-          {loading ? (
-            <><span className="animate-spin">⏳</span> Generating…</>
-          ) : (
-            <><span>📥</span> Download CSV</>
-          )}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => handleExport('/admin/analytics/export/workers', 'workers_export.csv')} disabled={loading}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+            {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>📥</span> Quick Export</>}
+          </button>
+          <button onClick={() => handleExport('/admin/export/workers-detailed', 'workers_detailed_export.csv')} disabled={loading}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+            {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>�</span> Detailed Export (Excel Format)</>}
+          </button>
+        </div>
       </div>
     </div>
   )

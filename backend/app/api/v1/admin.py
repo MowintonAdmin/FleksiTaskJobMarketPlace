@@ -4,25 +4,37 @@ import subprocess
 import tempfile
 import urllib.parse
 import uuid
+import io
+import csv
+import math
+from calendar import monthrange
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from pydantic import BaseModel, EmailStr
-from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models.application import Application, ApplicationStatus
+from app.models.import_log import ImportLog
 from app.models.project import Project, ProjectStatus
-from app.models.task import Task
+from app.models.task import Task, TaskStatus
 from app.models.user import User
 from app.models.task_session import TaskSession, SessionStatus
+from app.models.enums import DataSource
+from app.models.wallet import Wallet, WithdrawalRequest, WithdrawalStatus, Transaction, TransactionType
 from app.schemas.application import ApplicationResponse, ApplicationWithDetails
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectListResponse
 from app.schemas.user import UserResponse, UserPublic
-from app.schemas.task import TaskResponse
+from app.schemas.task import TaskResponse, TaskListResponse
+from app.schemas.data_import import ImportPreviewResponse, ImportConfirmResponse
 from app.core.deps import get_current_user
 from app.core.security import hash_password
+from app.config import get_settings
+from app.services.data_import import ImportService
+
+settings = get_settings()
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -53,14 +65,22 @@ async def require_super_admin(current_user: User = Depends(get_current_user)) ->
 
 
 async def get_accessible_task_ids(db: AsyncSession, current_user: User) -> list[uuid.UUID] | None:
-    """Return task IDs this admin can see. None = super admin (no filter)."""
+    """Return task IDs this admin can see. None = super admin (no filter).
+    Includes the placeholder task used by imported historical sessions so that
+    normal admins can see historical data alongside their own project data.
+    """
     if current_user.is_super_admin:
         return None
+    from app.services.data_import import PLACEHOLDER_TASK_ID
     result = await db.execute(
         select(Task.id).join(Project, Task.project_id == Project.id)
         .where(Project.created_by_id == current_user.id)
     )
-    return [r[0] for r in result.all()]
+    task_ids = [r[0] for r in result.all()]
+    # Always include the placeholder task so imported sessions are visible to all admins
+    if PLACEHOLDER_TASK_ID not in task_ids:
+        task_ids.append(PLACEHOLDER_TASK_ID)
+    return task_ids
 
 
 async def get_accessible_worker_ids(db: AsyncSession, current_user: User, task_ids: list[uuid.UUID] | None) -> list[uuid.UUID] | None:
@@ -90,6 +110,116 @@ async def get_accessible_user_ids(db: AsyncSession, current_user: User) -> list[
     return await get_accessible_worker_ids(db, current_user, accessible)
 
 
+# ── Historical Data Import ─────────────────────────────────────────────────
+
+@router.post("/import/preview", response_model=ImportPreviewResponse)
+async def import_preview(
+    file: UploadFile = File(...),
+    worksheet_name: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Preview an Excel import without making any database changes.
+    Returns a detailed summary of rows, workers, duplicates, and validation issues.
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .xlsx or .xls files are accepted")
+
+    content = await file.read()
+    if len(content) < 100:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File appears to be empty or invalid")
+    if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB}MB",
+        )
+
+    try:
+        service = ImportService(db)
+        preview = await service.preview(
+            file_content=content,
+            filename=file.filename,
+            worksheet_name=worksheet_name,
+        )
+        return preview
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Failed to parse workbook: {e}")
+
+
+@router.post("/import/confirm", response_model=ImportConfirmResponse)
+async def import_confirm(
+    file: UploadFile = File(...),
+    worksheet_name: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Execute a historical data import after preview and confirmation.
+    All database changes happen in a single transaction.
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .xlsx or .xls files are accepted")
+
+    content = await file.read()
+    if len(content) < 100:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File appears to be empty or invalid")
+    if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum upload size of {settings.MAX_UPLOAD_SIZE_MB}MB",
+        )
+
+    try:
+        service = ImportService(db)
+        result = await service.confirm(
+            file_content=content,
+            filename=file.filename,
+            admin_user=current_user,
+            worksheet_name=worksheet_name,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Import failed: {e}",
+        )
+
+
+@router.get("/import/logs")
+async def import_list_logs(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all historical data import logs."""
+    q = select(ImportLog).order_by(ImportLog.started_at.desc())
+    if not current_user.is_super_admin:
+        q = q.where(ImportLog.imported_by_id == current_user.id)
+    result = await db.execute(q)
+    logs = result.scalars().all()
+    out = []
+    for log in logs:
+        out.append({
+            "id": str(log.id),
+            "filename": log.filename,
+            "worksheet_name": log.worksheet_name,
+            "import_version": log.import_version,
+            "imported_by": str(log.imported_by_id),
+            "status": log.status,
+            "total_rows": log.total_rows,
+            "valid_rows": log.valid_rows,
+            "duplicate_rows": log.duplicate_rows,
+            "workers_created": log.workers_created,
+            "workers_matched": log.workers_matched,
+            "sessions_imported": log.sessions_imported,
+            "started_at": log.started_at.isoformat() if log.started_at else None,
+            "completed_at": log.completed_at.isoformat() if log.completed_at else None,
+            "failed_rows_details": log.failed_rows_details,
+            "error_log": log.error_log,
+        })
+    return out
+
+
 # ── Create Admin Account (Super Admin Only) ─────────────────────────────────────
 
 
@@ -107,13 +237,11 @@ async def admin_create_admin(
     current_user: User = Depends(require_super_admin),
 ):
     """Create a new normal admin account. Super admin only."""
-    # Check if email already exists
     result = await db.execute(select(User).where(User.email == payload.email.strip().lower()))
     existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A user with this email already exists")
 
-    # Validate password length
     if len(payload.password) < 6:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters")
 
@@ -122,7 +250,7 @@ async def admin_create_admin(
         full_name=payload.full_name.strip() if payload.full_name else "Admin User",
         hashed_password=hash_password(payload.password),
         is_admin=True,
-        is_super_admin=False,  # Normal admin — not super admin
+        is_super_admin=False,
         is_verified=True,
         is_active=True,
         company_tag=payload.company_tag.strip() if payload.company_tag else None,
@@ -142,8 +270,7 @@ async def admin_list_applications(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all applications, optionally filtered by task or status.
-    Super admin sees all. Normal admin sees only their own project applications."""
+    """List all applications, optionally filtered by task or status."""
     filters = []
     if task_id:
         filters.append(Application.task_id == task_id)
@@ -195,7 +322,7 @@ async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all unverified users. All admins can view and verify any user."""
+    """List all unverified users."""
     result = await db.execute(
         select(User)
         .where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
@@ -225,7 +352,7 @@ async def admin_list_admins(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List admin users. Super admin sees all; normal admins only see those with the same company_tag."""
+    """List admin users."""
     if current_user.is_super_admin:
         q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
     else:
@@ -244,7 +371,7 @@ async def admin_list_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all users. Super admin sees all. Regular admins only see workers who applied to their tasks."""
+    """List all users."""
     accessible = await get_accessible_user_ids(db, current_user)
     if accessible is None:
         q = select(User).order_by(User.created_at.desc())
@@ -268,14 +395,12 @@ async def admin_get_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Get a user's profile with session performance stats.
-    Normal admins can only view users who participated in their projects."""
+    """Get a user's profile with session performance stats."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_user_ids(db, current_user)
         if accessible is not None and user.id not in accessible:
@@ -296,9 +421,7 @@ async def admin_get_user_sessions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Get all task sessions for a worker (past performance).
-    Normal admins can only view sessions from their own projects."""
-    # Check scope for normal admin
+    """Get all task sessions for a worker (past performance)."""
     if not current_user.is_super_admin:
         accessible = await get_accessible_user_ids(db, current_user)
         if accessible is not None and user_id not in accessible:
@@ -313,11 +436,21 @@ async def admin_get_user_sessions(
         elapsed = None
         if s.checked_in_at and s.checked_out_at:
             elapsed = round((s.checked_out_at - s.checked_in_at).total_seconds() / 60, 1)
-        out.append({"id": str(s.id), "task_title": task.title if task else "Unknown", "task_location": task.location if task else "",
+        # Show real activity name for imported sessions
+        display_title = task.title if task else "Unknown"
+        try:
+            src = str(s.source.value if s.source else "APP").upper()
+        except:
+            src = "APP"
+        if src == "IMPORTED" and s.nature_of_work:
+            display_title = str(s.nature_of_work)
+        elif src == "IMPORTED" and s.proof_notes and "Work:" in str(s.proof_notes):
+            display_title = str(s.proof_notes).split(" | ")[0].replace("Work: ", "").strip()
+        out.append({"id": str(s.id), "task_title": display_title, "task_location": task.location if task else "",
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None,
             "elapsed_minutes": elapsed, "earnings": s.earnings, "status": s.status,
-            "proof_notes": s.proof_notes, "proof_photo_url": s.proof_photo_url})
+            "proof_notes": s.proof_notes, "proof_photo_url": s.proof_photo_url, "source": src})
     return out
 
 
@@ -339,7 +472,6 @@ async def admin_verify_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # All admins can verify any user
     action = payload.action.lower()
     if action == "approve":
         user.is_verified = True; user.is_active = True; user.verification_status = "approved"
@@ -377,7 +509,6 @@ async def admin_active_workers(
         elapsed = round((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
         cap = float(task.estimated_duration_minutes) if task and task.estimated_duration_minutes > 0 else None
         capped_elapsed = round(min(elapsed, cap), 1) if cap else elapsed
-        # Use fixed task total as the potential earnings, not live per-minute calculation
         fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "worker_photo": worker.profile_photo_url if worker else None,
@@ -398,7 +529,6 @@ async def admin_force_stop_session(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or already settled")
 
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_task_ids(db, current_user)
         if accessible is not None and session.task_id not in accessible:
@@ -420,11 +550,6 @@ async def admin_force_stop_session(
 
 # ── Withdrawal Management ─────────────────────────────────────────────────────
 
-from app.models.wallet import Wallet, WithdrawalRequest, WithdrawalStatus, Transaction, TransactionType
-from app.schemas.wallet import WithdrawalResponse
-from app.models.message import Message
-
-
 class WithdrawalAction(BaseModel):
     action: str
     notes: str | None = None
@@ -436,7 +561,8 @@ async def admin_list_withdrawals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List withdrawal requests. Super admin sees all. Regular admins only see withdrawals from their workers."""
+    """List withdrawal requests."""
+    from app.models.message import Message
     q = select(WithdrawalRequest).order_by(WithdrawalRequest.created_at.desc())
     accessible = await get_accessible_user_ids(db, current_user)
     if accessible is not None:
@@ -454,7 +580,7 @@ async def admin_list_withdrawals(
         worker = worker_result.scalar_one_or_none()
         out.append({"id": str(w.id), "user_id": str(w.user_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "amount": w.amount, "status": w.status,
-            "bank_name": w.bank_name, "account_number": "*" * (len(w.account_number) - 4) + w.account_number[-4:],
+            "bank_name": w.bank_name, "account_number": "*" * (len(w.account_number) - 4) + w.account_number[-4:] if w.account_number else "",
             "account_holder_name": w.account_holder_name, "admin_notes": w.admin_notes,
             "processed_at": w.processed_at.isoformat() if w.processed_at else None, "created_at": w.created_at.isoformat(),
             "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
@@ -469,6 +595,7 @@ async def admin_process_withdrawal(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    from app.models.message import Message
     result = await db.execute(select(WithdrawalRequest).where(WithdrawalRequest.id == withdrawal_id))
     withdrawal = result.scalar_one_or_none()
     if not withdrawal:
@@ -476,7 +603,6 @@ async def admin_process_withdrawal(
     if withdrawal.status != WithdrawalStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Withdrawal already processed")
 
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_user_ids(db, current_user)
         if accessible is not None and withdrawal.user_id not in accessible:
@@ -534,13 +660,31 @@ async def admin_time_logs(
     result = await db.execute(q)
     sessions = result.scalars().all()
     now = datetime.now(timezone.utc)
+
     out = []
+    # build worker & task lookup maps for performance
+    worker_ids = []
+    task_ids = []
     for s in sessions:
-        worker_result = await db.execute(select(User).where(User.id == s.worker_id))
-        worker = worker_result.scalar_one_or_none()
-        task_result = await db.execute(select(Task).where(Task.id == s.task_id))
-        task = task_result.scalar_one_or_none()
-        # Always use the fixed task total (pay_rate × duration) as the cost
+        worker_ids.append(s.worker_id)
+        task_ids.append(s.task_id)
+    worker_ids = list(set(worker_ids))
+    task_ids = list(set(task_ids))
+
+    workers_map = {}
+    tasks_map = {}
+    if worker_ids and len(worker_ids) > 0:
+        wr = await db.execute(select(User).where(User.id.in_(worker_ids)))
+        for u in wr.scalars().all():
+            workers_map[u.id] = u
+    if task_ids and len(task_ids) > 0:
+        tr = await db.execute(select(Task).where(Task.id.in_(task_ids)))
+        for t in tr.scalars().all():
+            tasks_map[t.id] = t
+
+    for s in sessions:
+        worker = workers_map.get(s.worker_id)
+        task = tasks_map.get(s.task_id)
         total_cost = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         if s.status == SessionStatus.ACTIVE:
             elapsed = round((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60, 1)
@@ -550,12 +694,27 @@ async def admin_time_logs(
             else:
                 elapsed = None
         cost = s.earnings if s.earnings else total_cost
+        # For imported sessions, display the real activity from nature_of_work / proof_notes
+        display_title = task.title if task else "Unknown"
+        src_raw = None
+        try:
+            src_raw = s.source.value if s.source else "APP"
+        except:
+            src_raw = "APP"
+        src = str(src_raw).upper()
+        if src == "IMPORTED":
+            if s.nature_of_work:
+                display_title = str(s.nature_of_work)
+            elif s.proof_notes and "Work:" in str(s.proof_notes):
+                display_title = str(s.proof_notes).split(" | ")[0].replace("Work: ", "").strip()
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
-            "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
+            "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": display_title,
             "task_location": task.location if task else "", "pay_rate_per_minute": task.pay_rate_per_minute if task else 0,
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "elapsed_minutes": elapsed, "cost": cost,
-            "status": s.status, "rating": s.rating})
+            "status": s.status, "rating": s.rating, "source": src,
+            "nature_of_work": str(s.nature_of_work) if s.nature_of_work else None,
+            "proof_notes": str(s.proof_notes) if s.proof_notes else None})
     return out
 
 
@@ -579,7 +738,6 @@ async def admin_adjust_session_time(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_task_ids(db, current_user)
         if accessible is not None and session.task_id not in accessible:
@@ -587,7 +745,6 @@ async def admin_adjust_session_time(
 
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
-    # Always use the fixed task total (pay_rate × estimated_duration)
     fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
     old_earnings = session.earnings or 0.0
     session.checked_in_at = payload.checked_in_at.replace(tzinfo=timezone.utc) if payload.checked_in_at.tzinfo is None else payload.checked_in_at
@@ -595,17 +752,11 @@ async def admin_adjust_session_time(
         co = payload.checked_out_at.replace(tzinfo=timezone.utc) if payload.checked_out_at.tzinfo is None else payload.checked_out_at
         session.checked_out_at = co
         session.earnings = fixed_earnings; session.status = SessionStatus.COMPLETED
-    else:
-        new_earnings = None
     await db.flush()
     return {"session_id": str(session.id), "checked_in_at": session.checked_in_at.isoformat(),
         "checked_out_at": session.checked_out_at.isoformat() if session.checked_out_at else None,
         "old_earnings": old_earnings, "new_earnings": session.earnings, "status": session.status}
 
-
-import math
-import io
-import csv
 
 # ── Projects ──────────────────────────────────────────────────────────────────
 
@@ -632,8 +783,8 @@ async def admin_list_projects(
 async def admin_create_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db), admin_user: User = Depends(require_admin)):
     data = payload.model_dump()
     if data.get("due_date"):
-        from datetime import timezone
-        data["due_date"] = data["due_date"].replace(tzinfo=timezone.utc) if data["due_date"].tzinfo is None else data["due_date"]
+        from datetime import timezone as _tz
+        data["due_date"] = data["due_date"].replace(tzinfo=_tz.utc) if data["due_date"].tzinfo is None else data["due_date"]
     project = Project(**data, created_by_id=admin_user.id, company_tag=admin_user.company_tag)
     db.add(project); await db.flush(); await db.refresh(project)
     pd = ProjectResponse.model_validate(project); pd.task_count = 0
@@ -648,8 +799,8 @@ async def admin_update_project(project_id: uuid.UUID, payload: ProjectUpdate, db
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     update_data = payload.model_dump(exclude_unset=True)
     if update_data.get("due_date"):
-        from datetime import timezone
-        update_data["due_date"] = update_data["due_date"].replace(tzinfo=timezone.utc) if update_data["due_date"].tzinfo is None else update_data["due_date"]
+        from datetime import timezone as _tz
+        update_data["due_date"] = update_data["due_date"].replace(tzinfo=_tz.utc) if update_data["due_date"].tzinfo is None else update_data["due_date"]
     for field, value in update_data.items():
         setattr(project, field, value)
     db.add(project); await db.flush(); await db.refresh(project)
@@ -695,7 +846,6 @@ async def export_tasks_csv(current_user: User = Depends(require_admin), db: Asyn
 async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15, ge=1, le=100),
     task_status: str | None = Query(None, alias="status"), search: str | None = Query(None),
     project_id: uuid.UUID | None = Query(None), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
-    from app.schemas.task import TaskListResponse
     filters = []
     if task_status:
         filters.append(Task.status == task_status)
@@ -732,7 +882,6 @@ async def admin_task_cost(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     task = task_result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_task_ids(db, current_user)
         if accessible is not None and task.id not in accessible:
@@ -764,26 +913,38 @@ async def admin_all_task_costs(db: AsyncSession = Depends(get_db), current_user:
     all_sessions = sessions_result.scalars().all()
     now = datetime.now(timezone.utc)
     out = []
+    # Reference placeholder task ID for historical import grouping
+    _PH_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
     for t in tasks:
         t_sessions = [s for s in all_sessions if s.task_id == t.id]
-        paid = sum(s.earnings or 0 for s in t_sessions if s.status == SessionStatus.COMPLETED)
-        live = sum((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60 * t.pay_rate_per_minute for s in t_sessions if s.status == SessionStatus.ACTIVE)
-        estimated = t.pay_rate_per_minute * t.estimated_duration_minutes
-        out.append({"task_id": str(t.id), "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,
-            "estimated_cost": round(estimated, 2), "paid_cost": round(paid, 2), "live_cost": round(live, 2), "total_cost": round(paid + live, 2), "session_count": len(t_sessions)})
+        # For the placeholder historical task, group by nature_of_work instead
+        if t.id == _PH_ID:
+            work_groups = {}
+            for s in t_sessions:
+                g = (str(s.nature_of_work) if s.nature_of_work else "Other").strip()
+                if g not in work_groups:
+                    work_groups[g] = {"sessions": 0, "paid": 0.0, "live": 0.0}
+                work_groups[g]["sessions"] += 1
+                work_groups[g]["paid"] += s.earnings or 0
+            for work_name, wg in sorted(work_groups.items()):
+                out.append({"task_id": str(t.id), "task_title": work_name, "status": "completed",
+                    "pay_rate_per_minute": 0, "estimated_cost": 0, "paid_cost": round(wg["paid"], 2),
+                    "live_cost": 0, "total_cost": round(wg["paid"], 2), "session_count": wg["sessions"]})
+        else:
+            paid = sum(s.earnings or 0 for s in t_sessions if s.status == SessionStatus.COMPLETED)
+            live = sum((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60 * t.pay_rate_per_minute for s in t_sessions if s.status == SessionStatus.ACTIVE)
+            estimated = t.pay_rate_per_minute * t.estimated_duration_minutes
+            out.append({"task_id": str(t.id), "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,
+                "estimated_cost": round(estimated, 2), "paid_cost": round(paid, 2), "live_cost": round(live, 2), "total_cost": round(paid + live, 2), "session_count": len(t_sessions)})
     return out
 
 
 # ── Reporting & Analytics ─────────────────────────────────────────────────────
 
-from calendar import monthrange
-
-
 @router.get("/analytics/dashboard")
 async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
-    from app.models.wallet import WithdrawalRequest, WithdrawalStatus
+    from app.models.wallet import WithdrawalRequest as _WD, WithdrawalStatus as _WDS
 
-    # Determine scoping based on admin type
     accessible = await get_accessible_user_ids(db, current_user)
     accessible_tasks = await get_accessible_task_ids(db, current_user)
 
@@ -801,16 +962,9 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
         all_apps = all_apps_raw.scalars().all()
         sessions_result = await db.execute(select(TaskSession))
         all_sessions = sessions_result.scalars().all()
-        pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING"))).scalar_one()
+        pend_wd = (await db.execute(select(func.count()).select_from(_WD).where(_WD.status == "PENDING"))).scalar_one()
     else:
-        # Normal admin: scoped to their workers and tasks
-        if accessible is not None:
-            total_users = len(accessible)
-            total_users_q = (await db.execute(select(func.count()).select_from(User).where(User.id.in_(accessible)))).scalar_one() if accessible else 0
-        else:
-            total_users = 0
-        total_users = total_users_q if 'total_users_q' in dir() else 0
-
+        total_users = 0
         if accessible_tasks is not None:
             total_tasks = (await db.execute(select(func.count()).select_from(Task).where(Task.id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
             all_tasks_raw = await db.execute(select(Task).where(Task.id.in_(accessible_tasks)))
@@ -843,27 +997,27 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
         all_sessions = sessions_result.scalars().all()
 
         if accessible is not None and accessible:
-            pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING", WithdrawalRequest.user_id.in_(accessible)))).scalar_one()
+            pend_wd = (await db.execute(select(func.count()).select_from(_WD).where(_WD.status == "PENDING", _WD.user_id.in_(accessible)))).scalar_one()
         elif accessible is not None:
             pend_wd = 0
         else:
-            pend_wd = (await db.execute(select(func.count()).select_from(WithdrawalRequest).where(WithdrawalRequest.status == "PENDING"))).scalar_one()
+            pend_wd = (await db.execute(select(func.count()).select_from(_WD).where(_WD.status == "PENDING"))).scalar_one()
 
     open_tasks = sum(1 for t in all_tasks if t.status == "open")
     completed_tasks = sum(1 for t in all_tasks if t.status == "completed")
     cancelled_tasks = sum(1 for t in all_tasks if t.status == "cancelled")
-    completed_sessions = [s for s in all_sessions if s.status == SessionStatus.COMPLETED]
-    total_revenue = sum(s.earnings or 0 for s in completed_sessions)
+    settled_sessions = [s for s in all_sessions if s.status in (SessionStatus.COMPLETED, SessionStatus.SETTLED)]
+    total_revenue = sum(s.earnings or 0 for s in settled_sessions)
     live_cost = sum((now - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60 * next((t.pay_rate_per_minute for t in all_tasks if t.id == s.task_id), 0) for s in all_sessions if s.status == SessionStatus.ACTIVE)
-    today_sessions = [s for s in completed_sessions if s.checked_out_at and s.checked_out_at.replace(tzinfo=timezone.utc) >= today_start]
+    today_sessions = [s for s in settled_sessions if s.checked_out_at and s.checked_out_at.replace(tzinfo=timezone.utc) >= today_start]
     today_revenue = sum(s.earnings or 0 for s in today_sessions)
     completion_rate = round(completed_tasks / total_tasks * 100, 1) if total_tasks else 0
-    rated = [s for s in completed_sessions if s.rating is not None]
+    rated = [s for s in settled_sessions if s.rating is not None]
     avg_rating = round(sum(s.rating for s in rated) / len(rated), 2) if rated else None
 
     return {"users": {"total": total_users}, "tasks": {"total": total_tasks, "open": open_tasks, "completed": completed_tasks, "cancelled": cancelled_tasks, "completion_rate": completion_rate},
         "applications": {"total": total_apps, "pending": sum(1 for a in all_apps if a.status == "pending"), "approved": sum(1 for a in all_apps if a.status == "approved")},
-        "sessions": {"total": len(all_sessions), "completed": len(completed_sessions), "active_now": active_workers},
+        "sessions": {"total": len(all_sessions), "completed": len(settled_sessions), "active_now": active_workers},
         "revenue": {"total_paid": round(total_revenue, 2), "live_accruing": round(live_cost, 2), "today": round(today_revenue, 2)},
         "withdrawals": {"pending": pend_wd}, "rating": {"average": avg_rating, "count": len(rated)}}
 
@@ -873,7 +1027,7 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
     now = datetime.now(timezone.utc)
     target_year = year or now.year
 
-    sessions_q = select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED)
+    sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
         accessible = await get_accessible_task_ids(db, current_user)
         if accessible is not None:
@@ -921,7 +1075,7 @@ async def analytics_task_completion(db: AsyncSession = Depends(get_db), current_
 
 @router.get("/analytics/export/workers")
 async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
-    from app.models.wallet import WithdrawalRequest
+    from app.models.wallet import WithdrawalRequest as _WD
 
     users_q = select(User).where(User.is_admin == False).order_by(User.created_at.desc())
     if not current_user.is_super_admin:
@@ -933,7 +1087,8 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     users_result = await db.execute(users_q)
     users = users_result.scalars().all()
 
-    sessions_q = select(TaskSession).where(TaskSession.status == SessionStatus.COMPLETED)
+    # Include both COMPLETED (app) and SETTLED (imported) sessions in worker exports
+    sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
         accessible_tasks = await get_accessible_task_ids(db, current_user)
         if accessible_tasks is not None:
@@ -942,14 +1097,14 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     all_sessions = sessions_result.scalars().all()
 
     output = io.StringIO(); writer = csv.writer(output)
-    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified"])
+    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified", "Source"])
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         hours = sum((s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 3600 for s in u_sessions if s.checked_in_at and s.checked_out_at)
         earnings = sum(s.earnings or 0 for s in u_sessions)
         rated = [s for s in u_sessions if s.rating is not None]
         avg_r = round(sum(s.rating for s in rated) / len(rated), 2) if rated else ""
-        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No"])
+        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source.value if u.source else "APP"])
     output.seek(0)
     filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -983,14 +1138,14 @@ async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), curren
     output = io.StringIO(); writer = csv.writer(output)
     writer.writerow(["Full Name","Email","Phone","Location","Nationality","Race","Academic Qualification","Body Height (cm)","NRIC / Passport",
         "Bank QR Image URL","Is Verified","Joined Date","Task Title","Task Category","Task Location","Check-In","Check-Out","Duration (min)",
-        "Earnings (RM)","Payment Status","Withdrawal Status","Withdrawal Amount (RM)","Withdrawal Date","Rating","Feedback"])
+        "Earnings (RM)","Payment Status","Withdrawal Status","Withdrawal Amount (RM)","Withdrawal Date","Rating","Feedback","Source","Legacy Session ID","Nature of Work","Work Environment"])
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         u_withdrawals = [w for w in all_withdrawals if w.user_id == u.id]
         if not u_sessions:
             writer.writerow([u.full_name, u.email, "", u.location or "", u.nationality or "", u.race or "", u.academic_qualification or "",
                 u.body_height_cm or "", u.nric_passport or "", u.bank_qr_code_url or "", "Yes" if u.is_verified else "No",
-                u.created_at.strftime("%Y-%m-%d %H:%M"), "", "", "", "", "", "", "", "", "", "", "", "", ""])
+                u.created_at.strftime("%Y-%m-%d %H:%M"), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
         else:
             for s in u_sessions:
                 task_result = await db.execute(select(Task).where(Task.id == s.task_id))
@@ -1015,7 +1170,8 @@ async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), curren
                     u.body_height_cm or "", u.nric_passport or "", u.bank_qr_code_url or "", "Yes" if u.is_verified else "No",
                     u.created_at.strftime("%Y-%m-%d %H:%M"), task.title if task else "Unknown", task.category if task else "", task.location if task else "",
                     s.checked_in_at.strftime("%Y-%m-%d %H:%M") if s.checked_in_at else "", s.checked_out_at.strftime("%Y-%m-%d %H:%M") if s.checked_out_at else "",
-                    elapsed or "", s.earnings if s.earnings else "", payment_status, withdrawal_status, withdrawal_amount, withdrawal_date, s.rating if s.rating else "", s.feedback or ""])
+                    elapsed or "", s.earnings if s.earnings else "", payment_status, withdrawal_status, withdrawal_amount, withdrawal_date, s.rating if s.rating else "", s.feedback or "",
+                    s.source.value if s.source else "APP", s.import_reference or "", s.nature_of_work or "", s.work_environment or ""])
     output.seek(0)
     filename = f"workers_detailed_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -1082,31 +1238,23 @@ async def database_restore(file: UploadFile = File(...), _: User = Depends(requi
 
 # ── Session Approval ──────────────────────────────────────────────────────
 
-from app.models.task_session import TaskSession as _TaskSessionForApproval
-from app.models.task import TaskStatus as _TaskStatusForApproval
-from app.models.wallet import BankAccount as _BankAccountForApproval
-from app.models.wallet import Wallet as _WalletForApproval, Transaction as _TransactionForApproval, TransactionType as _TransactionTypeForApproval
-from app.models.message import Message as _MessageForApproval
-
-
 @router.get("/sessions/pending-approval")
 async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     accessible = await get_accessible_task_ids(db, current_user)
-    filters = [_TaskSessionForApproval.status == SessionStatus.COMPLETED]
+    filters = [TaskSession.status == SessionStatus.COMPLETED]
     if accessible is not None:
-        filters.append(_TaskSessionForApproval.task_id.in_(accessible))
-    result = await db.execute(select(_TaskSessionForApproval).where(and_(*filters)).order_by(_TaskSessionForApproval.checked_out_at.desc()))
+        filters.append(TaskSession.task_id.in_(accessible))
+    result = await db.execute(select(TaskSession).where(and_(*filters)).order_by(TaskSession.checked_out_at.desc()))
     sessions = result.scalars().all()
+    from app.models.wallet import BankAccount as _BankAccountForApproval
     out = []
     for s in sessions:
         worker_result = await db.execute(select(User).where(User.id == s.worker_id))
         worker = worker_result.scalar_one_or_none()
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
         task = task_result.scalar_one_or_none()
-        # ALWAYS use fixed task total — ignore whatever is stored
         fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         if fixed_earnings <= 0: continue
-        # Fetch worker's payment account details
         bank_result = await db.execute(select(_BankAccountForApproval).where(_BankAccountForApproval.user_id == s.worker_id))
         bank = bank_result.scalar_one_or_none()
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
@@ -1134,12 +1282,13 @@ class SessionApprovalAction(BaseModel):
 
 @router.post("/sessions/{session_id}/approve")
 async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalAction, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(_TaskSessionForApproval).where(_TaskSessionForApproval.id == session_id, _TaskSessionForApproval.status == SessionStatus.COMPLETED))
+    from app.models.wallet import BankAccount as _BA, Wallet as _W, Transaction as _Txn, TransactionType as _TT
+    from app.models.message import Message as _Msg
+    result = await db.execute(select(TaskSession).where(TaskSession.id == session_id, TaskSession.status == SessionStatus.COMPLETED))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Completed session not found")
 
-    # Check scope for normal admin
     if not current_user.is_super_admin:
         accessible = await get_accessible_task_ids(db, current_user)
         if accessible is not None and session.task_id not in accessible:
@@ -1152,7 +1301,6 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         if not (1.0 <= payload.rating <= 5.0):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Rating must be between 1 and 5")
 
-        # Recalculate earnings from the task's fixed total, ignoring whatever is stored
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
         fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
@@ -1160,22 +1308,20 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
         session.earnings = fixed_earnings
 
-        wallet_result = await db.execute(select(_WalletForApproval).where(_WalletForApproval.user_id == session.worker_id))
+        wallet_result = await db.execute(select(_W).where(_W.user_id == session.worker_id))
         wallet = wallet_result.scalar_one_or_none()
         if not wallet:
-            wallet = _WalletForApproval(user_id=session.worker_id); db.add(wallet); await db.flush()
+            wallet = _W(user_id=session.worker_id); db.add(wallet); await db.flush()
         wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
-        db.add(_TransactionForApproval(user_id=session.worker_id, type=_TransactionTypeForApproval.CREDIT, amount=fixed_earnings,
+        db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=fixed_earnings,
             description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
-        if task.status != _TaskStatusForApproval.COMPLETED: task.status = _TaskStatusForApproval.COMPLETED
+        if task.status != TaskStatus.COMPLETED: task.status = TaskStatus.COMPLETED
 
-        # Store rating and feedback
         session.rating = round(payload.rating, 1)
         session.feedback = payload.feedback or None
 
         reason = f" Notes: {payload.notes}" if payload.notes else ""
-        rating_stars = "⭐" * round(payload.rating)
-        db.add(_MessageForApproval(sender_id=current_user.id, recipient_id=session.worker_id,
+        db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"✅ Your task \"{task.title}\" has been approved! RM {fixed_earnings:.2f} has been credited to your wallet.{reason}"))
         session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": fixed_earnings, "rating": session.rating, "feedback": session.feedback}
@@ -1184,7 +1330,7 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         task = task_result.scalar_one()
         reason = f" Reason: {payload.notes}" if payload.notes else ""
         session.earnings = 0.0; db.add(session)
-        db.add(_MessageForApproval(sender_id=current_user.id, recipient_id=session.worker_id,
+        db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason}"))
         await db.flush()
         return {"status": "rejected", "session_id": str(session.id)}

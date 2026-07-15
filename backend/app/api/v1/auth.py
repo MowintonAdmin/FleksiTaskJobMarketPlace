@@ -8,6 +8,7 @@ from google.auth.transport import requests as google_requests
 
 from app.database import get_db
 from app.models.user import User
+from app.models.enums import DataSource
 from app.schemas.auth import (
     TokenResponse, GoogleAuthRequest, LoginRequest, RefreshTokenRequest,
     ForgotPasswordRequest, ResetPasswordRequest,
@@ -96,21 +97,103 @@ async def google_auth(payload: GoogleAuthRequest, db: AsyncSession = Depends(get
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
+async def _find_imported_worker(db: AsyncSession, payload: UserCreate) -> User | None:
+    """Search for an existing imported worker profile using the configured matching priority.
+    
+    Priority order (from settings.IMPORT_MATCH_PRIORITY):
+      1. NRIC/Passport — match nric_passport field
+      2. Phone Number  — match phone field  
+      3. Email         — match the placeholder email generated during import
+    """
+    for field in settings.IMPORT_MATCH_PRIORITY:
+        lookup_value = None
+        if field == "nric" and payload.nric_passport:
+            lookup_value = payload.nric_passport.strip()
+        elif field == "phone" and payload.phone:
+            lookup_value = payload.phone.strip()
+        elif field == "email":
+            # For email, check if the registered email matches the placeholder email
+            # OR if an imported worker has the same email (which would be rare but possible)
+            lookup_value = payload.email.lower().strip()
+        else:
+            continue
+
+        if not lookup_value:
+            continue
+
+        query = select(User).where(
+            User.source == DataSource.IMPORTED,
+        )
+        if field == "nric":
+            query = query.where(User.nric_passport == lookup_value)
+        elif field == "phone":
+            query = query.where(User.phone == lookup_value)
+        elif field == "email":
+            query = query.where(User.email == lookup_value)
+
+        result = await db.execute(query)
+        matched = result.scalar_one_or_none()
+        if matched:
+            logger.info(
+                "Registration linked to imported worker %s via %s match (participant_id=%s)",
+                matched.id, field, matched.legacy_participant_id,
+            )
+            return matched
+
+    return None
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user with email and password. Account requires admin approval."""
+    """Register a new user with email and password. Account requires admin approval.
+    
+    Before creating a new account, searches for an existing imported worker profile
+    using the configured matching priority (NRIC → Phone → Email by default).
+    If found, links the new registration to the existing imported profile.
+    """
     if not payload.password:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password is required")
 
-    result = await db.execute(select(User).where(User.email == payload.email))
+    # Check if email is already taken by an existing APP user
+    result = await db.execute(
+        select(User).where(User.email == payload.email, User.source == DataSource.APP)
+    )
     if result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    # Step 1: Try to link to an existing imported worker profile
+    imported_user = await _find_imported_worker(db, payload)
+    if imported_user:
+        # Link: update the imported profile to become an active APP user
+        imported_user.email = payload.email
+        imported_user.hashed_password = hash_password(payload.password)
+        imported_user.source = DataSource.APP
+        imported_user.is_active = True
+        imported_user.full_name = payload.full_name
+
+        # Preserve existing NRIC/phone if the payload has values (don't overwrite with None)
+        if payload.nric_passport:
+            imported_user.nric_passport = payload.nric_passport
+        if payload.phone:
+            imported_user.phone = payload.phone
+
+        await db.flush()
+        logger.info("Imported worker %s linked to account %s", imported_user.legacy_participant_id, imported_user.email)
+        return {
+            "message": "Welcome back! Your existing historical profile has been linked to this account. "
+                       "All your previous sessions and earnings are now visible. "
+                       "Please log in to continue.",
+            "linked": True,
+            "imported_worker_id": str(imported_user.legacy_participant_id),
+        }
+
+    # Step 2: No imported worker found — create a brand new APP user
     user = User(
         email=payload.email,
         full_name=payload.full_name,
         hashed_password=hash_password(payload.password),
         is_verified=False,
+        source=DataSource.APP,
     )
     db.add(user)
     await db.flush()

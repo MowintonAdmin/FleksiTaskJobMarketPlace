@@ -326,7 +326,16 @@ export default function Users() {
                     <span className="font-medium text-gray-900">{u.full_name || '—'}</span>
                   </button>
                 </td>
-                <td className="px-5 py-3 text-gray-500">{u.email}</td>
+                <td className="px-5 py-3 text-gray-500">
+                  {u.source === 'IMPORTED' ? (
+                    <div>
+                      <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">⚠ Not registered</span>
+                      <p className="text-xs text-gray-400 mt-1">Participant ID: {u.legacy_participant_id || '—'}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm">{u.email}</p>
+                  )}
+                </td>
                 <td className="px-5 py-3 text-gray-500">{u.location || '—'}</td>
                 <td className="px-5 py-3 text-center">
                   {u.is_admin

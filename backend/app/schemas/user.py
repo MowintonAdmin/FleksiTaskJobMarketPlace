@@ -21,7 +21,7 @@ def normalize_profile_photo_url(url: str | None) -> str | None:
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str  # String to support imported worker placeholder emails (e.g. legacy-xxx@import.local)
     full_name: str
     bio: str | None = None
     location: str | None = None
@@ -80,6 +80,8 @@ class UserResponse(UserBase):
     is_super_admin: bool
     company_tag: str | None = None
     is_verified: bool
+    source: str | None = None
+    legacy_participant_id: str | None = None
     created_at: datetime
 
     @field_validator("profile_photo_url", mode="before")
