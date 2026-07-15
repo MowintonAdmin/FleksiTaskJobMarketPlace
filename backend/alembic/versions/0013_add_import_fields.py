@@ -44,123 +44,48 @@ branch_labels = None
 depends_on = None
 
 
-def _column_exists(table: str, column: str) -> bool:
-    bind = op.get_bind()
-    result = bind.execute(
-        sa.text(
-            "SELECT 1 FROM information_schema.columns "
-            "WHERE table_schema = 'public' AND table_name = :t AND column_name = :c"
-        ),
-        {"t": table, "c": column},
-    )
-    return result.fetchone() is not None
-
-
-def _index_exists(index_name: str) -> bool:
-    bind = op.get_bind()
-    result = bind.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"),
-        {"name": index_name},
-    )
-    return result.fetchone() is not None
-
-
-def _table_exists(table: str) -> bool:
-    bind = op.get_bind()
-    result = bind.execute(
-        sa.text(
-            "SELECT 1 FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_name = :t"
-        ),
-        {"t": table},
-    )
-    return result.fetchone() is not None
-
-
 def upgrade() -> None:
+    # Use raw SQL with IF NOT EXISTS / DO NOTHING so the migration is idempotent
+    # regardless of what was manually applied to the DB beforehand.
+
     # ── users ──────────────────────────────────────────────────────────────────
-    if not _column_exists("users", "source"):
-        op.add_column(
-            "users",
-            sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
-        )
-    if not _column_exists("users", "legacy_participant_id"):
-        op.add_column(
-            "users",
-            sa.Column("legacy_participant_id", sa.String(100), nullable=True),
-        )
-    if not _index_exists("ix_users_legacy_participant_id"):
-        op.create_index(
-            "ix_users_legacy_participant_id", "users", ["legacy_participant_id"],
-            postgresql_using="btree",
-        )
+    op.execute(sa.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'APP'"))
+    op.execute(sa.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_participant_id VARCHAR(100)"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_users_legacy_participant_id ON users(legacy_participant_id)"))
 
     # ── task_sessions ──────────────────────────────────────────────────────────
-    if not _column_exists("task_sessions", "source"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("source", sa.String(20), nullable=False, server_default="APP"),
-        )
-    if not _column_exists("task_sessions", "import_reference"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("import_reference", sa.String(100), nullable=True),
-        )
-    if not _index_exists("ix_task_sessions_import_reference"):
-        op.create_index(
-            "ix_task_sessions_import_reference", "task_sessions", ["import_reference"],
-            postgresql_using="btree",
-        )
-    if not _column_exists("task_sessions", "duration_minutes"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("duration_minutes", sa.Float(), nullable=True),
-        )
-    if not _column_exists("task_sessions", "nature_of_work"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("nature_of_work", sa.String(255), nullable=True),
-        )
-    if not _column_exists("task_sessions", "work_environment"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("work_environment", sa.String(255), nullable=True),
-        )
-    if not _column_exists("task_sessions", "legacy_device_id"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("legacy_device_id", sa.String(100), nullable=True),
-        )
-    if not _column_exists("task_sessions", "raw_import_data"):
-        op.add_column(
-            "task_sessions",
-            sa.Column("raw_import_data", postgresql.JSONB(), nullable=True),
-        )
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'APP'"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS import_reference VARCHAR(100)"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_task_sessions_import_reference ON task_sessions(import_reference)"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS duration_minutes FLOAT"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS nature_of_work VARCHAR(255)"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS work_environment VARCHAR(255)"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS legacy_device_id VARCHAR(100)"))
+    op.execute(sa.text("ALTER TABLE task_sessions ADD COLUMN IF NOT EXISTS raw_import_data JSONB"))
 
     # ── import_logs (new table) ────────────────────────────────────────────────
-    if not _table_exists("import_logs"):
-        op.create_table(
-            "import_logs",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-            sa.Column("filename", sa.String(255), nullable=False),
-            sa.Column("worksheet_name", sa.String(100), nullable=True),
-            sa.Column("import_version", sa.String(20), nullable=False, server_default="1.0"),
-            sa.Column(
-                "imported_by_id", postgresql.UUID(as_uuid=True),
-                sa.ForeignKey("users.id"), nullable=False,
-            ),
-            sa.Column("status", sa.String(20), nullable=False, server_default="running"),
-            sa.Column("total_rows", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("valid_rows", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("duplicate_rows", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("workers_created", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("workers_matched", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("sessions_imported", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("failed_rows_details", postgresql.JSONB(), nullable=True),
-            sa.Column("error_log", postgresql.JSONB(), nullable=True),
-            sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-            sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+    op.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS import_logs (
+            id UUID NOT NULL,
+            filename VARCHAR(255) NOT NULL,
+            worksheet_name VARCHAR(100),
+            import_version VARCHAR(20) DEFAULT '1.0' NOT NULL,
+            imported_by_id UUID NOT NULL,
+            status VARCHAR(20) DEFAULT 'running' NOT NULL,
+            total_rows INTEGER DEFAULT '0' NOT NULL,
+            valid_rows INTEGER DEFAULT '0' NOT NULL,
+            duplicate_rows INTEGER DEFAULT '0' NOT NULL,
+            workers_created INTEGER DEFAULT '0' NOT NULL,
+            workers_matched INTEGER DEFAULT '0' NOT NULL,
+            sessions_imported INTEGER DEFAULT '0' NOT NULL,
+            failed_rows_details JSONB,
+            error_log JSONB,
+            started_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            completed_at TIMESTAMP WITH TIME ZONE,
+            PRIMARY KEY (id),
+            FOREIGN KEY (imported_by_id) REFERENCES users (id)
         )
+    """))
 
 
 def downgrade() -> None:
