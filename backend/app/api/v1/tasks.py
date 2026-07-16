@@ -114,11 +114,69 @@ async def update_task(
     if task.employer_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
+    # Track old status before update
+    old_status = task.status
+
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     db.add(task)
     await db.flush()
     await db.refresh(task)
+
+    # If task is being completed or cancelled, auto-checkout active workers
+    from app.models.task_session import TaskSession, SessionStatus
+    from app.models.wallet import Wallet, Transaction, TransactionType
+    from app.models.message import Message
+
+    if (task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED) and
+            old_status in (TaskStatus.OPEN, TaskStatus.IN_PROGRESS)):
+        # Find all active sessions for this task
+        sessions_result = await db.execute(
+            select(TaskSession).where(
+                TaskSession.task_id == task.id,
+                TaskSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED]),
+            )
+        )
+        active_sessions = sessions_result.scalars().all()
+
+        for session in active_sessions:
+            fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+
+            # Auto-checkout
+            now = datetime.now(timezone.utc)
+            session.checked_out_at = now
+            session.earnings = fixed_earnings
+            session.status = SessionStatus.COMPLETED
+            session.proof_notes = f"[Auto-settled — task {task.status}]"
+            db.add(session)
+
+            # Credit worker's wallet
+            wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
+            wallet = wallet_result.scalar_one_or_none()
+            if not wallet:
+                wallet = Wallet(user_id=session.worker_id)
+                db.add(wallet)
+                await db.flush()
+            wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
+
+            # Transaction record
+            db.add(Transaction(
+                user_id=session.worker_id,
+                type=TransactionType.CREDIT,
+                amount=fixed_earnings,
+                description=f"Earnings for task '{task.title}' (task {task.status})",
+                reference_id=str(session.id),
+            ))
+
+            # Notify worker
+            db.add(Message(
+                sender_id=current_user.id,
+                recipient_id=session.worker_id,
+                body=f"✅ Your task \"{task.title}\" has been settled. RM {fixed_earnings:.2f} has been credited to your wallet.",
+            ))
+
+        if active_sessions:
+            await db.flush()
 
     count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
     task_data = TaskResponse.model_validate(task)
