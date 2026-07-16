@@ -218,8 +218,17 @@ export default function Withdrawals() {
                   <p className="font-bold text-gray-900">RM {w.amount.toFixed(2)}</p>
                 </td>
                 <td className="px-5 py-3 text-gray-600">
-                  <p>{w.bank_name}</p>
-                  <p className="text-xs text-gray-400">{w.account_holder_name} · {w.account_number}</p>
+                  {w.payment_type === 'tng_ewallet' ? (
+                    <>
+                      <p>📱 Touch 'n Go eWallet</p>
+                      <p className="text-xs text-gray-400">{w.phone_number || '—'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>{w.bank_name}</p>
+                      <p className="text-xs text-gray-400">{w.account_holder_name} · {w.account_number}</p>
+                    </>
+                  )}
                 </td>
                 <td className="px-5 py-3">
                   {w.worker_bank_qr_url ? (

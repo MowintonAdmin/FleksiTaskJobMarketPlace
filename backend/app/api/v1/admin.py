@@ -588,8 +588,10 @@ async def admin_list_withdrawals(
         worker = worker_result.scalar_one_or_none()
         out.append({"id": str(w.id), "user_id": str(w.user_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "amount": w.amount, "status": w.status,
+            "payment_type": w.payment_type,
             "bank_name": w.bank_name, "account_number": "*" * (len(w.account_number) - 4) + w.account_number[-4:] if w.account_number else "",
-            "account_holder_name": w.account_holder_name, "admin_notes": w.admin_notes,
+            "account_holder_name": w.account_holder_name, "phone_number": w.phone_number,
+            "admin_notes": w.admin_notes,
             "processed_at": w.processed_at.isoformat() if w.processed_at else None, "created_at": w.created_at.isoformat(),
             "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
             "worker_profile_photo": worker.profile_photo_url if worker else None})
