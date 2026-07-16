@@ -494,10 +494,18 @@ async def admin_active_workers(
     current_user: User = Depends(require_admin),
 ):
     accessible = await get_accessible_task_ids(db, current_user)
-    filters = [TaskSession.status == SessionStatus.ACTIVE]
+    filters = [
+        TaskSession.status == SessionStatus.ACTIVE,
+        Task.status != TaskStatus.CANCELLED,
+    ]
     if accessible is not None:
         filters.append(TaskSession.task_id.in_(accessible))
-    result = await db.execute(select(TaskSession).where(and_(*filters)).order_by(TaskSession.checked_in_at.asc()))
+    result = await db.execute(
+        select(TaskSession)
+        .join(Task, TaskSession.task_id == Task.id)
+        .where(and_(*filters))
+        .order_by(TaskSession.checked_in_at.asc())
+    )
     sessions = result.scalars().all()
     out = []
     now = datetime.now(timezone.utc)
@@ -955,7 +963,11 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
         total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
         total_tasks = (await db.execute(select(func.count()).select_from(Task))).scalar_one()
         total_apps = (await db.execute(select(func.count()).select_from(Application))).scalar_one()
-        active_workers = (await db.execute(select(func.count()).select_from(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE))).scalar_one()
+        active_workers = (await db.execute(
+            select(func.count()).select_from(TaskSession)
+            .join(Task, TaskSession.task_id == Task.id)
+            .where(TaskSession.status == SessionStatus.ACTIVE, Task.status != TaskStatus.CANCELLED)
+        )).scalar_one()
         tasks_result = await db.execute(select(Task))
         all_tasks = tasks_result.scalars().all()
         all_apps_raw = await db.execute(select(Application))
@@ -979,7 +991,11 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
             total_apps = 0
 
         if accessible_tasks is not None:
-            active_workers = (await db.execute(select(func.count()).select_from(TaskSession).where(TaskSession.status == SessionStatus.ACTIVE, TaskSession.task_id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
+            active_workers = (await db.execute(
+                select(func.count()).select_from(TaskSession)
+                .join(Task, TaskSession.task_id == Task.id)
+                .where(TaskSession.status == SessionStatus.ACTIVE, Task.status != TaskStatus.CANCELLED, TaskSession.task_id.in_(accessible_tasks))
+            )).scalar_one() if accessible_tasks else 0
         else:
             active_workers = 0
 
