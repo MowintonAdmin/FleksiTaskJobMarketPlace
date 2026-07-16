@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { fetchTasks, setFilters } from '../store/taskSlice'
 
-const CATEGORIES = ['Cleaning', 'Delivery', 'Events', 'Gardening', 'Moving', 'Repair', 'Security', 'Other']
+const CATEGORIES = ['Cleaning', 'Cooking', 'Delivery', 'Events', 'Gardening', 'Moving', 'Repair', 'Security', 'Other']
 
 export default function FilterBar({ filters }) {
   const dispatch = useDispatch()
