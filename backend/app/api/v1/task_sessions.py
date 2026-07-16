@@ -167,11 +167,8 @@ async def check_in(
     )
     db.add(session)
 
-    # Mark task as in_progress when a worker first checks in
-    if task.status == TaskStatus.OPEN:
-        task.status = TaskStatus.IN_PROGRESS
-        db.add(task)
-
+    # Keep task OPEN so it remains visible to other workers with available slots.
+    # Task will be marked COMPLETED when the worker checks out.
     await db.flush()
     return TaskSessionResponse.model_validate(session)
 
