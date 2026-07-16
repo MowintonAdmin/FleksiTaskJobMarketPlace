@@ -349,10 +349,21 @@ export default function Wallet() {
       {/* Bank account summary */}
       {bankAccount && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">🏦</div>
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">
+            {bankAccount.payment_type === 'tng_ewallet' ? '📱' : '🏦'}
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 text-sm">{bankAccount.bank_name}</p>
-            <p className="text-xs text-gray-500">{bankAccount.account_holder_name} · {bankAccount.account_number}</p>
+            {bankAccount.payment_type === 'tng_ewallet' ? (
+              <>
+                <p className="font-semibold text-gray-900 text-sm">📱 Touch 'n Go eWallet</p>
+                <p className="text-xs text-gray-500">📞 {bankAccount.phone_number || '—'}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-gray-900 text-sm">{bankAccount.bank_name}</p>
+                <p className="text-xs text-gray-500">{bankAccount.account_holder_name} · {bankAccount.account_number}</p>
+              </>
+            )}
           </div>
           <button onClick={() => setShowBankModal(true)} className="text-xs text-primary-600 hover:underline font-medium">Edit</button>
         </div>
@@ -420,7 +431,11 @@ export default function Wallet() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">RM {w.amount.toFixed(2)}</p>
-                  <p className="text-xs text-gray-500">{w.bank_name} · {w.account_number}</p>
+                  {w.payment_type === 'tng_ewallet' ? (
+                    <p className="text-xs text-gray-500">📱 Touch 'n Go · {w.phone_number}</p>
+                  ) : (
+                    <p className="text-xs text-gray-500">{w.bank_name} · {w.account_number}</p>
+                  )}
                   <p className="text-xs text-gray-400">{new Date(w.created_at).toLocaleString()}</p>
                 </div>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${WD_COLORS[w.status]}`}>
