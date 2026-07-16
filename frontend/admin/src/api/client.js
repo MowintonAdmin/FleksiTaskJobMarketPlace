@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { storage } from '../utils/storage'
 
 function normalizeApiHost(value) {
   if (!value) return ''
@@ -37,7 +38,7 @@ const apiBaseUrl = `${apiHost}/api/v1`
 const api = axios.create({ baseURL: apiBaseUrl })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('admin_access_token')
+  const token = storage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -48,17 +49,17 @@ api.interceptors.response.use(
     const original = error.config
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
-      const rt = localStorage.getItem('admin_refresh_token')
+      const rt = storage.getItem('refresh_token')
       if (rt) {
         try {
           const { data } = await axios.post(`${apiBaseUrl}/auth/refresh`, { refresh_token: rt })
-          localStorage.setItem('admin_access_token', data.access_token)
-          localStorage.setItem('admin_refresh_token', data.refresh_token)
+          storage.setItem('access_token', data.access_token)
+          storage.setItem('refresh_token', data.refresh_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)
         } catch {
-          localStorage.removeItem('admin_access_token')
-          localStorage.removeItem('admin_refresh_token')
+          storage.removeItem('access_token')
+          storage.removeItem('refresh_token')
           window.location.href = '/login'
         }
       }
