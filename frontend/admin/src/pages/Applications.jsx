@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import RefreshButton from '../components/RefreshButton'
 import usePolling from '../hooks/usePolling'
 
 const STATUS_COLORS = {
@@ -239,9 +240,12 @@ export default function Applications() {
 
   return (
     <div className="p-6 space-y-5">
-      <h1 className="text-2xl font-bold text-gray-900">
-        Applications <span className="text-gray-400 font-normal text-lg">({apps.length})</span>
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Applications <span className="text-gray-400 font-normal text-lg">({apps.length})</span>
+        </h1>
+        <RefreshButton onClick={load} loading={loading} />
+      </div>
 
       {/* Search + Filters */}
       <SearchFilterBar
