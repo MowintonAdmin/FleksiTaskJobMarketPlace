@@ -32,7 +32,14 @@ function getRuntimeApiHost() {
 }
 
 const configuredApiHost = normalizeApiHost(import.meta.env.VITE_API_BASE_URL?.trim())
-const apiHost = configuredApiHost || getRuntimeApiHost()
+let apiHost = configuredApiHost
+if (!apiHost) {
+  apiHost = getRuntimeApiHost()
+  // Dev fallback: when running locally on port 3001, API is on 8000
+  if (apiHost && !configuredApiHost && window.location.port === '3001') {
+    apiHost = 'http://localhost:8000'
+  }
+}
 const apiBaseUrl = `${apiHost}/api/v1`
 
 const api = axios.create({ baseURL: apiBaseUrl })

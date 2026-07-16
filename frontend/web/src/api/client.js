@@ -9,7 +9,18 @@ function normalizeApiHost(value) {
 }
 
 const configuredApiHost = normalizeApiHost(getPublicConfig('VITE_API_BASE_URL', import.meta.env.VITE_API_BASE_URL?.trim()))
-const apiHost = configuredApiHost || (import.meta.env.DEV ? 'http://localhost:8000' : '')
+let apiHost = configuredApiHost
+if (!apiHost) {
+  if (import.meta.env.DEV) {
+    apiHost = 'http://localhost:8000'
+  } else {
+    apiHost = typeof window !== 'undefined' ? window.location.origin : ''
+    // Worker runs on port 3000, API on 8000
+    if (apiHost && typeof window !== 'undefined' && window.location.port === '3000') {
+      apiHost = 'http://localhost:8000'
+    }
+  }
+}
 const apiBaseUrl = `${apiHost}/api/v1`
 
 const api = axios.create({
