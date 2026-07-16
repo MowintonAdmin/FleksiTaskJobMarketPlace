@@ -622,10 +622,15 @@ async def admin_process_withdrawal(
     action = payload.action.lower()
     if action == "approve":
         withdrawal.status = WithdrawalStatus.APPROVED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
+        if withdrawal.payment_type == "tng_ewallet":
+            txn_desc = f"Withdrawal approved to Touch 'n Go eWallet · {withdrawal.phone_number}"
+            msg_body = f"✅ Your withdrawal of RM {withdrawal.amount:.2f} has been approved and transferred to your Touch 'n Go eWallet ({withdrawal.phone_number}). Please allow 1-3 business days."
+        else:
+            txn_desc = f"Withdrawal approved to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}"
+            msg_body = f"✅ Your withdrawal of RM {withdrawal.amount:.2f} has been approved and transferred to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}. Please allow 1-3 business days."
         db.add(Transaction(user_id=withdrawal.user_id, type=TransactionType.WITHDRAWAL_COMPLETED, amount=-withdrawal.amount,
-            description=f"Withdrawal approved to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}", reference_id=str(withdrawal.id)))
-        db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id,
-            body=f"✅ Your withdrawal of RM {withdrawal.amount:.2f} has been approved and transferred to {withdrawal.bank_name} ···{withdrawal.account_number[-4:]}. Please allow 1-3 business days."))
+            description=txn_desc, reference_id=str(withdrawal.id)))
+        db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id, body=msg_body))
     elif action == "reject":
         withdrawal.status = WithdrawalStatus.REJECTED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
         wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == withdrawal.user_id))
@@ -1259,10 +1264,7 @@ async def database_restore(file: UploadFile = File(...), _: User = Depends(requi
 @router.get("/sessions/pending-approval")
 async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     accessible = await get_accessible_task_ids(db, current_user)
-    filters = [
-        TaskSession.status == SessionStatus.COMPLETED,
-        TaskSession.earnings == None,  # unprocessed sessions have null earnings
-    ]
+    filters = [TaskSession.status == SessionStatus.COMPLETED]
     if accessible is not None:
         filters.append(TaskSession.task_id.in_(accessible))
     result = await db.execute(select(TaskSession).where(and_(*filters)).order_by(TaskSession.checked_out_at.desc()))
