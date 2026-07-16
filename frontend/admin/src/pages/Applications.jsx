@@ -217,7 +217,7 @@ export default function Applications() {
     if (filterStatus) params.set('status', filterStatus)
     Promise.all([
       api.get(`/admin/applications?${params}`),
-      api.get('/tasks?page=1&page_size=100'),
+      api.get('/admin/tasks?page=1&page_size=100'),
     ]).then(([appsRes, tasksRes]) => {
       setApps(appsRes.data)
       setTasks(tasksRes.data.tasks || [])
