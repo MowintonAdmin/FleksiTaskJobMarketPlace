@@ -1259,7 +1259,10 @@ async def database_restore(file: UploadFile = File(...), _: User = Depends(requi
 @router.get("/sessions/pending-approval")
 async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     accessible = await get_accessible_task_ids(db, current_user)
-    filters = [TaskSession.status == SessionStatus.COMPLETED]
+    filters = [
+        TaskSession.status == SessionStatus.COMPLETED,
+        TaskSession.earnings == None,  # unprocessed sessions have null earnings
+    ]
     if accessible is not None:
         filters.append(TaskSession.task_id.in_(accessible))
     result = await db.execute(select(TaskSession).where(and_(*filters)).order_by(TaskSession.checked_out_at.desc()))
@@ -1347,7 +1350,7 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
         reason = f" Reason: {payload.notes}" if payload.notes else ""
-        session.earnings = 0.0; db.add(session)
+        session.earnings = 0.0; session.status = SessionStatus.SETTLED; db.add(session)
         db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason}"))
         await db.flush()
