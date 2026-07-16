@@ -760,13 +760,25 @@ async def admin_adjust_session_time(
 
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
-    fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
     old_earnings = session.earnings or 0.0
+
+    # 1. Update check-in time
     session.checked_in_at = payload.checked_in_at.replace(tzinfo=timezone.utc) if payload.checked_in_at.tzinfo is None else payload.checked_in_at
+
     if payload.checked_out_at:
         co = payload.checked_out_at.replace(tzinfo=timezone.utc) if payload.checked_out_at.tzinfo is None else payload.checked_out_at
         session.checked_out_at = co
-        session.earnings = fixed_earnings; session.status = SessionStatus.COMPLETED
+
+        # 2. Calculate earnings based on actual elapsed minutes instead of fixed task total
+        elapsed_minutes = (co - session.checked_in_at).total_seconds() / 60
+        if elapsed_minutes < 0:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Check-out time must be after check-in time")
+        calculated_earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
+        session.earnings = calculated_earnings
+
+        # 3. Mark as SETTLED (not COMPLETED) — prevents reappearing in session approval
+        session.status = SessionStatus.SETTLED
+
     await db.flush()
     return {"session_id": str(session.id), "checked_in_at": session.checked_in_at.isoformat(),
         "checked_out_at": session.checked_out_at.isoformat() if session.checked_out_at else None,
