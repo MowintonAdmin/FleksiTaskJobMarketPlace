@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getPublicConfig } from '../config/runtime'
+import { storage } from '../utils/storage'
 
 function normalizeApiHost(value) {
   if (!value) return ''
@@ -20,7 +21,7 @@ api.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type']
   }
-  const token = localStorage.getItem('access_token')
+  const token = storage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -41,7 +42,7 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
-      const refreshToken = localStorage.getItem('refresh_token')
+      const refreshToken = storage.getItem('refresh_token')
       if (refreshToken) {
         try {
           // Coalesce concurrent refresh attempts into a single request.
@@ -53,13 +54,13 @@ api.interceptors.response.use(
               .finally(() => { _refreshPromise = null })
           }
           const { data } = await _refreshPromise
-          localStorage.setItem('access_token', data.access_token)
-          localStorage.setItem('refresh_token', data.refresh_token)
+          storage.setItem('access_token', data.access_token)
+          storage.setItem('refresh_token', data.refresh_token)
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)
         } catch {
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
+          storage.removeItem('access_token')
+          storage.removeItem('refresh_token')
           window.location.href = '/login'
         }
       }
