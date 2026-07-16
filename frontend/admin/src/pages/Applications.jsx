@@ -215,13 +215,12 @@ export default function Applications() {
     const params = new URLSearchParams()
     if (filterTask) params.set('task_id', filterTask)
     if (filterStatus) params.set('status', filterStatus)
-    Promise.all([
-      api.get(`/admin/applications?${params}`),
-      api.get('/admin/tasks?page=1&page_size=100'),
-    ]).then(([appsRes, tasksRes]) => {
-      setApps(appsRes.data)
-      setTasks(tasksRes.data.tasks || [])
-    }).catch(() => toast.error('Failed to load applications'))
+    api.get(`/admin/applications?${params}`)
+      .then(appsRes => setApps(appsRes.data))
+      .catch(() => toast.error('Failed to load applications'))
+    api.get('/admin/tasks?page=1&page_size=100')
+      .then(tasksRes => setTasks(tasksRes.data.tasks || []))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [filterTask, filterStatus])
 
