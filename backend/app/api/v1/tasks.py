@@ -42,9 +42,9 @@ async def list_tasks(
     if category:
         filters.append(Task.category == category)
     if min_pay is not None:
-        filters.append(Task.pay_rate_per_minute >= min_pay)
+        filters.append(Task.pay_rate_per_minute >= min_pay / 60.0)
     if max_pay is not None:
-        filters.append(Task.pay_rate_per_minute <= max_pay)
+        filters.append(Task.pay_rate_per_minute <= max_pay / 60.0)
 
     count_q = await db.execute(select(func.count()).select_from(Task).where(and_(*filters)))
     total = count_q.scalar_one()
