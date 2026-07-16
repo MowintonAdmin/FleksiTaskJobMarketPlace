@@ -109,8 +109,8 @@ async def _find_imported_worker(db: AsyncSession, payload: UserCreate) -> User |
         lookup_value = None
         if field == "nric" and payload.nric_passport:
             lookup_value = payload.nric_passport.strip()
-        elif field == "phone" and payload.phone:
-            lookup_value = payload.phone.strip()
+        elif field == "phone" and getattr(payload, "phone", None):
+            lookup_value = getattr(payload, "phone", "").strip()
         elif field == "email":
             # For email, check if the registered email matches the placeholder email
             # OR if an imported worker has the same email (which would be rare but possible)
@@ -174,8 +174,8 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
         # Preserve existing NRIC/phone if the payload has values (don't overwrite with None)
         if payload.nric_passport:
             imported_user.nric_passport = payload.nric_passport
-        if payload.phone:
-            imported_user.phone = payload.phone
+        if getattr(payload, "phone", None):
+            imported_user.phone = getattr(payload, "phone")
 
         await db.flush()
         logger.info("Imported worker %s linked to account %s", imported_user.legacy_participant_id, imported_user.email)
