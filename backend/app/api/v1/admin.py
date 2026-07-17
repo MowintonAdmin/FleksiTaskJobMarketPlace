@@ -551,7 +551,7 @@ async def admin_force_stop_session(
     session.proof_notes = f"[Admin force-stopped by {current_user.full_name or current_user.email}]"
     db.add(session)
     db.add(Message(sender_id=current_user.id, recipient_id=session.worker_id,
-        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. The payment will be credited upon approval from the session approval page."))
+        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. The total amount will be credited upon approval from the session approval page."))
     await db.flush()
     return {"session_id": str(session.id), "elapsed_minutes": round(elapsed_minutes, 1), "pending_earnings": earnings, "status": session.status}
 
