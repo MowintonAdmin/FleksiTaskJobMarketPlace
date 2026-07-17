@@ -326,6 +326,31 @@ function CancelConfirm({ task, onClose, onConfirm }) {
   )
 }
 
+// ── Delete Task Confirm ─────────────────────────────────────────────────────
+
+function DeleteTaskConfirm({ count, onClose, onConfirm }) {
+  const [loading, setLoading] = useState(false)
+  const confirm = async () => {
+    setLoading(true)
+    try { await onConfirm(); toast.success(`${count} task(s) deleted`); onClose() } 
+    catch (e) { toast.error(e.response?.data?.detail || 'Failed to delete task(s)') }
+    finally { setLoading(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+        <p className="text-3xl text-center">🗑</p>
+        <h3 className="text-center font-bold text-gray-900">Delete {count} task(s)?</h3>
+        <p className="text-center text-sm text-gray-500">This will permanently remove {count} task(s) and all related applications. This action cannot be undone.</p>
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Keep</button>
+          <button onClick={confirm} disabled={loading} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">{loading ? 'Deleting…' : 'Yes, Delete'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Delete Project Confirm ─────────────────────────────────────────────────
 
 function DeleteProjectConfirm({ project, onClose, onConfirm }) {
@@ -353,7 +378,7 @@ function DeleteProjectConfirm({ project, onClose, onConfirm }) {
 
 // ── Task Table ─────────────────────────────────────────────────────────────
 
-function TaskTable({ tasks, loading, search, onEdit, onCancel, onStatusChange, savingStatus }) {
+function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggleSelect, selectedIds, onDeleteSelected, onDeleteAll }) {
   const displayed = search
     ? tasks.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.location.toLowerCase().includes(search.toLowerCase()))
     : tasks
@@ -380,8 +405,25 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onStatusChange, s
 
   return (
     <div className="space-y-3">
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-gray-100 rounded-xl px-4 py-2.5 flex items-center gap-3 text-sm">
+          <span className="font-medium text-gray-700">{selectedIds.size} selected</span>
+          <button onClick={onDeleteSelected} className="px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors text-xs">🗑 Delete Selected</button>
+          <button onClick={onDeleteAll} className="px-3 py-1.5 bg-red-700 text-white rounded-lg font-semibold hover:bg-red-800 transition-colors text-xs">🗑 Delete All</button>
+          <span className="flex-1" />
+          <button onClick={() => onToggleSelect(null, true)} className="text-xs text-gray-500 hover:text-gray-700 hover:underline">Clear selection</button>
+        </div>
+      )}
       {displayed.map(task => (
         <div key={task.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+          {/* Checkbox for bulk selection */}
+          <input
+            type="checkbox"
+            checked={selectedIds.has(task.id)}
+            onChange={() => onToggleSelect(task.id)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+          />
           <div className="shrink-0">
             {task.photo_url ? (
               <img src={mediaUrl(task.photo_url)} alt="" className="w-10 h-10 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
@@ -410,18 +452,16 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onStatusChange, s
           <div className="shrink-0 flex items-center gap-2">
             <select
               value={task.status}
-              disabled={savingStatus === task.id}
-              onChange={e => onStatusChange(task, e.target.value)}
-              className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 disabled:opacity-50 bg-gray-100 text-gray-700"
+              disabled={false}
+              onChange={e => onStatusChange ? null : null}
+              className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 bg-gray-100 text-gray-700"
+              onClick={e => e.stopPropagation()}
             >
               {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>)}
             </select>
-            {task.status === 'open' && (
-              <>
-                <button onClick={() => onEdit(task)} title="Edit" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 text-base">✏️</button>
-                <button onClick={() => onCancel(task)} title="Cancel" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-base">🚫</button>
-              </>
-            )}
+            <button onClick={() => onEdit(task)} title="Edit" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 text-base">✏️</button>
+            <button onClick={() => onCancel(task)} title="Cancel" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-base">🚫</button>
+            <button onClick={() => onDelete(task)} title="Delete permanently" className="p-1.5 rounded-lg hover:bg-red-100 text-red-700 text-base">🗑</button>
           </div>
         </div>
       ))}
@@ -456,7 +496,12 @@ export default function Tasks() {
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [cancelTask, setCancelTask] = useState(null)
+  const [deleteTaskTarget, setDeleteTaskTarget] = useState(null) // single task or array for bulk
+  const [deleteTaskCount, setDeleteTaskCount] = useState(0)
   const [savingStatus, setSavingStatus] = useState(null)
+  
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState(new Set())
 
   const loadProjects = async () => {
     setLoadingProjects(true)
@@ -491,6 +536,7 @@ export default function Tasks() {
     setPage(1)
     setSearch('')
     setFilterStatus('')
+    setSelectedIds(new Set())
   }
 
   const handleStatusChange = async (task, newStatus) => {
@@ -509,6 +555,64 @@ export default function Tasks() {
     setSelectedProject(null)
     setTasks([])
     setPage(1)
+    setSelectedIds(new Set())
+  }
+
+  // Toggle selection for a single task or clear all
+  const handleToggleSelect = (id, clearAll) => {
+    if (clearAll) {
+      setSelectedIds(new Set())
+      return
+    }
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Delete single task
+  const handleDeleteTask = (task) => {
+    setDeleteTaskTarget([task.id])
+    setDeleteTaskCount(1)
+  }
+
+  // Delete selected tasks
+  const handleDeleteSelected = () => {
+    if (selectedIds.size === 0) return
+    setDeleteTaskTarget(Array.from(selectedIds))
+    setDeleteTaskCount(selectedIds.size)
+  }
+
+  // Delete all tasks in current project
+  const handleDeleteAll = () => {
+    const ids = tasks.map(t => t.id)
+    setDeleteTaskTarget(ids)
+    setDeleteTaskCount(ids.length)
+  }
+
+  // Execute the actual deletion
+  const executeDelete = async () => {
+    if (!deleteTaskTarget || deleteTaskTarget.length === 0) return
+    let successCount = 0
+    let failCount = 0
+    for (const id of deleteTaskTarget) {
+      try {
+        await api.delete(`/tasks/${id}`)
+        successCount++
+      } catch {
+        failCount++
+      }
+    }
+    if (successCount > 0) {
+      toast.success(`${successCount} task(s) deleted successfully`)
+      setSelectedIds(new Set())
+      await loadTasks(page)
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} task(s) failed to delete`)
+    }
   }
 
   // Filter projects by search
@@ -630,6 +734,11 @@ export default function Tasks() {
             search={search}
             onEdit={(t) => { setEditTask(t); setShowTaskModal(true) }}
             onCancel={setCancelTask}
+            onDelete={handleDeleteTask}
+            onToggleSelect={handleToggleSelect}
+            selectedIds={selectedIds}
+            onDeleteSelected={handleDeleteSelected}
+            onDeleteAll={handleDeleteAll}
             onStatusChange={handleStatusChange}
             savingStatus={savingStatus}
           />
@@ -649,6 +758,13 @@ export default function Tasks() {
       {deleteProject && <DeleteProjectConfirm project={deleteProject} onClose={() => setDeleteProject(null)} onConfirm={() => { setDeleteProject(null); loadProjects() }} />}
       {showTaskModal && <TaskModal task={editTask} projectId={selectedProject?.id} onClose={() => { setShowTaskModal(false); setEditTask(null) }} onSaved={() => { setShowTaskModal(false); setEditTask(null); loadTasks(page) }} />}
       {cancelTask && <CancelConfirm task={cancelTask} onClose={() => setCancelTask(null)} onConfirm={() => loadTasks(page)} />}
+      {deleteTaskTarget && (
+        <DeleteTaskConfirm
+          count={deleteTaskCount}
+          onClose={() => { setDeleteTaskTarget(null); setDeleteTaskCount(0) }}
+          onConfirm={executeDelete}
+        />
+      )}
     </div>
   )
 }
