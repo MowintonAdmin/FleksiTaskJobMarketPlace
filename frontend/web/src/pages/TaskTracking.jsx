@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { taskSessionsApi, applicationsApi, tasksApi } from '../api/tasks'

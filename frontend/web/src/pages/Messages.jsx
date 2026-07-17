@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
@@ -171,6 +172,9 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   }, [conversation])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   // Scroll to bottom only when messages are added (not on is_read-only updates)
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -22,6 +23,9 @@ function MessageModal({ worker, onClose }) {
   }, [worker.id])
 
   useEffect(() => { reload() }, [reload])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   const send = async () => {
     if (!body.trim()) return

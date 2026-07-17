@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { toast } from 'react-toastify'
 import api from '../api/client'
 import usePolling from '../hooks/usePolling'
@@ -27,6 +28,9 @@ export default function SessionApproval() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   // Auto-refresh every 5s
   usePolling(load, 5000)

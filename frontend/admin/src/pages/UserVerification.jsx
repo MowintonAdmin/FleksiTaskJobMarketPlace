@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import api from '../api/client'
@@ -49,6 +50,9 @@ export default function UserVerification() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   // Auto-refresh every 5s
   usePolling(load, 5000)

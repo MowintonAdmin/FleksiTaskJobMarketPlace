@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -225,6 +226,9 @@ export default function Applications() {
   }, [filterTask, filterStatus])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   // Auto-refresh applications list every 5s
   usePolling(load, 5000)

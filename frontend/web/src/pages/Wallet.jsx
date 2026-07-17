@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { walletApi } from '../api/wallet'
 import { toast } from 'react-toastify'
 
@@ -291,6 +292,9 @@ export default function Wallet() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds
+  useAutoRefresh(load)
 
   if (loading) {
     return (
