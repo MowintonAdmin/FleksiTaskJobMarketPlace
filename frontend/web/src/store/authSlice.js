@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { authApi } from '../api/auth'
+import { storage } from '../utils/storage'
 
 function extractErrorMessage(err, fallbackMessage) {
   const detail = err.response?.data?.detail
@@ -29,8 +30,8 @@ function extractErrorMessage(err, fallbackMessage) {
 export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async (idToken, { rejectWithValue }) => {
   try {
     const data = await authApi.googleAuth(idToken)
-    localStorage.setItem('access_token', data.access_token)
-    localStorage.setItem('refresh_token', data.refresh_token)
+    storage.setItem('access_token', data.access_token)
+    storage.setItem('refresh_token', data.refresh_token)
     return data
   } catch (err) {
     return rejectWithValue(extractErrorMessage(err, 'Google login failed'))
@@ -40,8 +41,8 @@ export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async (i
 export const registerUser = createAsyncThunk('auth/register', async (payload, { rejectWithValue }) => {
   try {
     const data = await authApi.register(payload)
-    localStorage.setItem('access_token', data.access_token)
-    localStorage.setItem('refresh_token', data.refresh_token)
+    storage.setItem('access_token', data.access_token)
+    storage.setItem('refresh_token', data.refresh_token)
     return data
   } catch (err) {
     return rejectWithValue(extractErrorMessage(err, 'Registration failed'))
@@ -51,8 +52,8 @@ export const registerUser = createAsyncThunk('auth/register', async (payload, { 
 export const loginWithEmail = createAsyncThunk('auth/loginWithEmail', async ({ email, password }, { rejectWithValue }) => {
   try {
     const data = await authApi.login(email, password)
-    localStorage.setItem('access_token', data.access_token)
-    localStorage.setItem('refresh_token', data.refresh_token)
+    storage.setItem('access_token', data.access_token)
+    storage.setItem('refresh_token', data.refresh_token)
     return data
   } catch (err) {
     return rejectWithValue(extractErrorMessage(err, 'Login failed'))
@@ -69,15 +70,15 @@ export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async 
 
 export const logoutUser = createAsyncThunk('auth/logout', async () => {
   await authApi.logout()
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
+  storage.removeItem('access_token')
+  storage.removeItem('refresh_token')
 })
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
-    accessToken: localStorage.getItem('access_token'),
+    accessToken: storage.getItem('access_token'),
     loading: false,
     error: null,
   },
