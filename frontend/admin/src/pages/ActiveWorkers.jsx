@@ -75,9 +75,7 @@ export default function ActiveWorkers() {
     setStopping(true)
     try {
       const { data } = await api.post(`/admin/sessions/${confirmTarget.session_id}/force-stop`)
-      toast.success(
-        `Session stopped. ${confirmTarget.worker_name || 'Worker'} credited RM ${data.earnings_credited.toFixed(2)}.`
-      )
+      toast.success('Session stopped successfully.')
       setConfirmTarget(null)
       await load()
     } catch (err) {
