@@ -278,6 +278,7 @@ export default function TimeLogs() {
                   { value: '', label: 'All statuses' },
                   { value: 'active', label: 'Active' },
                   { value: 'completed', label: 'Completed' },
+                  { value: 'settled', label: 'Settled' },
                 ],
               },
             ]}
