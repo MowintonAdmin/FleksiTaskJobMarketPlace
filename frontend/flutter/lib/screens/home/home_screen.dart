@@ -205,8 +205,7 @@ class _WalletBanner extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('My Wallet', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
               Text('RM ${available.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
-              if (pending > 0)
-                Text('⏳ RM ${pending.toStringAsFixed(2)} pending', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+
             ]),
           ),
           const Column(children: [

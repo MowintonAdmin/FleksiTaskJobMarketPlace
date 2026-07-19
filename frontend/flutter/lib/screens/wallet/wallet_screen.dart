@@ -101,11 +101,7 @@ class _OverviewTab extends StatelessWidget {
               const SizedBox(height: 8),
               Text('RM ${wallet?.availableBalance.toStringAsFixed(2) ?? '0.00'}',
                   style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w700)),
-              if ((wallet?.pendingBalance ?? 0) > 0) ...[
-                const SizedBox(height: 4),
-                Text('⏳ RM ${wallet!.pendingBalance.toStringAsFixed(2)} pending',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13)),
-              ],
+
             ]),
           ),
           const SizedBox(height: 16),
