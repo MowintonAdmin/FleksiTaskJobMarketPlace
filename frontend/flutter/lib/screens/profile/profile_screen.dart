@@ -188,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Personal Info', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 16),
-                _Field(label: 'Full Name', ctrl: _nameCtrl, icon: Icons.person_outlined),
+                _Field(label: 'Full Name', ctrl: _nameCtrl, icon: Icons.person_outlined, maxLength: 255),
                 const SizedBox(height: 12),
                 _Field(label: 'Location', ctrl: _locationCtrl, icon: Icons.location_on_outlined, hint: 'e.g. Kuala Lumpur'),
                 const SizedBox(height: 12),
@@ -307,14 +307,16 @@ class _Field extends StatelessWidget {
   final IconData icon;
   final String? hint;
   final TextInputType? type;
+  final int? maxLength;
 
-  const _Field({required this.label, required this.ctrl, required this.icon, this.hint, this.type});
+  const _Field({required this.label, required this.ctrl, required this.icon, this.hint, this.type, this.maxLength});
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: ctrl,
       keyboardType: type,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),

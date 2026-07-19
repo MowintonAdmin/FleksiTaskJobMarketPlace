@@ -830,6 +830,14 @@ async def admin_update_project(project_id: uuid.UUID, payload: ProjectUpdate, db
         update_data["due_date"] = update_data["due_date"].replace(tzinfo=_tz.utc) if update_data["due_date"].tzinfo is None else update_data["due_date"]
     for field, value in update_data.items():
         setattr(project, field, value)
+
+    # If a new future due_date is set and the project was previously completed, reactivate it
+    from datetime import timezone as _tz2
+    if (project.due_date and project.due_date > datetime.now(_tz2.utc)
+            and project.status == ProjectStatus.COMPLETED
+            and "status" not in update_data):
+        project.status = ProjectStatus.ACTIVE
+
     db.add(project); await db.flush(); await db.refresh(project)
     task_count = await db.execute(select(func.count()).select_from(Task).where(Task.project_id == project.id))
     pd = ProjectResponse.model_validate(project); pd.task_count = task_count.scalar_one()
