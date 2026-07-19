@@ -125,7 +125,6 @@ async def update_task(
 
     # If task is being completed or cancelled, auto-checkout active workers
     from app.models.task_session import TaskSession, SessionStatus
-    from app.models.wallet import Wallet, Transaction, TransactionType
     from app.models.message import Message
 
     if (task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED) and
@@ -142,37 +141,20 @@ async def update_task(
         for session in active_sessions:
             fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
 
-            # Auto-checkout
+            # Auto-checkout — leave in COMPLETED state so Session Approval can process it.
+            # Do NOT credit the wallet here; payment is issued only upon admin approval.
             now = datetime.now(timezone.utc)
             session.checked_out_at = now
             session.earnings = fixed_earnings
             session.status = SessionStatus.COMPLETED
-            session.proof_notes = f"[Auto-settled — task {task.status}]"
+            session.proof_notes = f"[Auto-checked-out — task {task.status}]"
             db.add(session)
 
-            # Credit worker's wallet
-            wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
-            wallet = wallet_result.scalar_one_or_none()
-            if not wallet:
-                wallet = Wallet(user_id=session.worker_id)
-                db.add(wallet)
-                await db.flush()
-            wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
-
-            # Transaction record
-            db.add(Transaction(
-                user_id=session.worker_id,
-                type=TransactionType.CREDIT,
-                amount=fixed_earnings,
-                description=f"Earnings for task '{task.title}' (task {task.status})",
-                reference_id=str(session.id),
-            ))
-
-            # Notify worker
+            # Notify worker that their session is pending approval
             db.add(Message(
                 sender_id=current_user.id,
                 recipient_id=session.worker_id,
-                body=f"✅ Your task \"{task.title}\" has been settled. RM {fixed_earnings:.2f} has been credited to your wallet.",
+                body=f"⏳ Your session for \"{task.title}\" has been checked out automatically. Payment of RM {fixed_earnings:.2f} will be credited once the session is approved.",
             ))
 
         if active_sessions:
