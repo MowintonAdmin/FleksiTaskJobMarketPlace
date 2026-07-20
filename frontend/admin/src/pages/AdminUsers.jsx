@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'

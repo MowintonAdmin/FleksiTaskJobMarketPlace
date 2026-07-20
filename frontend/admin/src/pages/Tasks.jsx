@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import SearchFilterBar from '../components/SearchFilterBar'

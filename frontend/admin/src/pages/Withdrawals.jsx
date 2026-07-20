@@ -1,11 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
+
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import Pagination from '../components/Pagination'
-
-import usePolling from '../hooks/usePolling'
 
 const ITEMS_PER_PAGE = 50
 

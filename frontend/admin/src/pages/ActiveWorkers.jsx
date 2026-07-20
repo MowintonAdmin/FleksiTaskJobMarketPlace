@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
+import usePausablePolling from '../hooks/usePausablePolling'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -64,12 +64,10 @@ export default function ActiveWorkers() {
     }
   }, [])
 
-  // Initial load + auto-refresh every 30 seconds
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
-  }, [load])
+  useEffect(() => { load() }, [load])
+
+  // Auto-refresh every 30 seconds, pauses while admin is interacting
+  usePausablePolling(load, 30000)
 
   const handleForceStop = async () => {
     if (!confirmTarget) return

@@ -5,6 +5,8 @@ import api from '../api/client'
 import usePausablePolling from '../hooks/usePausablePolling'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
+import { useAutoRefresh } from '../utils/useAutoRefresh'
+import usePolling from '../hooks/usePolling'
 
 const REJECTION_REASONS = [
   'ID photo is unclear or blurry',
@@ -50,11 +52,8 @@ export default function UserVerification() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
-
-  // Auto-refresh every 5s
-  usePolling(load, 5000)
+  // Auto-refresh every 30 seconds, pauses while admin is interacting
+  usePausablePolling(load, 30000)
 
   const handleApprove = async (userId) => {
     setProcessingId(userId)
