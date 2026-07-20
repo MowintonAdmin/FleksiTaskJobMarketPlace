@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { storage } from '../utils/storage'
+import { apiBaseUrl } from '../api/client'
 
 /**
  * Reusable WebSocket hook for real-time admin updates.
@@ -33,15 +34,16 @@ export default function useWebSocket({ onEvent, reconnectBaseMs = 1000, maxRecon
     const token = storage.getItem('access_token')
     if (!token) return
 
-    // Build WebSocket URL based on current location
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    // In dev mode, admin runs on :3001 but API is on :8000
+    // Build WebSocket URL from the same API host the REST client uses —
+    // in production the admin dashboard and API can live on different hosts
+    // (e.g. admin.example.com vs api.example.com), so window.location.host
+    // is not a safe assumption.
     let wsUrl
     if (import.meta.env.DEV) {
       wsUrl = `ws://localhost:8000/api/v1/ws/admin?token=${token}`
     } else {
-      wsUrl = `${protocol}//${host}/api/v1/ws/admin?token=${token}`
+      const wsBase = apiBaseUrl.replace(/^http/, 'ws')
+      wsUrl = `${wsBase}/ws/admin?token=${token}`
     }
 
     try {
