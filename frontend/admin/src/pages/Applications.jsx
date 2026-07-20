@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
-import usePolling from '../hooks/usePolling'
+
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -135,7 +134,6 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
         </div>
         <div className="px-5 py-5 space-y-5">
-          {/* Profile */}
           <div className="flex items-center gap-4">
             {worker.profile_photo_url
               ? <img src={worker.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-16 h-16 rounded-full object-cover" />
@@ -149,7 +147,6 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
           </div>
           {worker.bio && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{worker.bio}</p>}
 
-          {/* Stats */}
           {stats && (
             <div className="grid grid-cols-3 gap-3">
               {[
@@ -165,13 +162,11 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
             </div>
           )}
 
-          {/* Message button */}
           <button onClick={() => onMessage(worker)}
             className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
             💬 Send Message
           </button>
 
-          {/* Session history */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Past Sessions</p>
             {loading ? <div className="h-20 bg-gray-100 rounded-xl animate-pulse" /> :
@@ -227,11 +222,8 @@ export default function Applications() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
-
-  // Auto-refresh applications list every 5s
-  usePolling(load, 5000)
+  // Auto-refresh every 30s — pauses while admin is typing/clicking
+  // Real-time updates via WebSocket
 
   const updateStatus = async (id, newStatus) => {
     try {
@@ -250,7 +242,6 @@ export default function Applications() {
         <RefreshButton onClick={load} loading={loading} />
       </div>
 
-      {/* Search + Filters */}
       <SearchFilterBar
         search={search}
         onSearchChange={setSearch}
@@ -278,7 +269,6 @@ export default function Applications() {
         ]}
       />
 
-      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">

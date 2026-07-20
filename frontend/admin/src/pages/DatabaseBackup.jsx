@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { toast } from 'react-toastify'
 import api from '../api/client'
 

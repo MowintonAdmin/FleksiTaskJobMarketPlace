@@ -24,6 +24,75 @@ const ACADEMIC_QUALIFICATIONS = [
 
 const RACES = ['Malay', 'Chinese', 'Indian', 'Kadazan', 'Iban', 'Orang Asli', 'Others']
 
+function ChangePasswordModal({ onClose }) {
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match')
+      return
+    }
+    setLoading(true)
+    try {
+      await authApi.changePassword(oldPassword, newPassword)
+      toast.success('Password changed successfully!')
+      onClose()
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Failed to change password'
+      toast.error(detail)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Change Password</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Current Password</label>
+            <div className="relative">
+              <input type={showOld ? 'text' : 'password'} value={oldPassword} onChange={e => setOldPassword(e.target.value)} className="input pr-10" required />
+              <button type="button" onClick={() => setShowOld(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">{showOld ? '🙈' : '👁️'}</button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">New Password</label>
+            <div className="relative">
+              <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input pr-10" required minLength={8} />
+              <button type="button" onClick={() => setShowNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">{showNew ? '🙈' : '👁️'}</button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Minimum 8 characters</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input" required />
+            {confirmPassword && confirmPassword !== newPassword && <p className="text-red-500 text-xs mt-1">Passwords do not match</p>}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">{loading ? 'Changing...' : 'Change Password'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function verifyStatus(user) {
   if (!user) return 'pending'
   if (user.verification_status === 'approved') return 'approved'
@@ -138,6 +207,7 @@ export default function Profile() {
     nric_passport: user?.nric_passport || '',
   })
   const [skillInput, setSkillInput] = useState('')
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   // Sync form state when user data changes (e.g., after save or photo upload)
   useEffect(() => {
@@ -480,6 +550,19 @@ export default function Profile() {
           {saving ? 'Saving...' : 'Save Profile'}
         </button>
       </form>
+
+      {/* Change Password Button */}
+      <div className="mt-6">
+        <button
+          onClick={() => setShowChangePassword(true)}
+          className="w-full py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+        >
+          🔑 Change Password
+        </button>
+      </div>
+
+      {/* Change Password Modal */}
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
     </div>
   )
 }

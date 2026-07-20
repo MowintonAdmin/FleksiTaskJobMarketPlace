@@ -6,6 +6,7 @@ import aiofiles
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 
@@ -178,6 +179,14 @@ async def delete_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if task.employer_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # Delete associated task sessions first to avoid FK violations
+    # when applications are cascade-deleted (task_sessions.application_id references applications.id)
+    from app.models.task_session import TaskSession
+    await db.execute(
+        sa.delete(TaskSession).where(TaskSession.task_id == task.id)
+    )
+
     await db.delete(task)
 
 

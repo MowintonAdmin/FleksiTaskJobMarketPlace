@@ -379,7 +379,7 @@ function DeleteProjectConfirm({ project, onClose, onConfirm }) {
 
 // ── Task Table ─────────────────────────────────────────────────────────────
 
-function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggleSelect, selectedIds, onDeleteSelected, onDeleteAll }) {
+function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggleSelect, selectedIds, onDeleteSelected, onDeleteAll, onStatusChange, savingStatus }) {
   const displayed = search
     ? tasks.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.location.toLowerCase().includes(search.toLowerCase()))
     : tasks
@@ -454,7 +454,7 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
             <select
               value={task.status}
               disabled={false}
-              onChange={e => onStatusChange ? null : null}
+              onChange={e => onStatusChange(task, e.target.value)}
               className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:ring-2 focus:ring-blue-400 bg-gray-100 text-gray-700"
               onClick={e => e.stopPropagation()}
             >

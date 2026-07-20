@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useSelector } from 'react-redux'
 import { toast } from 'react-toastify'
 import api from '../api/client'
-import usePolling from '../hooks/usePolling'
+import usePausablePolling from '../hooks/usePausablePolling'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
 

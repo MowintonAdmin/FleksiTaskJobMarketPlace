@@ -32,3 +32,8 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
     email: EmailStr
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str

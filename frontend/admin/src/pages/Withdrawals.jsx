@@ -1,9 +1,13 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import Pagination from '../components/Pagination'
+
 import usePolling from '../hooks/usePolling'
+
+const ITEMS_PER_PAGE = 50
 
 const STATUS_COLORS = {
   PENDING: 'bg-yellow-100 text-yellow-700',
@@ -121,6 +125,7 @@ export default function Withdrawals() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('PENDING')
+  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(null)
 
   const load = useCallback(() => {
@@ -134,11 +139,26 @@ export default function Withdrawals() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
+  // Auto-refresh every 30s — pauses while admin is typing/clicking
 
-  // Auto-refresh withdrawals list every 5s
-  usePolling(load, 5000)
+  // Real-time updates via WebSocket
+
+  useEffect(() => { setPage(1) }, [search, filterStatus])
+
+  const filtered = useMemo(() => {
+    if (!search) return withdrawals
+    const q = search.toLowerCase()
+    return withdrawals.filter(w =>
+      (w.worker_name || '').toLowerCase().includes(q) ||
+      (w.worker_email || '').toLowerCase().includes(q)
+    )
+  }, [withdrawals, search])
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const paginated = useMemo(() =>
+    filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
+    [filtered, page]
+  )
 
   const pending = withdrawals.filter(w => w.status === 'PENDING').length
 
@@ -197,22 +217,14 @@ export default function Withdrawals() {
                   <p>{search ? 'No withdrawals match your search' : `No ${formatStatusLabel(filterStatus) || ''} withdrawal requests`}</p>
                 </td>
               </tr>
-            ) : withdrawals.filter(w => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return (w.worker_name || '').toLowerCase().includes(q) || (w.worker_email || '').toLowerCase().includes(q)
-            }).length === 0 ? (
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={7} className="text-center py-12 text-gray-400">
                   <p className="text-3xl mb-2">🔍</p>
                   <p>No withdrawals match your search</p>
                 </td>
               </tr>
-            ) : withdrawals.filter(w => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return (w.worker_name || '').toLowerCase().includes(q) || (w.worker_email || '').toLowerCase().includes(q)
-            }).map(w => (
+            ) : paginated.map(w => (
               <tr key={w.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <p className="font-medium text-gray-900">{w.worker_name}</p>
@@ -270,6 +282,8 @@ export default function Withdrawals() {
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
       {selected && (
         <ProcessModal

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import { messagesApi } from '../api/messages'
 import { toast } from 'react-toastify'
-/* â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ƒ"?ƒ"? Helpers ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"? */
 function Avatar({ name, photo, size = 'md' }) {
   const sz = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
   if (photo) {
@@ -33,7 +33,7 @@ function formatTime(iso) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-/* â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ƒ"?ƒ"? Conversation list ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"? */
 function ConversationList({ conversations, activeId, onSelect, loading, onNewChat }) {
   if (loading) {
     return (
@@ -64,7 +64,7 @@ function ConversationList({ conversations, activeId, onSelect, loading, onNewCha
 
       {conversations.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-center px-6">
-          <p className="text-3xl mb-2">ðŸ’¬</p>
+          <p className="text-3xl mb-2">dY'ª</p>
           <p className="text-sm font-medium text-gray-600">No conversations yet</p>
           <p className="text-xs text-gray-400 mt-1">Start a new message with a worker.</p>
         </div>
@@ -109,7 +109,7 @@ function ConversationList({ conversations, activeId, onSelect, loading, onNewCha
   )
 }
 
-/* â”€â”€ Worker picker modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ƒ"?ƒ"? Worker picker modal ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"? */
 function WorkerPickerModal({ onClose, onSelect }) {
   const [workers, setWorkers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -132,20 +132,20 @@ function WorkerPickerModal({ onClose, onSelect }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" style={{ maxHeight: '80vh' }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Select Worker</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">âœ•</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">ƒo</button>
         </div>
         <div className="px-4 py-3 border-b border-gray-100">
           <input
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or emailâ€¦"
+            placeholder="Search by name or emailƒ?Ý"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </div>
         <ul className="overflow-y-auto flex-1">
           {loading ? (
-            <li className="text-center py-8 text-gray-400 text-sm">Loadingâ€¦</li>
+            <li className="text-center py-8 text-gray-400 text-sm">Loadingƒ?Ý</li>
           ) : filtered.length === 0 ? (
             <li className="text-center py-8 text-gray-400 text-sm">No workers found</li>
           ) : (
@@ -170,8 +170,8 @@ function WorkerPickerModal({ onClose, onSelect }) {
   )
 }
 
-/* â”€â”€ Chat panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-const REACTIONS = ['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸ™']
+/* ƒ"?ƒ"? Chat panel ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"? */
+const REACTIONS = ['dY`?', 'ƒ?‹,?', 'dY~,', 'dY~r', 'dY~›', 'dYT?']
 
 function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   const [messages, setMessages] = useState([])
@@ -203,12 +203,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   // Check if other user is typing (poll every 1.5s)
   useEffect(() => {
     if (!conversation) return
-    const id = setInterval(async () => {
-      try {
-        const { typing } = await messagesApi.checkTyping(conversation.user_id)
-        setIsTyping(typing)
-      } catch {}
-    }, 1500)
+ catch {}
     return () => clearInterval(id)
   }, [conversation])
 
@@ -271,7 +266,6 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   useEffect(() => {
     if (!conversation) return
     const uid = conversation.user_id
-    const intervalId = setInterval(async () => {
       try {
         const fresh = await messagesApi.getConversation(uid)
         const prevSize = msgIdsRef.current.size
@@ -284,7 +278,6 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
         })
         if (fresh.length > prevSize) onNewMsgRef.current?.()
       } catch { /* silent */ }
-    }, 3000)
     return () => clearInterval(intervalId)
   }, [conversation])
 
@@ -309,7 +302,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   if (!conversation) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-8">
-        <p className="text-5xl mb-3">ðŸ’¬</p>
+        <p className="text-5xl mb-3">dY'ª</p>
         <p className="font-semibold text-gray-700">Select a conversation</p>
         <p className="text-sm text-gray-400 mt-1">Choose from the list or start a new message.</p>
       </div>
@@ -347,7 +340,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : messages.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 mt-8">No messages yet. Say hello! ðŸ‘‹</p>
+          <p className="text-center text-sm text-gray-400 mt-8">No messages yet. Say hello! dY`<</p>
         ) : (
           messages.map((msg) => {
             const isMine = msg.sender_id === currentUserId
@@ -360,7 +353,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-blue-500 p-1 shrink-0"
                       title="React"
                     >
-                      ðŸ˜Š
+                      dY~S
                     </button>
                   )}
                   <div className={`px-3.5 py-2.5 rounded-2xl text-sm shadow-sm relative group/bubble ${
@@ -382,7 +375,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       {isMine && (
                         <span className={`ml-1 font-bold ${msg.is_read ? 'text-blue-200' : 'text-blue-300'}`} title={msg.is_read ? 'Read' : 'Delivered'}>
-                          {msg.is_read ? 'âœ“âœ“' : 'âœ“'}
+                          {msg.is_read ? 'ƒo"ƒo"' : 'ƒo"'}
                         </span>
                       )}
                     </p>
@@ -393,7 +386,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                         className="absolute -top-2 -right-2 opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm border border-gray-200 text-xs text-gray-400 hover:text-red-500"
                         title="Delete message"
                       >
-                        âœ•
+                        ƒo
                       </button>
                     )}
                   </div>
@@ -403,7 +396,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-blue-500 p-1 shrink-0"
                       title="React"
                     >
-                      ðŸ˜Š
+                      dY~S
                     </button>
                   )}
                 </div>
@@ -420,7 +413,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
                       </button>
                     ))}
                     {msg.reaction && (
-                      <button onClick={() => handleRemoveReaction(msg.id)} className="text-xs text-gray-400 hover:text-red-500 ml-1 self-center">âœ•</button>
+                      <button onClick={() => handleRemoveReaction(msg.id)} className="text-xs text-gray-400 hover:text-red-500 ml-1 self-center">ƒo</button>
                     )}
                   </div>
                 )}
@@ -456,13 +449,13 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
           className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 transition-colors ${showQuickReplies ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}
           title="Quick replies"
         >
-          âš¡
+          ƒs­
         </button>
         <input
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend(e)}
-          placeholder="Type a messageâ€¦"
+          placeholder="Type a messageƒ?Ý"
           className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
           disabled={sending}
         />
@@ -481,7 +474,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   )
 }
 
-/* â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ƒ"?ƒ"? Page ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"?ƒ"? */
 export default function Messages() {
   const { user } = useSelector((s) => s.auth)
   const [conversations, setConversations] = useState([])
@@ -529,10 +522,10 @@ export default function Messages() {
 
   return (
     <div className="flex h-full overflow-hidden" style={{ height: 'calc(100vh - 0px)' }}>
-      {/* Conversation list â€” hidden on mobile when chat open */}
+      {/* Conversation list ƒ?" hidden on mobile when chat open */}
       <div className={`w-full md:w-72 lg:w-80 border-r border-gray-200 bg-white flex flex-col shrink-0 ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="px-5 py-4 border-b border-gray-100">
-          <h1 className="text-lg font-bold text-gray-900">ðŸ’¬ Messages</h1>
+          <h1 className="text-lg font-bold text-gray-900">dY'ª Messages</h1>
         </div>
         <div className="flex-1 overflow-hidden flex flex-col">
           <ConversationList

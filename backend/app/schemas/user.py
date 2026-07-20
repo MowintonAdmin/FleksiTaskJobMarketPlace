@@ -82,12 +82,21 @@ class UserResponse(UserBase):
     is_verified: bool
     source: str | None = None
     legacy_participant_id: str | None = None
+    has_password: bool = False
     created_at: datetime
 
     @field_validator("profile_photo_url", mode="before")
     @classmethod
     def normalize_profile_photo(cls, value):
         return normalize_profile_photo_url(value)
+
+    @field_validator("has_password", mode="before")
+    @classmethod
+    def compute_has_password(cls, value, info):
+        # When created via from_attributes, check if the ORM model has hashed_password
+        if isinstance(value, bool):
+            return value
+        return False
 
     model_config = {"from_attributes": True}
 

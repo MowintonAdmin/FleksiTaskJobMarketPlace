@@ -4,6 +4,66 @@ import { useDispatch, useSelector } from 'react-redux'
 import { messagesApi } from '../api/messages'
 import api from '../api/client'
 import { logout } from '../slices/authSlice'
+import { toast } from 'react-toastify'
+import useWebSocket from '../hooks/useWebSocket'
+
+function ChangePasswordModal({ onClose }) {
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (newPassword.length < 8) { toast.error('New password must be at least 8 characters'); return }
+    if (newPassword !== confirmPassword) { toast.error('New passwords do not match'); return }
+    setLoading(true)
+    try {
+      await api.post('/auth/change-password', { old_password: oldPassword, new_password: newPassword })
+      toast.success('Password changed successfully!')
+      onClose()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to change password')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">🔑 Change Password</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Current Password</label>
+            <div className="relative">
+              <input type={showOld ? 'text' : 'password'} value={oldPassword} onChange={e => setOldPassword(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none pr-10" required />
+              <button type="button" onClick={() => setShowOld(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">{showOld ? '🙈' : '👁️'}</button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">New Password</label>
+            <div className="relative">
+              <input type={showNew ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none pr-10" required minLength={8} />
+              <button type="button" onClick={() => setShowNew(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">{showNew ? '🙈' : '👁️'}</button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" required />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">{loading ? 'Changing...' : 'Change Password'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 function getLinks(user) {
   const isSuperAdmin = user?.is_super_admin
@@ -45,8 +105,11 @@ export default function Sidebar({ open, onClose }) {
   const [pendingAppsCount, setPendingAppsCount] = useState(0)
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
   const [activeWorkersCount, setActiveWorkersCount] = useState(0)
+  const [showChangePwd, setShowChangePwd] = useState(false)
   const cancelledRef = useRef(false)
+  const wsEnabledRef = useRef(false)
 
+  // ── Fallback polling (runs always, WebSocket is additive) ──
   useEffect(() => {
     if (!token) return
     cancelledRef.current = false
@@ -84,9 +147,56 @@ export default function Sidebar({ open, onClose }) {
     }
 
     poll()
-    const id = setInterval(poll, 5000)
-    return () => { cancelledRef.current = true; clearInterval(id) }
+    // No polling interval — WebSocket handles real-time updates.
+    // The poll() above runs once on mount to get initial badge counts.
+    return () => { cancelledRef.current = true }
   }, [token])
+
+  // ── WebSocket real-time events ──
+  const handleWsEvent = (type, data) => {
+    if (!token) return
+    wsEnabledRef.current = true
+
+    switch (type) {
+      case 'NEW_APPLICATION':
+        setPendingAppsCount(prev => prev + 1)
+        break
+      case 'NEW_MESSAGE':
+        if (data?.unread_count != null) setUnreadCount(data.unread_count)
+        else setUnreadCount(prev => prev + 1)
+        break
+      case 'WITHDRAWAL_UPDATED':
+        // Refetch on status change to keep counters accurate
+        if (data?.status === 'PENDING') {
+          setPendingWithdrawalsCount(prev => prev + 1)
+        } else {
+          setPendingWithdrawalsCount(prev => Math.max(0, prev - 1))
+        }
+        break
+      case 'PAYMENT_UPDATED':
+        // Payment processed — refetch pending session count
+        api.get('/admin/sessions/pending-approval').then(r => {
+          if (!cancelledRef.current) setPendingSessionCount(Array.isArray(r.data) ? r.data.length : 0)
+        }).catch(() => {})
+        break
+      case 'NEW_REGISTRATION':
+        setPendingVerifCount(prev => prev + 1)
+        break
+      case 'ADMIN_NOTIFICATION':
+        toast.info(data?.title ? `${data.title}: ${data.message}` : data?.message || 'New notification')
+        break
+      case 'TASK_STATUS_CHANGED':
+        // Task status changed — could affect active workers count
+        api.get('/admin/workers/active').then(r => {
+          if (!cancelledRef.current) setActiveWorkersCount(Array.isArray(r.data) ? r.data.length : 0)
+        }).catch(() => {})
+        break
+      default:
+        break
+    }
+  }
+
+  useWebSocket({ onEvent: handleWsEvent })
 
   const badgeCounts = {
     unread: unreadCount,
@@ -103,7 +213,6 @@ export default function Sidebar({ open, onClose }) {
 
   return (
     <>
-      {/* Mobile backdrop */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -127,7 +236,6 @@ export default function Sidebar({ open, onClose }) {
               Welcome, {user?.full_name || user?.email || 'Admin'}
             </p>
           </div>
-          {/* Close button — mobile only */}
           <button
             onClick={onClose}
             className="md:hidden p-1 rounded text-gray-400 hover:text-white shrink-0"
@@ -159,7 +267,13 @@ export default function Sidebar({ open, onClose }) {
           ))}
         </nav>
 
-        <div className="px-3 py-4 border-t border-gray-700">
+        <div className="px-3 py-4 border-t border-gray-700 flex flex-col gap-1">
+          <button
+            onClick={() => setShowChangePwd(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+          >
+            <span>🔑</span> Change Password
+          </button>
           <button
             onClick={() => { dispatch(logout()); handleNav() }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 transition-colors"
@@ -168,6 +282,8 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
       </aside>
+
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
     </>
   )
 }
