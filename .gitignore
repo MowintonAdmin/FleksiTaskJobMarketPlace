@@ -1,0 +1,33 @@
+# Environment / secrets
+backend/.env
+backend/firebase-credentials.json
+frontend/web/.env
+frontend/admin/.env
+frontend/mobile/.env
+deploy/.env.prod
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv-*/
+
+# Node
+node_modules/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Media / static uploads
+media/
+staticfiles/
+
+# Local DB
+backend/local.db
+.env
