@@ -4,6 +4,7 @@ import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import Pagination from '../components/Pagination'
+import RefreshButton from '../components/RefreshButton'
 
 const ITEMS_PER_PAGE = 50
 
@@ -169,24 +170,25 @@ export default function Withdrawals() {
             <span className="text-xs bg-red-500 text-white rounded-full px-2 py-0.5 font-medium">{pending}</span>
           )}
         </h1>
-        <SearchFilterBar
-          search={search}
-          onSearchChange={setSearch}
-          placeholder="Search by worker name or email…"
-          filters={[
-            {
-              value: filterStatus,
-              onChange: setFilterStatus,
-              options: [
-                { value: '', label: 'All statuses' },
-                { value: 'PENDING', label: 'Pending' },
-                { value: 'APPROVED', label: 'Approved' },
-                { value: 'REJECTED', label: 'Rejected' },
-              ],
-            },
-          ]}
-        />
+        <RefreshButton onClick={load} loading={loading} />
       </div>
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search by worker name or email…"
+        filters={[
+          {
+            value: filterStatus,
+            onChange: setFilterStatus,
+            options: [
+              { value: '', label: 'All statuses' },
+              { value: 'PENDING', label: 'Pending' },
+              { value: 'APPROVED', label: 'Approved' },
+              { value: 'REJECTED', label: 'Rejected' },
+            ],
+          },
+        ]}
+      />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">

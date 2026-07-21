@@ -40,6 +40,7 @@ export default function SessionApproval() {
     setProcessingId(sessionId)
     try {
       await api.post(`/admin/sessions/${sessionId}/approve`, {
+        action: 'approve',
         rating,
         feedback: feedbacks[sessionId] || null,
         notes: notes[sessionId] || null,
