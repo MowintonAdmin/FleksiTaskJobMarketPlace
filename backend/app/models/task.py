@@ -21,6 +21,7 @@ class Task(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, default=None)
     employer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     company_tag: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    project_tag: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     requirements: Mapped[str | None] = mapped_column(Text, nullable=True)

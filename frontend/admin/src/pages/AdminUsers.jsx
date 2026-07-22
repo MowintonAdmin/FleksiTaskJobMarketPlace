@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
@@ -187,6 +186,7 @@ export default function AdminUsers() {
                 <input
                   value={newFullName} onChange={e => setNewFullName(e.target.value)}
                   placeholder="e.g. John Admin"
+                  maxLength={255}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
               </div>
@@ -196,6 +196,7 @@ export default function AdminUsers() {
                   required
                   value={newCompanyTag} onChange={e => setNewCompanyTag(e.target.value)}
                   placeholder="e.g. CleaningPro, TechServ, etc."
+                  maxLength={100}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
                 <p className="text-xs text-gray-400 mt-1">This tag helps identify which company this admin belongs to. Admins with the same tag will see each other's data.</p>
@@ -206,6 +207,7 @@ export default function AdminUsers() {
                   required type="email"
                   value={newEmail} onChange={e => setNewEmail(e.target.value)}
                   placeholder="admin@example.com"
+                  maxLength={254}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
               </div>

@@ -39,4 +39,7 @@ export const authApi = {
     })
     return data
   },
+  changePassword: async (old_password, new_password) => {
+    await api.post('/auth/change-password', { old_password, new_password })
+  },
 }

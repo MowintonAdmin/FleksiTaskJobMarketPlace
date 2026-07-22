@@ -84,6 +84,11 @@ export default function TaskDetail() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{task.title}</h1>
             <p className="text-gray-500 mt-1 flex items-center gap-1">📍 {task.location}</p>
+            {task.project_tag && (
+              <span className="bg-purple-100 text-purple-700 text-[10px] font-medium px-2 py-0.5 rounded-full inline-block mt-2">
+                🏷 {task.project_tag}
+              </span>
+            )}
           </div>
           <div className="text-right shrink-0">
             <p className="text-3xl font-bold text-primary-600">RM {totalPay}</p>

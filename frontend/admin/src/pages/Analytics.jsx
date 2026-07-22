@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api, { apiBaseUrl } from '../api/client'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -461,13 +460,17 @@ function ExportTab() {
           ))}
         </div>
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => handleExport('/admin/analytics/export/workers', 'workers_export.csv')} disabled={loading}
+          <button onClick={() => handleExport('/admin/analytics/export/workers', 'flekxitask_workers_quick_export.csv')} disabled={loading}
             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
             {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>📥</span> Quick Export</>}
           </button>
-          <button onClick={() => handleExport('/admin/export/workers-detailed', 'workers_detailed_export.csv')} disabled={loading}
+          <button onClick={() => handleExport('/admin/export/workers-detailed', 'flekxitask_workers_detailed.csv')} disabled={loading}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
-            {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>�</span> Detailed Export (Excel Format)</>}
+            {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>📥</span> Detailed Export (Excel Format)</>}
+          </button>
+          <button onClick={() => handleExport('/admin/export/sessions-detailed', 'flekxitask_sessions_detailed.csv')} disabled={loading}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white px-5 py-2.5 rounded-lg font-medium transition-colors">
+            {loading ? <><span className="animate-spin">⏳</span> Generating…</> : <><span>📋</span> Sessions Export (All Tasks)</>}
           </button>
         </div>
       </div>

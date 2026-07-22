@@ -2,8 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict HbDLMxC3qoNz2bReTp3goFpoqSEfjb2c6bop9MhdQ2kKrluusBuxf7botW9wx9Q
-
 -- Dumped from database version 16.14
 -- Dumped by pg_dump version 16.14
 
@@ -22,7 +20,8 @@ SET row_security = off;
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.users (id, email, full_name, google_id, hashed_password, profile_photo_url, bio, location, latitude, longitude, skills, fcm_token, is_active, is_employer, is_admin, is_verified, created_at, updated_at, academic_qualification, body_height_cm, nationality, race, nric_passport, phone, phone_verified, bank_qr_code_url, id_photo_front_url, id_photo_back_url, selfie_with_id_url, verification_status, rejection_reason, verification_submitted_at, is_super_admin, company_tag, source, legacy_participant_id) FROM stdin;
+CREATE TEMP TABLE _import_users (LIKE public.users) ON COMMIT DROP;
+COPY _import_users (id, email, full_name, google_id, hashed_password, profile_photo_url, bio, location, latitude, longitude, skills, fcm_token, is_active, is_employer, is_admin, is_verified, created_at, updated_at, academic_qualification, body_height_cm, nationality, race, nric_passport, phone, phone_verified, bank_qr_code_url, id_photo_front_url, id_photo_back_url, selfie_with_id_url, verification_status, rejection_reason, verification_submitted_at, is_super_admin, company_tag, source, legacy_participant_id) FROM stdin;
 270c7ae3-e598-4333-9e6f-880d8faf4d6a	ENGHOO2004@GMAIL.COM	Admin	\N	42B4124xu49W4qnKgowHQN1Dg1M6U2lF4TY.TvevCdgE9u0aHf3qcoQawMGM	\N	\N	\N	\N	\N	\N	\N	t	f	t	t	2026-05-04 03:26:47.839249+00	2026-05-04 03:26:47.839249+00	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N	pending	\N	\N	f	\N	APP	\N
 fe9220e1-1e1d-43b3-864f-e65cec183c90	hazel@hazel.com	hazel	\N	$2b$12$CKriGGFo3hL5wjUiwmlPH.TOofRRiuyNpiV.9pr8.bxoI2ZXVF2Dy	\N	\N	\N	\N	\N	\N	\N	t	f	f	f	2026-05-04 12:18:51.905429+00	2026-05-04 12:18:51.905429+00	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N	pending	\N	\N	f	\N	APP	\N
 b2c1abec-95f6-442f-99af-0ce842aacfe2	syedemeirul@gmail.com	Syed	\N	$2b$12$UUaess6YZCxhKWI1Fzyute3w8dLFz3U3PtUx/edBLdnhUyItKIr4i	\N	\N	\N	\N	\N	\N	\N	t	f	f	f	2026-05-07 07:31:22.715239+00	2026-05-07 07:31:22.715239+00	\N	\N	\N	\N	\N	\N	f	\N	\N	\N	\N	pending	\N	\N	f	\N	APP	\N
@@ -240,13 +239,15 @@ ae984bde-f180-4151-8222-a134c81453d3	legacy-561642@import.local	Shakil Ahammed	\
 0901d096-b5d2-4149-abd2-4331c626f68b	legacy-40029@import.local	Stuart Soon Yu Hang	\N	\N	\N	\N	\N	\N	\N	\N	\N	f	f	f	f	2026-07-15 05:35:48.039179+00	2026-07-15 05:35:48.039179+00	\N	175	\N	\N	070804040029	\N	f	\N	\N	\N	\N	imported	\N	\N	f	\N	IMPORTED	40029
 0cf0ec59-f4f0-41c5-8594-2d7ddd89e9be	legacy-140933@import.local	Muhammad Jabir bin Abdullah	\N	\N	\N	\N	\N	\N	\N	\N	\N	f	f	f	f	2026-07-15 05:35:48.039179+00	2026-07-15 05:35:48.039179+00	\N	167	\N	\N	30705140933	\N	f	\N	\N	\N	\N	imported	\N	\N	f	\N	IMPORTED	140933
 \.
+INSERT INTO public.users SELECT * FROM _import_users ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: projects; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.projects (id, name, description, category, location, status, created_by_id, created_at, updated_at, company_tag, due_date) FROM stdin;
+CREATE TEMP TABLE _import_projects (LIKE public.projects) ON COMMIT DROP;
+COPY _import_projects (id, name, description, category, location, status, created_by_id, created_at, updated_at, company_tag, due_date) FROM stdin;
 1f1c28c4-e447-4df6-9a9c-fa5b4e93e6c7	AI PROJECT	\N	Other	PENANG	active	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	2026-07-10 02:07:10.848266+00	2026-07-10 02:07:10.848266+00	\N	\N
 3589f24c-0740-4e40-8fbc-0d425303c977	a	a	Events	a	active	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	2026-07-10 13:27:36.214543+00	2026-07-10 13:27:36.214543+00	\N	\N
 d7e69a73-bc94-4eae-9b67-07640116a64b	EGO Data Collection 1	cleaning	Cleaning	Puchong	active	24d9a86a-879f-4d18-a08c-2ee915c11b58	2026-07-10 13:28:12.478995+00	2026-07-10 13:28:12.478995+00	MW	\N
@@ -259,13 +260,15 @@ cd89c159-6672-4923-8beb-85f9c8a60937	abc	a	Gardening	a	completed	5c38e7c9-11dc-4
 5cd465dd-8ca9-409c-baa1-319cfbdd940a	BYD	A	Delivery	A	completed	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	2026-07-14 02:27:12.660951+00	2026-07-14 02:30:24.96131+00	\N	2026-07-14 02:30:00+00
 b7474d1e-9803-4625-934c-d37b4bf1d59f	a	a	Security	\N	completed	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	2026-07-13 06:48:21.291882+00	2026-07-14 06:48:13.859652+00	\N	2026-07-14 06:48:00+00
 \.
+INSERT INTO public.projects SELECT * FROM _import_projects ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: tasks; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.tasks (id, employer_id, title, description, requirements, location, latitude, longitude, pay_rate_per_minute, estimated_duration_minutes, category, status, max_applicants, starts_at, photo_url, created_at, updated_at, project_id, company_tag) FROM stdin;
+CREATE TEMP TABLE _import_tasks (LIKE public.tasks) ON COMMIT DROP;
+COPY _import_tasks (id, employer_id, title, description, requirements, location, latitude, longitude, pay_rate_per_minute, estimated_duration_minutes, category, status, max_applicants, starts_at, photo_url, created_at, updated_at, project_id, company_tag) FROM stdin;
 f80cc3a4-4dfd-47f6-b57f-d4dce3bf0b96	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	dejkkncje	ededc	ef	fcde	\N	\N	50	1	Cleaning	COMPLETED	1	\N	\N	2026-07-06 13:04:06.822438+00	2026-07-06 13:06:54.230136+00	\N	\N
 2c330e1c-0dd9-4930-92c0-c15479d6f516	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	Office Cleaning - Monday (9 am)	- Cleaning office toilet by scrubbing toilet bowl, washing sink, wiping mirror, and mopping wet floor using disinfectant during morning shift; Replacing tissue rolls and refilling hand soap in office toilet after checking low supplies; \n- Wiping conference table, chairs and glass surfaces in meeting room, arranging furniture neatly; \n- Wiping pantry countertop, cleaning appliances, disposing waste and refilling supplies; \n- Cleaning glass windows, partitions and window frames using appropriate cleaner.	Wear proper clothing, Must not exceed the age of 60, Does not have any health issue	Bandar Puteri Puchong 	\N	\N	0.2	240	Cleaning	CANCELLED	2	2026-05-11 01:00:00+00	\N	2026-05-06 04:36:17.547488+00	2026-05-06 04:53:50.822559+00	\N	\N
 ce644982-d348-4565-88a6-777b0507aa2e	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	Office Cleaning - Monday (9 am)	- Cleaning office toilet by scrubbing toilet bowl, washing sink, wiping mirror, and mopping wet floor using disinfectant during morning shift; Replacing tissue rolls and refilling hand soap in office toilet after checking low supplies; \n- Wiping conference table, chairs and glass surfaces in meeting room, arranging furniture neatly; \n- Wiping pantry countertop, cleaning appliances, disposing waste and refilling supplies; \n- Cleaning glass windows, partitions and window frames using appropriate cleaner.	Wear proper clothing, Must not exceed the age of 60, Does not have any health issue	Bandar Puteri Puchong 	\N	\N	0.2	240	Cleaning	CANCELLED	2	2026-05-11 01:00:00+00	\N	2026-05-06 04:35:47.821408+00	2026-05-06 04:53:53.307574+00	\N	\N
@@ -405,13 +408,15 @@ a3ddbbbf-149d-4223-ab0f-ff509bda5c78	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	u	u	u	
 d48993ca-64ab-4650-a242-75dfafdd9cde	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	a	a	a	a	\N	\N	0.18333333333333332	60	Cleaning	IN_PROGRESS	1	\N	\N	2026-07-17 02:25:18.153043+00	2026-07-17 02:25:26.250793+00	d7e69a73-bc94-4eae-9b67-07640116a64b	\N
 4147665a-de5d-4510-bdb9-12f2be95c44e	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	w	w	w	w	\N	\N	35.2	60	Cleaning	COMPLETED	1	\N	\N	2026-07-17 02:30:10.950053+00	2026-07-17 02:30:47.312357+00	d7e69a73-bc94-4eae-9b67-07640116a64b	\N
 \.
+INSERT INTO public.tasks SELECT * FROM _import_tasks ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: applications; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.applications (id, task_id, worker_id, cover_note, status, reviewed_at, created_at, updated_at) FROM stdin;
+CREATE TEMP TABLE _import_applications (LIKE public.applications) ON COMMIT DROP;
+COPY _import_applications (id, task_id, worker_id, cover_note, status, reviewed_at, created_at, updated_at) FROM stdin;
 fed751a3-4d7b-41f3-9495-a0540cbe03e3	d0b553bf-c531-4561-8d65-df1b7fcc08f7	b2c1abec-95f6-442f-99af-0ce842aacfe2	I have experience of debugging an application before 	APPROVED	2026-05-08 01:43:11.547803+00	2026-05-08 01:38:40.784033+00	2026-05-08 01:43:11.531755+00
 edaf4d3f-0719-4529-8771-617a6b548e88	4e330881-c380-4103-837e-0574a34290bb	b2c1abec-95f6-442f-99af-0ce842aacfe2		APPROVED	2026-05-08 02:06:16.341933+00	2026-05-08 02:06:05.405034+00	2026-05-08 02:06:16.331527+00
 b0afb999-ce58-41ee-a77d-71280e1d4be0	d0b553bf-c531-4561-8d65-df1b7fcc08f7	0e34705e-59f0-4c48-b0e2-e70184163be1	experience with Windows system, have basic knowledge in C++, JavaScript and Python. 	APPROVED	2026-05-08 02:23:23.926958+00	2026-05-08 02:23:07.046688+00	2026-05-08 02:23:23.916182+00
@@ -539,13 +544,15 @@ b3c29ef6-29b6-434c-b2b7-074c379eb4a5	87b09642-5a8c-4993-8d23-0912f270a7e5	d62832
 f6ffbb2d-edce-4ed1-ba51-9124c7976687	d48993ca-64ab-4650-a242-75dfafdd9cde	d62832f6-bbbb-4752-97ac-0bab72bc97d1		APPROVED	2026-07-17 02:25:26.272217+00	2026-07-17 02:25:22.323867+00	2026-07-17 02:25:26.250793+00
 6ad1bc15-71f0-4c3d-b481-482084a58326	4147665a-de5d-4510-bdb9-12f2be95c44e	d62832f6-bbbb-4752-97ac-0bab72bc97d1		APPROVED	2026-07-17 02:30:18.279927+00	2026-07-17 02:30:15.027213+00	2026-07-17 02:30:18.27429+00
 \.
+INSERT INTO public.applications SELECT * FROM _import_applications ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: bank_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.bank_accounts (id, user_id, bank_name, account_number, account_holder_name, created_at, updated_at, payment_type, phone_number) FROM stdin;
+CREATE TEMP TABLE _import_bank_accounts (LIKE public.bank_accounts) ON COMMIT DROP;
+COPY _import_bank_accounts (id, user_id, bank_name, account_number, account_holder_name, created_at, updated_at, payment_type, phone_number) FROM stdin;
 de8ca9e2-b397-4530-a087-1ae02b8834ee	0e34705e-59f0-4c48-b0e2-e70184163be1	FarhanBank	1234567890123456	Farhan	2026-05-08 03:00:56.863722+00	2026-05-08 03:02:26.580169+00	bank_transfer	\N
 91fcbb98-400d-4346-8b35-6354028853b2	b2c1abec-95f6-442f-99af-0ce842aacfe2	EmioBankBerhad	123456789012	EMIO 	2026-05-08 03:14:52.830555+00	2026-05-08 03:40:53.205641+00	bank_transfer	\N
 30ba691e-dbaa-41d9-bce9-54e20fd4c990	f8aa13be-d7b5-4b10-8dc9-6a4e4f204799	Bank	1000	1000	2026-05-15 03:00:58.062878+00	2026-05-15 03:00:58.062878+00	bank_transfer	\N
@@ -559,22 +566,26 @@ def1bba5-4991-4281-ba01-995fefdf49a9	fe9220e1-1e1d-43b3-864f-e65cec183c90	Mayban
 c05d570d-a19b-4c12-967c-17eaf67a044f	2c2cee8d-4429-4931-897f-0b398427e40a	\N	\N	\N	2026-07-14 07:02:27.401498+00	2026-07-16 02:32:28.612304+00	tng_ewallet	12345678909
 c5f025ba-4809-4ddb-bc55-eed7cbfa557b	d62832f6-bbbb-4752-97ac-0bab72bc97d1	\N	\N	\N	2026-07-13 09:45:32.179667+00	2026-07-16 05:53:32.824654+00	tng_ewallet	9999999999
 \.
+INSERT INTO public.bank_accounts SELECT * FROM _import_bank_accounts ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: import_logs; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.import_logs (id, filename, worksheet_name, import_version, imported_by_id, status, total_rows, valid_rows, duplicate_rows, workers_created, workers_matched, sessions_imported, failed_rows_details, error_log, started_at, completed_at) FROM stdin;
+CREATE TEMP TABLE _import_import_logs (LIKE public.import_logs) ON COMMIT DROP;
+COPY _import_import_logs (id, filename, worksheet_name, import_version, imported_by_id, status, total_rows, valid_rows, duplicate_rows, workers_created, workers_matched, sessions_imported, failed_rows_details, error_log, started_at, completed_at) FROM stdin;
 4474939f-9d85-41f0-b72e-07621faa38d3	data.xlsx	\N	1.0	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	completed	1932	1928	0	187	0	1928	null	\N	2026-07-15 05:35:48.039179+00	2026-07-15 05:35:51.911416+00
 \.
+INSERT INTO public.import_logs SELECT * FROM _import_import_logs ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: messages; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.messages (id, sender_id, recipient_id, body, is_read, created_at, reaction, reply_to_id) FROM stdin;
+CREATE TEMP TABLE _import_messages (LIKE public.messages) ON COMMIT DROP;
+COPY _import_messages (id, sender_id, recipient_id, body, is_read, created_at, reaction, reply_to_id) FROM stdin;
 fd678a27-1255-4484-b533-5f9a6ab85c3c	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	b2c1abec-95f6-442f-99af-0ce842aacfe2	hello syed,	f	2026-05-08 01:39:01.503348+00	\N	\N
 a00d394b-9265-4f3a-b704-da6345ec1cde	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	fe9220e1-1e1d-43b3-864f-e65cec183c90	test	t	2026-05-12 05:39:07.808285+00	\N	\N
 83f7549e-9cfc-44f2-9663-748af72db361	fe9220e1-1e1d-43b3-864f-e65cec183c90	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	hello	t	2026-05-12 05:39:25.749911+00	\N	\N
@@ -793,13 +804,15 @@ ba2a8c7d-2f36-47bd-a5e8-ad31c56fd1b8	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	d62832
 d2362d71-e54f-480a-a5c3-f14ea2a0c05e	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	d62832f6-bbbb-4752-97ac-0bab72bc97d1	✅ Your application for "w" has been approved! You can now check in and start tracking your work.	t	2026-07-17 02:30:18.27429+00	\N	\N
 1a7da4ea-dd99-46e8-a924-28b3cde1aaf3	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	d62832f6-bbbb-4752-97ac-0bab72bc97d1	✅ Your task "w" has been approved! RM 2112.00 has been credited to your wallet.	t	2026-07-17 02:30:47.312357+00	\N	\N
 \.
+INSERT INTO public.messages SELECT * FROM _import_messages ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: task_sessions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.task_sessions (id, task_id, worker_id, application_id, checked_in_at, checked_out_at, earnings, status, proof_photo_url, proof_notes, rating, feedback, created_at, consent_signature, consent_given_at, source, import_reference, duration_minutes, nature_of_work, work_environment, legacy_device_id, raw_import_data) FROM stdin;
+CREATE TEMP TABLE _import_task_sessions (LIKE public.task_sessions) ON COMMIT DROP;
+COPY _import_task_sessions (id, task_id, worker_id, application_id, checked_in_at, checked_out_at, earnings, status, proof_photo_url, proof_notes, rating, feedback, created_at, consent_signature, consent_given_at, source, import_reference, duration_minutes, nature_of_work, work_environment, legacy_device_id, raw_import_data) FROM stdin;
 b245bec7-da0b-4327-91de-bfa2f51a4fb5	b76b9fc1-d6af-4328-a0c4-fbb6addcd431	a5ed9b09-88c3-453f-8db1-75e8773a7344	1dc41b70-bb45-4501-a0f8-0e5564b745aa	2026-07-06 13:03:24.43711+00	2026-07-06 13:04:37.36484+00	0.73	paused	\N	\N	\N	\N	2026-07-06 13:03:22.117306+00	\N	\N	APP	\N	\N	\N	\N	\N	\N
 8676a35d-05b3-4d29-8f75-e6a0b5f056a3	5103f24e-9fc0-468c-ae91-031ae30af2ca	f8aa13be-d7b5-4b10-8dc9-6a4e4f204799	4f51cfa7-6212-477e-b0fe-25ad6e668cfb	2026-05-15 02:39:19.763798+00	2026-05-18 01:37:07.154218+00	3406.23	completed	/media/proof_8676a35d-05b3-4d29-8f75-e6a0b5f056a3.jpg	\N	\N	\N	2026-05-15 02:39:19.763798+00	\N	\N	APP	\N	\N	\N	\N	\N	\N
 25c37000-dc39-4bc1-801d-26c63babd5eb	00000000-0000-0000-0000-000000000001	5c19e881-d5c1-46db-b5db-81de928a042c	00000000-0000-0000-0000-000000000002	2026-04-28 08:00:00+00	2026-04-28 08:00:00+00	\N	settled	\N	Work: Tracker / Monitor | Activity: Tracker / Monitor	\N	\N	2026-07-15 05:35:48.039179+00	\N	\N	IMPORTED	\N	480	Tracker / Monitor	Office	\N	{"A": "70839", "B": "20513070839", "C": "2026-04-28 00:00:00", "D": "382", "G": "180", "H": "Tracker / Monitor", "I": "Tracker / Monitor", "J": "Office", "N": "480", "S": "Darren", "T": "Darren Jude A/L Louis Dass", "U": "9", "V": "90", "W": "011 35540839"}
@@ -2841,13 +2854,15 @@ c23383be-707d-4829-a1b5-37505469fa2c	87b09642-5a8c-4993-8d23-0912f270a7e5	d62832
 28539cb1-e121-4295-8cb1-e46e8d4079f6	d48993ca-64ab-4650-a242-75dfafdd9cde	d62832f6-bbbb-4752-97ac-0bab72bc97d1	f6ffbb2d-edce-4ed1-ba51-9124c7976687	2026-07-17 02:25:35.879248+00	2026-07-17 02:25:40.276227+00	0.01	completed	\N	[Admin force-stopped by Admin]	\N	\N	2026-07-17 02:25:35.879248+00	qq	2026-07-17 02:25:35.894111+00	APP	\N	\N	\N	\N	\N	\N
 e83726d4-4263-49e2-bcfb-89837be96156	4147665a-de5d-4510-bdb9-12f2be95c44e	d62832f6-bbbb-4752-97ac-0bab72bc97d1	6ad1bc15-71f0-4c3d-b481-482084a58326	2026-07-17 02:30:26.506452+00	2026-07-17 02:30:32.496734+00	2112	settled	\N	[Admin force-stopped by Admin]	5	\N	2026-07-17 02:30:26.506452+00	111	2026-07-17 02:30:26.528973+00	APP	\N	\N	\N	\N	\N	\N
 \.
+INSERT INTO public.task_sessions SELECT * FROM _import_task_sessions ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.transactions (id, user_id, type, amount, description, reference_id, created_at) FROM stdin;
+CREATE TEMP TABLE _import_transactions (LIKE public.transactions) ON COMMIT DROP;
+COPY _import_transactions (id, user_id, type, amount, description, reference_id, created_at) FROM stdin;
 3f6b5428-916a-4c9f-be87-028aeaecad31	0e34705e-59f0-4c48-b0e2-e70184163be1	CREDIT	1707.38	Earnings from task: System Debugger 	884ec733-a01b-408d-af88-595f87527f48	2026-05-10 02:51:33.734443+00
 33a4a61c-3e0b-4d79-abac-31cc73d2db4e	0e34705e-59f0-4c48-b0e2-e70184163be1	WITHDRAWAL_PENDING	-0.01	Withdrawal request to FarhanBank ···3456	c81c669c-30cd-4a92-b6b9-bb502a29c3a3	2026-05-10 03:15:16.272155+00
 be54a433-d68e-4117-a6fc-ac42b0a4f5e3	0e34705e-59f0-4c48-b0e2-e70184163be1	WITHDRAWAL_COMPLETED	-0.01	Withdrawal approved to FarhanBank ···3456	c81c669c-30cd-4a92-b6b9-bb502a29c3a3	2026-05-10 03:15:30.139247+00
@@ -2990,13 +3005,15 @@ ecf005f3-a007-49c8-aeb1-2711c7d3c6cc	2c2cee8d-4429-4931-897f-0b398427e40a	WITHDR
 acf5a320-494a-40cd-b896-e19a121fb412	d62832f6-bbbb-4752-97ac-0bab72bc97d1	CREDIT	10	Earnings approved for task: x	60dee79e-0a85-4503-8f7f-2c4bd54a0a54	2026-07-17 02:09:50.854861+00
 03e1a20c-5a98-4857-a8f7-54afcdaa28e3	d62832f6-bbbb-4752-97ac-0bab72bc97d1	CREDIT	2112	Earnings approved for task: w	e83726d4-4263-49e2-bcfb-89837be96156	2026-07-17 02:30:47.312357+00
 \.
+INSERT INTO public.transactions SELECT * FROM _import_transactions ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: wallets; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.wallets (id, user_id, available_balance, created_at, updated_at) FROM stdin;
+CREATE TEMP TABLE _import_wallets (LIKE public.wallets) ON COMMIT DROP;
+COPY _import_wallets (id, user_id, available_balance, created_at, updated_at) FROM stdin;
 0b7b4b1f-51df-4b51-83d6-053a9c9d25a4	7e438196-958b-4cb5-831c-0027b8a009cb	302.97	2026-05-22 08:06:02.252007+00	2026-06-24 07:11:34.096369+00
 b5f72af4-1b02-4197-9608-e2bb42d7d0e0	5c38e7c9-11dc-4ffc-934e-79bd4cccdcd6	0	2026-06-24 13:47:41.707845+00	2026-06-24 13:47:41.707845+00
 9e8f7a2b-149e-4809-9390-2dc99c3fbf14	9c554cda-b937-4784-a17f-74ddf17fd953	0	2026-05-16 04:23:43.345417+00	2026-05-16 04:23:43.345417+00
@@ -3020,13 +3037,15 @@ e37e775e-33b7-4839-bf73-97af57e3c516	e57f811f-ddfd-406f-8050-bedf7bdacd10	1398.0
 f82708f0-1fa7-4ecd-b189-005b10bc7f0f	2c2cee8d-4429-4931-897f-0b398427e40a	1189	2026-07-10 01:15:20.282843+00	2026-07-16 08:02:20.753726+00
 26e3bfa7-160c-4219-8041-d1a4ba8ea06c	d62832f6-bbbb-4752-97ac-0bab72bc97d1	2205	2026-07-13 08:56:44.006983+00	2026-07-17 02:30:47.312357+00
 \.
+INSERT INTO public.wallets SELECT * FROM _import_wallets ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- Data for Name: withdrawal_requests; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.withdrawal_requests (id, user_id, amount, status, bank_name, account_number, account_holder_name, admin_notes, processed_at, created_at, payment_type, phone_number) FROM stdin;
+CREATE TEMP TABLE _import_withdrawal_requests (LIKE public.withdrawal_requests) ON COMMIT DROP;
+COPY _import_withdrawal_requests (id, user_id, amount, status, bank_name, account_number, account_holder_name, admin_notes, processed_at, created_at, payment_type, phone_number) FROM stdin;
 c81c669c-30cd-4a92-b6b9-bb502a29c3a3	0e34705e-59f0-4c48-b0e2-e70184163be1	0.01	APPROVED	FarhanBank	1234567890123456	Farhan	\N	2026-05-10 03:15:30.148869+00	2026-05-10 03:15:16.272155+00	bank_transfer	\N
 c6ccb311-7d3e-449f-83c1-366809a140c3	0e34705e-59f0-4c48-b0e2-e70184163be1	10	APPROVED	FarhanBank	1234567890123456	Farhan	Hi	2026-05-10 04:07:47.587086+00	2026-05-10 04:07:14.175367+00	bank_transfer	\N
 e2f26358-28a6-4db9-b29b-be6e9fa3ec68	0e34705e-59f0-4c48-b0e2-e70184163be1	1700	REJECTED	FarhanBank	1234567890123456	Farhan	\N	2026-05-15 02:25:18.198358+00	2026-05-15 02:24:18.477536+00	bank_transfer	\N
@@ -3061,11 +3080,10 @@ a3b2cc24-e879-47c2-905f-26f347f08137	2c9fb196-b062-42f1-9894-e7178ea038f6	10	APP
 6a99b144-0e25-45f0-a66a-172489d10c16	d62832f6-bbbb-4752-97ac-0bab72bc97d1	12	APPROVED	CIMB Bank	12345678901234	aaa	\N	2026-07-13 09:47:17.372896+00	2026-07-13 09:47:08.506384+00	bank_transfer	\N
 ccd20834-1ab1-49c6-a3d6-25f81f618525	2c2cee8d-4429-4931-897f-0b398427e40a	100	APPROVED	\N	\N	\N	\N	2026-07-16 08:02:32.820379+00	2026-07-16 08:02:20.753726+00	tng_ewallet	12345678909
 \.
+INSERT INTO public.withdrawal_requests SELECT * FROM _import_withdrawal_requests ON CONFLICT (id) DO NOTHING;
 
 
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict HbDLMxC3qoNz2bReTp3goFpoqSEfjb2c6bop9MhdQ2kKrluusBuxf7botW9wx9Q
 

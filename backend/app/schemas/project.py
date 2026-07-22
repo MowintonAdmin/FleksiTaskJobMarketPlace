@@ -9,6 +9,7 @@ class ProjectBase(BaseModel):
     description: str | None = None
     category: str | None = None
     location: str | None = None
+    project_tag: str | None = None
     due_date: _datetime | None = None
 
 
@@ -21,6 +22,7 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     category: str | None = None
     location: str | None = None
+    project_tag: str | None = None
     status: ProjectStatus | None = None
     due_date: _datetime | None = None
 
@@ -28,6 +30,7 @@ class ProjectUpdate(BaseModel):
 class ProjectResponse(ProjectBase):
     id: uuid.UUID
     status: ProjectStatus
+    project_tag: str | None = None
     created_by_id: uuid.UUID
     company_tag: str | None = None
     task_count: int = 0

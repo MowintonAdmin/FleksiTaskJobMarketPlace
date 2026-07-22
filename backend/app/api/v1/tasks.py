@@ -6,6 +6,7 @@ import aiofiles
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 
@@ -91,7 +92,15 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    task = Task(**payload.model_dump(), employer_id=current_user.id, company_tag=current_user.company_tag if current_user.is_admin else None)
+    data = payload.model_dump()
+    # If task belongs to a project, propagate project_tag from project
+    if data.get("project_id"):
+        from app.models.project import Project as _Proj
+        proj_result = await db.execute(select(_Proj).where(_Proj.id == data["project_id"]))
+        proj = proj_result.scalar_one_or_none()
+        if proj and proj.project_tag:
+            data["project_tag"] = proj.project_tag
+    task = Task(**data, employer_id=current_user.id, company_tag=current_user.company_tag if current_user.is_admin else None)
     db.add(task)
     await db.flush()
     await db.refresh(task)
@@ -125,7 +134,6 @@ async def update_task(
 
     # If task is being completed or cancelled, auto-checkout active workers
     from app.models.task_session import TaskSession, SessionStatus
-    from app.models.wallet import Wallet, Transaction, TransactionType
     from app.models.message import Message
 
     if (task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED) and
@@ -142,37 +150,20 @@ async def update_task(
         for session in active_sessions:
             fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
 
-            # Auto-checkout
+            # Auto-checkout — leave in COMPLETED state so Session Approval can process it.
+            # Do NOT credit the wallet here; payment is issued only upon admin approval.
             now = datetime.now(timezone.utc)
             session.checked_out_at = now
             session.earnings = fixed_earnings
             session.status = SessionStatus.COMPLETED
-            session.proof_notes = f"[Auto-settled — task {task.status}]"
+            session.proof_notes = f"[Auto-checked-out — task {task.status}]"
             db.add(session)
 
-            # Credit worker's wallet
-            wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
-            wallet = wallet_result.scalar_one_or_none()
-            if not wallet:
-                wallet = Wallet(user_id=session.worker_id)
-                db.add(wallet)
-                await db.flush()
-            wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
-
-            # Transaction record
-            db.add(Transaction(
-                user_id=session.worker_id,
-                type=TransactionType.CREDIT,
-                amount=fixed_earnings,
-                description=f"Earnings for task '{task.title}' (task {task.status})",
-                reference_id=str(session.id),
-            ))
-
-            # Notify worker
+            # Notify worker that their session is pending approval
             db.add(Message(
                 sender_id=current_user.id,
                 recipient_id=session.worker_id,
-                body=f"✅ Your task \"{task.title}\" has been settled. RM {fixed_earnings:.2f} has been credited to your wallet.",
+                body=f"⏳ Your session for \"{task.title}\" has been checked out automatically. Payment of RM {fixed_earnings:.2f} will be credited once the session is approved.",
             ))
 
         if active_sessions:
@@ -196,6 +187,14 @@ async def delete_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     if task.employer_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    # Delete associated task sessions first to avoid FK violations
+    # when applications are cascade-deleted (task_sessions.application_id references applications.id)
+    from app.models.task_session import TaskSession
+    await db.execute(
+        sa.delete(TaskSession).where(TaskSession.task_id == task.id)
+    )
+
     await db.delete(task)
 
 

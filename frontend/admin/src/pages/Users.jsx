@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
-import usePolling from '../hooks/usePolling'
+import Pagination from '../components/Pagination'
+
+
+const ITEMS_PER_PAGE = 50
 
 const formatStatusLabel = (status) =>
   String(status || '')
@@ -23,9 +25,6 @@ function MessageModal({ worker, onClose }) {
   }, [worker.id])
 
   useEffect(() => { reload() }, [reload])
-
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
 
   const send = async () => {
     if (!body.trim()) return
@@ -261,6 +260,7 @@ export default function Users() {
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
   const [selectedUser, setSelectedUser] = useState(null)
   const [messageTarget, setMessageTarget] = useState(null)
 
@@ -278,8 +278,16 @@ export default function Users() {
     return () => clearTimeout(t)
   }, [load])
 
-  // Auto-refresh users list every 5s
-  usePolling(load, 5000)
+  // Auto-refresh every 30s — pauses while admin is typing/clicking
+  // Real-time updates via WebSocket
+
+  useEffect(() => { setPage(1) }, [search])
+
+  const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE)
+  const paginatedUsers = useMemo(() =>
+    users.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
+    [users, page]
+  )
 
   return (
     <div className="p-6 space-y-5">
@@ -316,7 +324,7 @@ export default function Users() {
               ))
             ) : users.length === 0 ? (
               <tr><td colSpan={5} className="text-center py-12 text-gray-400">No users found</td></tr>
-            ) : users.map(u => (
+            ) : paginatedUsers.map(u => (
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <button onClick={() => setSelectedUser(u)}
@@ -366,6 +374,8 @@ export default function Users() {
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
       {selectedUser && (
         <WorkerDrawer

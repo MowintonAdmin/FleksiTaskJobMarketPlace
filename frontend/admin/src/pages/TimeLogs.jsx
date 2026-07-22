@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAutoRefresh } from '../utils/useAutoRefresh'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -245,6 +244,7 @@ export default function TimeLogs() {
                   { value: '', label: 'All statuses' },
                   { value: 'active', label: 'Active' },
                   { value: 'completed', label: 'Completed' },
+                  { value: 'settled', label: 'Settled' },
                 ],
               },
             ]}

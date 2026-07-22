@@ -11,13 +11,13 @@ from app.models.user import User
 from app.models.enums import DataSource
 from app.schemas.auth import (
     TokenResponse, GoogleAuthRequest, LoginRequest, RefreshTokenRequest,
-    ForgotPasswordRequest, ResetPasswordRequest,
+    ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest,
 )
 from app.schemas.user import UserCreate
 from app.core.security import verify_password, create_token_pair, decode_token, hash_password
 from app.core.redis_client import invalidate_token, is_token_blacklisted, set_session, get_session, delete_session
 from app.core.email import send_password_reset_email
-from app.core.deps import oauth2_scheme
+from app.core.deps import oauth2_scheme, get_current_user
 from app.config import get_settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -241,6 +241,33 @@ async def refresh_token(payload: RefreshTokenRequest, db: AsyncSession = Depends
 async def logout(token: str = Depends(oauth2_scheme)):
     """Blacklist the current access token."""
     await invalidate_token(token, ttl=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password by verifying the old password first."""
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be at least 8 characters",
+        )
+    if not current_user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account has no password set (e.g. Google-authenticated users cannot change password here)",
+        )
+    if not verify_password(payload.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+    logger.info("Password changed for user %s", current_user.id)
 
 
 @router.post("/forgot-password")
