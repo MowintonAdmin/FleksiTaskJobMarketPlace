@@ -297,7 +297,7 @@ export default function TimeLogs() {
                     </td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{fmt(log.checked_in_at)}</td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{log.checked_out_at ? fmt(log.checked_out_at) : <span className="text-green-600 font-medium animate-pulse">Active</span>}</td>
-                    <td className="px-5 py-3 text-center text-gray-700">{log.estimated_duration_minutes ? elapsed(log.estimated_duration_minutes) : elapsed(log.elapsed_minutes)}</td>
+                    <td className="px-5 py-3 text-center text-gray-700">{elapsed(log.elapsed_minutes)}</td>
                     <td className="px-5 py-3 text-center">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                         log.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
