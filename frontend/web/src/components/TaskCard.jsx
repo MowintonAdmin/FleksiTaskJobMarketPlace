@@ -49,6 +49,9 @@ export default function TaskCard({ task }) {
         {task.company_tag && (
           <TagBadge tag={task.company_tag} size="xs" />
         )}
+        {task.project_tag && (
+          <TagBadge tag={task.project_tag} size="xs" />
+        )}
       </div>
     </Link>
   )

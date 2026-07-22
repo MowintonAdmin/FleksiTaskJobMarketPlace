@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../api/client'
+import { storage } from '../utils/storage'
 
 function extractErrorMessage(err, fallbackMessage) {
   const detail = err.response?.data?.detail
@@ -30,8 +31,8 @@ function extractErrorMessage(err, fallbackMessage) {
 export const adminLogin = createAsyncThunk('auth/login', async ({ email, password }, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/login', { email, password })
-    localStorage.setItem('admin_access_token', data.access_token)
-    localStorage.setItem('admin_refresh_token', data.refresh_token)
+    storage.setItem('access_token', data.access_token)
+    storage.setItem('refresh_token', data.refresh_token)
     const me = await api.get('/users/me', { headers: { Authorization: `Bearer ${data.access_token}` } })
     if (!me.data.is_admin) throw new Error('Not an admin account')
     return { tokens: data, user: me.data }
@@ -53,7 +54,7 @@ const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
-    token: localStorage.getItem('admin_access_token'),
+    token: storage.getItem('access_token'),
     loading: false,
     error: null,
   },
@@ -61,8 +62,8 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null
       state.token = null
-      localStorage.removeItem('admin_access_token')
-      localStorage.removeItem('admin_refresh_token')
+      storage.removeItem('access_token')
+      storage.removeItem('refresh_token')
     },
   },
   extraReducers: (b) => {
@@ -70,7 +71,7 @@ const authSlice = createSlice({
      .addCase(adminLogin.fulfilled, (s, a) => { s.loading = false; s.token = a.payload.tokens.access_token; s.user = a.payload.user })
      .addCase(adminLogin.rejected, (s, a) => { s.loading = false; s.error = a.payload })
      .addCase(fetchAdminUser.fulfilled, (s, a) => { s.user = a.payload })
-     .addCase(fetchAdminUser.rejected, (s) => { s.user = null; s.token = null })
+     .addCase(fetchAdminUser.rejected, (s) => { s.user = null; s.token = null; storage.removeItem('access_token'); storage.removeItem('refresh_token') })
   },
 })
 

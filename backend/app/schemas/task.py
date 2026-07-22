@@ -78,6 +78,7 @@ class TaskResponse(TaskBase):
     id: uuid.UUID
     employer_id: uuid.UUID
     company_tag: str | None = None
+    project_tag: str | None = None
     status: TaskStatus
     photo_url: str | None = None
     application_count: int = 0

@@ -31,3 +31,20 @@ staticfiles/
 # Local DB
 backend/local.db
 .env
+
+# Auth tokens / credentials (never commit these)
+token.txt
+token_temp.json
+login.json
+
+# Cloudflare tunnel binaries
+cloudflared.msi
+cloudflared-bin/
+
+# Windows system files
+desktop.ini
+Thumbs.db
+
+# Temp / scratch files
+temp.txt
+*.tmp

@@ -48,6 +48,7 @@ function ProjectModal({ project, onClose, onSaved }) {
   const [description, setDescription] = useState(project?.description || '')
   const [category, setCategory] = useState(project?.category || '')
   const [location, setLocation] = useState(project?.location || '')
+  const [projectTag, setProjectTag] = useState(project?.project_tag || '')
   const [dueDate, setDueDate] = useState(project?.due_date ? project.due_date.slice(0, 16) : '')
   const [saving, setSaving] = useState(false)
 
@@ -61,6 +62,7 @@ function ProjectModal({ project, onClose, onSaved }) {
         description: description.trim() || null,
         category: category || null,
         location: location.trim() || null,
+        project_tag: projectTag.trim() || null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
       }
       if (project) {
@@ -90,11 +92,11 @@ function ProjectModal({ project, onClose, onSaved }) {
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Project Name *</label>
             <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Tower Cleaning Q3" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description</label>
-            <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none" />
-          </div>
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Project Tag</label>
+              <input value={projectTag} onChange={e => setProjectTag(e.target.value)} placeholder="e.g. ClientA, CompanyB, SiteC" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
@@ -102,18 +104,22 @@ function ProjectModal({ project, onClose, onSaved }) {
                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description</label>
+            <textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="Optional description..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Location</label>
               <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. KL City Centre" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-              Due Date & Time <span className="text-gray-400 normal-case font-normal">(project auto-closes on this date)</span>
-            </label>
-            <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)}
-              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Due Date & Time <span className="text-gray-400 normal-case font-normal">(auto-close)</span></label>
+              <input type="datetime-local" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -433,11 +439,14 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 truncate">{task.title}</p>
             <p className="text-xs text-gray-500 mt-0.5">📍 {task.location} · {task.category} · RM {(parseFloat(task.pay_rate_per_minute) * 60).toFixed(2)}/hr</p>
-            {task.company_tag && (
-              <div className="mt-1">
+            <div className="mt-1 flex items-center gap-2">
+              {task.company_tag && (
                 <TagBadge tag={task.company_tag} size="xs" />
-              </div>
-            )}
+              )}
+              {task.project_tag && (
+                <TagBadge tag={task.project_tag} size="xs" />
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-1">
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
                 {task.status.replace('_', ' ').toUpperCase()}
@@ -686,6 +695,9 @@ export default function Tasks() {
                       {p.location && <span>📍 {p.location}</span>}
                       {p.company_tag && (
                         <TagBadge tag={p.company_tag} size="xs" />
+                      )}
+                      {p.project_tag && (
+                        <TagBadge tag={p.project_tag} size="xs" color="purple" />
                       )}
                     </div>
                     {p.due_date && (

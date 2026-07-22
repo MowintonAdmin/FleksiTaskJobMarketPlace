@@ -92,7 +92,15 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    task = Task(**payload.model_dump(), employer_id=current_user.id, company_tag=current_user.company_tag if current_user.is_admin else None)
+    data = payload.model_dump()
+    # If task belongs to a project, propagate project_tag from project
+    if data.get("project_id"):
+        from app.models.project import Project as _Proj
+        proj_result = await db.execute(select(_Proj).where(_Proj.id == data["project_id"]))
+        proj = proj_result.scalar_one_or_none()
+        if proj and proj.project_tag:
+            data["project_tag"] = proj.project_tag
+    task = Task(**data, employer_id=current_user.id, company_tag=current_user.company_tag if current_user.is_admin else None)
     db.add(task)
     await db.flush()
     await db.refresh(task)
