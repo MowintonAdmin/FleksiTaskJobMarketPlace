@@ -250,6 +250,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     try {
       const msgs = await messagesApi.getConversation(conversation.user_id)
       setMessages(msgs)
+      msgIdsRef.current = new Set(msgs.map((m) => m.id))
     } catch {
       toast.error('Failed to load messages')
     } finally {
@@ -259,10 +260,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
-
-  // Scroll to bottom only when messages are added
+  // Scroll to bottom only when messages are added - preserve scroll position on incremental updates
+  const scrollContainerRef = useRef(null)
   useEffect(() => {
     const count = messages.length
     if (count > msgCountRef.current) {

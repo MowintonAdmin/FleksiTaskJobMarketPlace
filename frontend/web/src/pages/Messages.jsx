@@ -164,6 +164,7 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     try {
       const msgs = await messagesApi.getConversation(conversation.user_id)
       setMessages(msgs)
+      msgIdsRef.current = new Set(msgs.map((m) => m.id))
     } catch {
       // silent
     } finally {
@@ -172,9 +173,6 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
   }, [conversation])
 
   useEffect(() => { load() }, [load])
-
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
 
   // Scroll to bottom only when messages are added (not on is_read-only updates)
   useEffect(() => {

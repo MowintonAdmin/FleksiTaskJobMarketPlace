@@ -15,8 +15,8 @@ if (!apiHost) {
     apiHost = 'http://localhost:8000'
   } else {
     apiHost = typeof window !== 'undefined' ? window.location.origin : ''
-    // Worker runs on port 3000, API on 8000
-    if (apiHost && typeof window !== 'undefined' && window.location.port === '3000') {
+    // Worker runs on ports 3000 or 3001, API on 8000
+    if (apiHost && typeof window !== 'undefined' && ['3000', '3001'].includes(window.location.port)) {
       apiHost = 'http://localhost:8000'
     }
   }

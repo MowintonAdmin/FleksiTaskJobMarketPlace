@@ -170,14 +170,10 @@ export default function ActiveWorkers() {
               </div>
 
               {/* Metrics */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold text-blue-600">{elapsed(w.elapsed_minutes)}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Time worked</p>
-                </div>
+              <div className="mb-4">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold text-green-600">RM {w.current_earnings.toFixed(2)}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Earned so far</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Pending amount</p>
                 </div>
               </div>
 

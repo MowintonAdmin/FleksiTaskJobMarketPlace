@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { messagesApi } from '../api/messages'
 import api from '../api/client'
@@ -38,6 +38,7 @@ function Badge({ count }) {
 
 export default function Sidebar({ open, onClose }) {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { token, user } = useSelector((s) => s.auth)
   const [unreadCount, setUnreadCount] = useState(0)
   const [pendingVerifCount, setPendingVerifCount] = useState(0)
@@ -45,6 +46,7 @@ export default function Sidebar({ open, onClose }) {
   const [pendingAppsCount, setPendingAppsCount] = useState(0)
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0)
   const [activeWorkersCount, setActiveWorkersCount] = useState(0)
+  const [showDropdown, setShowDropdown] = useState(false)
   const cancelledRef = useRef(false)
 
   useEffect(() => {
@@ -99,6 +101,18 @@ export default function Sidebar({ open, onClose }) {
 
   const handleNav = () => {
     if (onClose) onClose()
+  }
+
+  const handleLogout = () => {
+    dispatch(logout())
+    setShowDropdown(false)
+    handleNav()
+    navigate('/login')
+  }
+
+  const handleChangePassword = () => {
+    setShowDropdown(false)
+    navigate('/change-password')
   }
 
   return (
@@ -159,13 +173,31 @@ export default function Sidebar({ open, onClose }) {
           ))}
         </nav>
 
-        <div className="px-3 py-4 border-t border-gray-700">
+        <div className="px-3 py-4 border-t border-gray-700 relative">
           <button
-            onClick={() => { dispatch(logout()); handleNav() }}
+            onClick={() => setShowDropdown(!showDropdown)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:bg-gray-800 transition-colors"
           >
-            <span>🚪</span> Logout
+            <span>👤</span> <span className="flex-1 text-left">{user?.full_name || 'Account'}</span>
+            <span className="text-xs">{showDropdown ? '▲' : '▼'}</span>
           </button>
+
+          {showDropdown && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden">
+              <button
+                onClick={handleChangePassword}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                <span>🔑</span> Change Password
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                <span>🚪</span> Logout
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

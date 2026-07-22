@@ -722,9 +722,11 @@ async def admin_time_logs(
                 display_title = str(s.nature_of_work)
             elif s.proof_notes and "Work:" in str(s.proof_notes):
                 display_title = str(s.proof_notes).split(" | ")[0].replace("Work: ", "").strip()
+        estimated_minutes = round(task.estimated_duration_minutes) if task and task.estimated_duration_minutes else None
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": display_title,
             "task_location": task.location if task else "", "pay_rate_per_minute": task.pay_rate_per_minute if task else 0,
+            "estimated_duration_minutes": estimated_minutes,
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "elapsed_minutes": elapsed, "cost": cost,
             "status": s.status, "rating": s.rating, "source": src,
@@ -733,21 +735,22 @@ async def admin_time_logs(
     return out
 
 
-# ── Manual Time Adjustment ────────────────────────────────────────────────────
+# ── Manual Payment Adjustment ────────────────────────────────────────────────
 
-class TimeAdjustment(BaseModel):
-    checked_in_at: datetime
-    checked_out_at: datetime | None = None
+class EarningsAdjustment(BaseModel):
+    earnings: float
     reason: str | None = None
 
 
 @router.patch("/sessions/{session_id}/adjust")
-async def admin_adjust_session_time(
+async def admin_adjust_session_earnings(
     session_id: uuid.UUID,
-    payload: TimeAdjustment,
+    payload: EarningsAdjustment,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    from app.models.message import Message as _Msg
+
     result = await db.execute(select(TaskSession).where(TaskSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
@@ -761,27 +764,28 @@ async def admin_adjust_session_time(
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
     old_earnings = session.earnings or 0.0
+    new_earnings = round(payload.earnings, 2)
 
-    # 1. Update check-in time
-    session.checked_in_at = payload.checked_in_at.replace(tzinfo=timezone.utc) if payload.checked_in_at.tzinfo is None else payload.checked_in_at
+    if new_earnings < 0:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Earnings cannot be negative")
 
-    if payload.checked_out_at:
-        co = payload.checked_out_at.replace(tzinfo=timezone.utc) if payload.checked_out_at.tzinfo is None else payload.checked_out_at
-        session.checked_out_at = co
+    # 1. Set the new earnings directly
+    session.earnings = new_earnings
 
-        # 2. Calculate earnings based on actual elapsed minutes instead of fixed task total
-        elapsed_minutes = (co - session.checked_in_at).total_seconds() / 60
-        if elapsed_minutes < 0:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Check-out time must be after check-in time")
-        calculated_earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
-        session.earnings = calculated_earnings
+    # 2. Mark as COMPLETED so it appears in Session Approval for admin to approve/credit
+    #    (not SETTLED — admin must approve the adjusted amount first)
+    session.status = SessionStatus.COMPLETED
 
-        # 3. Mark as SETTLED (not COMPLETED) — prevents reappearing in session approval
-        session.status = SessionStatus.SETTLED
+    # 3. Notify the worker
+    reason_text = f" Reason: {payload.reason}" if payload.reason else ""
+    db.add(_Msg(
+        sender_id=current_user.id,
+        recipient_id=session.worker_id,
+        body=f"💰 Your payment for \"{task.title}\" has been adjusted from RM {old_earnings:.2f} to RM {new_earnings:.2f}.{reason_text} The new amount is pending approval.",
+    ))
 
     await db.flush()
-    return {"session_id": str(session.id), "checked_in_at": session.checked_in_at.isoformat(),
-        "checked_out_at": session.checked_out_at.isoformat() if session.checked_out_at else None,
+    return {"session_id": str(session.id),
         "old_earnings": old_earnings, "new_earnings": session.earnings, "status": session.status}
 
 
@@ -1173,14 +1177,15 @@ async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), curren
     output = io.StringIO(); writer = csv.writer(output)
     writer.writerow(["Full Name","Email","Phone","Location","Nationality","Race","Academic Qualification","Body Height (cm)","NRIC / Passport",
         "Bank QR Image URL","Is Verified","Joined Date","Task Title","Task Category","Task Location","Check-In","Check-Out","Duration (min)",
-        "Earnings (RM)","Payment Status","Withdrawal Status","Withdrawal Amount (RM)","Withdrawal Date","Rating","Feedback","Source","Legacy Session ID","Nature of Work","Work Environment"])
+        "Earnings (RM)","Payment Status","Withdrawal Status","Withdrawal Amount (RM)","Withdrawal Date","Rating","Feedback","Source","Legacy Session ID",
+        "Nature of Work","Work Environment","Device ID","QC Duration (min)","Expected Duration (min)","Total Duration (min)","Variance (min)"])
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         u_withdrawals = [w for w in all_withdrawals if w.user_id == u.id]
         if not u_sessions:
             writer.writerow([u.full_name, u.email, "", u.location or "", u.nationality or "", u.race or "", u.academic_qualification or "",
                 u.body_height_cm or "", u.nric_passport or "", u.bank_qr_code_url or "", "Yes" if u.is_verified else "No",
-                u.created_at.strftime("%Y-%m-%d %H:%M"), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+                u.created_at.strftime("%Y-%m-%d %H:%M"), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
         else:
             for s in u_sessions:
                 task_result = await db.execute(select(Task).where(Task.id == s.task_id))
@@ -1201,12 +1206,22 @@ async def export_workers_detailed_csv(db: AsyncSession = Depends(get_db), curren
                 if withdrawal:
                     withdrawal_status = withdrawal.status; withdrawal_amount = withdrawal.amount
                     withdrawal_date = withdrawal.processed_at.strftime("%Y-%m-%d %H:%M") if withdrawal.processed_at else ""
+                # Extract raw import data fields (stored as column-letter-keyed dict in JSONB)
+                raw = s.raw_import_data or {}
+                device_id = s.legacy_device_id or raw.get("K", "")
+                qc_duration = raw.get("M", "")
+                expected_duration = raw.get("N", "")
+                total_duration_raw = raw.get("O", "")
+                variance_raw = raw.get("Q", "")
+                # Use dedicated duration_minutes field if available, fallback to raw data
+                total_dur = s.duration_minutes if s.duration_minutes is not None else (total_duration_raw or "")
                 writer.writerow([u.full_name, u.email, "", u.location or "", u.nationality or "", u.race or "", u.academic_qualification or "",
                     u.body_height_cm or "", u.nric_passport or "", u.bank_qr_code_url or "", "Yes" if u.is_verified else "No",
                     u.created_at.strftime("%Y-%m-%d %H:%M"), task.title if task else "Unknown", task.category if task else "", task.location if task else "",
                     s.checked_in_at.strftime("%Y-%m-%d %H:%M") if s.checked_in_at else "", s.checked_out_at.strftime("%Y-%m-%d %H:%M") if s.checked_out_at else "",
                     elapsed or "", s.earnings if s.earnings else "", payment_status, withdrawal_status, withdrawal_amount, withdrawal_date, s.rating if s.rating else "", s.feedback or "",
-                    s.source.value if s.source else "APP", s.import_reference or "", s.nature_of_work or "", s.work_environment or ""])
+                    s.source.value if s.source else "APP", s.import_reference or "", s.nature_of_work or "", s.work_environment or "",
+                    device_id, qc_duration, expected_duration, total_dur, variance_raw])
     output.seek(0)
     filename = f"workers_detailed_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
@@ -1338,17 +1353,18 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
 
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
-        fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
-        if fixed_earnings <= 0:
+        # Use existing earnings (may have been adjusted manually) or calculate from task
+        amount_to_credit = session.earnings if session.earnings and session.earnings > 0 else round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+        if amount_to_credit <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
-        session.earnings = fixed_earnings
+        session.earnings = amount_to_credit
 
         wallet_result = await db.execute(select(_W).where(_W.user_id == session.worker_id))
         wallet = wallet_result.scalar_one_or_none()
         if not wallet:
             wallet = _W(user_id=session.worker_id); db.add(wallet); await db.flush()
-        wallet.available_balance = round(wallet.available_balance + fixed_earnings, 2)
-        db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=fixed_earnings,
+        wallet.available_balance = round(wallet.available_balance + amount_to_credit, 2)
+        db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=amount_to_credit,
             description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
         if task.status != TaskStatus.COMPLETED: task.status = TaskStatus.COMPLETED
 
@@ -1357,9 +1373,9 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
 
         reason = f" Notes: {payload.notes}" if payload.notes else ""
         db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
-            body=f"✅ Your task \"{task.title}\" has been approved! RM {fixed_earnings:.2f} has been credited to your wallet.{reason}"))
+            body=f"✅ Your task \"{task.title}\" has been approved! RM {amount_to_credit:.2f} has been credited to your wallet.{reason}"))
         session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
-        return {"status": "approved", "session_id": str(session.id), "amount_credited": fixed_earnings, "rating": session.rating, "feedback": session.feedback}
+        return {"status": "approved", "session_id": str(session.id), "amount_credited": amount_to_credit, "rating": session.rating, "feedback": session.feedback}
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()

@@ -258,12 +258,24 @@ export default function Profile() {
     }
   }
 
+  const isVerified = verifyStatus(user) === 'approved'
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
 
       {/* Verification Status Banner */}
       <VerificationStatus user={user} onResubmit={handleSubmitVerification} />
+      
+      {isVerified && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <span className="text-xl">🔒</span>
+          <div>
+            <p className="font-semibold text-blue-800 text-sm">Sensitive Fields Locked</p>
+            <p className="text-xs text-blue-600">Full Name, Phone Number, Nationality, Race, Body Height, NRIC/Passport, and Identity Verification Photo are locked after verification for security purposes.</p>
+          </div>
+        </div>
+      )}
 
       {/* Photo */}
       <div className="card mb-6 flex items-center gap-4">
@@ -292,7 +304,7 @@ export default function Profile() {
       </div>
 
       {/* Selfie with ID — single clean box */}
-      <div className="card mb-6 flex items-center gap-5">
+      <div className={`card mb-6 flex items-center gap-5 ${isVerified ? 'opacity-75' : ''}`}>
         <div className="relative shrink-0 w-28 h-28">
           {user?.selfie_with_id_url ? (
             <img src={user.selfie_with_id_url} alt="Selfie with ID" className="w-full h-full rounded-xl object-cover border border-gray-200" onError={e => { e.currentTarget.style.display = 'none' }} />
@@ -308,7 +320,8 @@ export default function Profile() {
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 text-sm">Identity Verification Photo</p>
           <p className="text-xs text-gray-500 mt-1">Hold your NRIC / Passport (front) next to your face and take a selfie. Make sure both your face and ID details are clearly visible.</p>
-          <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+          <input ref={selfieRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={isVerified} onChange={async (e) => {
+            if (isVerified) return
             const file = e.target.files?.[0]
             if (!file) return
             setUploadingSelfie(true)
@@ -323,9 +336,13 @@ export default function Profile() {
             } catch { toast.error('Failed to upload selfie') }
             finally { setUploadingSelfie(false) }
           }} />
-          <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-3">
-            {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
-          </button>
+          {isVerified ? (
+            <p className="text-xs text-blue-500 mt-3">🔒 Locked after verification.</p>
+          ) : (
+            <button onClick={() => selfieRef.current.click()} className="btn-secondary text-xs px-3 py-1.5 mt-3">
+              {user?.selfie_with_id_url ? 'Change Selfie' : 'Upload Selfie with ID'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -362,7 +379,8 @@ export default function Profile() {
       <form onSubmit={handleSave} className="card space-y-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-          <input name="full_name" value={form.full_name} onChange={handleChange} className="input" required />
+          <input name="full_name" value={form.full_name} onChange={handleChange} className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`} required disabled={isVerified} />
+          {isVerified && <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
@@ -371,11 +389,16 @@ export default function Profile() {
             type="tel"
             value={form.phone}
             onChange={handleChange}
-            className="input"
+            className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
             placeholder="e.g. +60 12-345 6789"
             required
+            disabled={isVerified}
           />
-          <p className="text-xs text-gray-400 mt-1">Used for identity verification and admin contact.</p>
+          {isVerified ? (
+            <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>
+          ) : (
+            <p className="text-xs text-gray-400 mt-1">Used for identity verification and admin contact.</p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
@@ -422,17 +445,20 @@ export default function Profile() {
                 name="nationality"
                 value={form.nationality}
                 onChange={handleChange}
-                className="input"
+                className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
                 placeholder="e.g. Malaysian"
                 required
+                disabled={isVerified}
               />
+              {isVerified && <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Race <span className="text-red-500">*</span></label>
-              <select name="race" value={form.race} onChange={handleChange} className="input" required>
+              <select name="race" value={form.race} onChange={handleChange} className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`} required disabled={isVerified}>
                 <option value="">— Select —</option>
                 {RACES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              {isVerified && <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>}
             </div>
           </div>
 
@@ -454,10 +480,12 @@ export default function Profile() {
                 step="0.1"
                 value={form.body_height_cm}
                 onChange={handleChange}
-                className="input"
+                className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
                 placeholder="e.g. 170"
                 required
+                disabled={isVerified}
               />
+              {isVerified && <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>}
             </div>
           </div>
 
@@ -467,12 +495,17 @@ export default function Profile() {
               name="nric_passport"
               value={form.nric_passport}
               onChange={handleChange}
-              className="input"
+              className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
               placeholder="e.g. 900101-14-1234 or A12345678"
               autoComplete="off"
               required
+              disabled={isVerified}
             />
-            <p className="text-xs text-gray-400 mt-1">This information is kept confidential and only used for identity verification.</p>
+            {isVerified ? (
+              <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1">This information is kept confidential and only used for identity verification.</p>
+            )}
           </div>
         </div>
 

@@ -21,42 +21,22 @@ const formatStatusLabel = (status) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 
-/* ── Adjust Time Modal ─────────────────────────────────────────────────── */
+/* ── Adjust Payment Modal ─────────────────────────────────────────────── */
 function AdjustModal({ session, onClose, onSaved }) {
-  const [checkedIn, setCheckedIn] = useState(fmtInput(session.checked_in_at))
-  const [checkedOut, setCheckedOut] = useState(fmtInput(session.checked_out_at))
+  const [earnings, setEarnings] = useState(String(session.cost ?? session.earnings ?? 0))
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
-  const [preview, setPreview] = useState(null)
-
-  // Calculate preview earnings
-  useEffect(() => {
-    if (!checkedIn) { setPreview(null); return }
-    const inTime = new Date(checkedIn)
-    const outTime = checkedOut ? new Date(checkedOut) : null
-    if (outTime && outTime > inTime) {
-      const mins = (outTime - inTime) / 60000
-      setPreview(round2(mins * session.pay_rate_per_minute))
-    } else {
-      setPreview(null)
-    }
-  }, [checkedIn, checkedOut, session.pay_rate_per_minute])
-
-  const round2 = (n) => Math.round(n * 100) / 100
 
   const save = async () => {
-    if (!checkedIn) { toast.error('Check-in time is required'); return }
-    if (checkedOut && new Date(checkedOut) <= new Date(checkedIn)) {
-      toast.error('Check-out must be after check-in'); return
-    }
+    const amount = parseFloat(earnings)
+    if (isNaN(amount) || amount < 0) { toast.error('Enter a valid payment amount'); return }
     setSaving(true)
     try {
       await api.patch(`/admin/sessions/${session.session_id}/adjust`, {
-        checked_in_at: new Date(checkedIn).toISOString(),
-        checked_out_at: checkedOut ? new Date(checkedOut).toISOString() : null,
+        earnings: amount,
         reason: reason || null,
       })
-      toast.success('Session time adjusted and worker notified')
+      toast.success('Payment adjusted and worker notified')
       onSaved()
       onClose()
     } catch (e) {
@@ -70,7 +50,7 @@ function AdjustModal({ session, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">⏱ Adjust Session Time</h2>
+          <h2 className="text-lg font-bold text-gray-900">💰 Adjust Payment</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
         </div>
 
@@ -78,41 +58,28 @@ function AdjustModal({ session, onClose, onSaved }) {
         <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
           <p className="font-semibold text-gray-800">{session.worker_name}</p>
           <p className="text-gray-500">Task: {session.task_title}</p>
-          <p className="text-gray-400 text-xs">Rate: RM {session.pay_rate_per_minute}/min · Current earnings: RM {(session.cost ?? 0).toFixed(2)}</p>
+          <p className="text-gray-400 text-xs">Current earnings: RM {(session.cost ?? 0).toFixed(2)}</p>
         </div>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Check-in Time</label>
-            <input type="datetime-local" value={checkedIn} onChange={e => setCheckedIn(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Check-out Time <span className="text-gray-400 font-normal">(leave blank for active sessions)</span></label>
-            <input type="datetime-local" value={checkedOut} onChange={e => setCheckedOut(e.target.value)}
+            <label className="block text-xs font-semibold text-gray-600 mb-1">New Payment Amount (RM)</label>
+            <input type="number" step="0.01" min="0" value={earnings} onChange={e => setEarnings(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Reason (sent to worker)</label>
             <input value={reason} onChange={e => setReason(e.target.value)}
-              placeholder="e.g. Corrected clock error"
+              placeholder="e.g. Adjusted payment for incomplete work"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
         </div>
-
-        {/* Earnings preview */}
-        {preview != null && (
-          <div className="bg-blue-50 rounded-xl px-4 py-3 flex items-center justify-between text-sm">
-            <span className="text-blue-700">New earnings after adjustment</span>
-            <span className="font-bold text-blue-800">RM {preview.toFixed(2)}</span>
-          </div>
-        )}
 
         <div className="flex gap-3 pt-1">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</button>
           <button onClick={save} disabled={saving}
             className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Apply Adjustment'}
+            {saving ? 'Saving…' : 'Adjust Payment'}
           </button>
         </div>
       </div>
@@ -330,7 +297,7 @@ export default function TimeLogs() {
                     </td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{fmt(log.checked_in_at)}</td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{log.checked_out_at ? fmt(log.checked_out_at) : <span className="text-green-600 font-medium animate-pulse">Active</span>}</td>
-                    <td className="px-5 py-3 text-center text-gray-700">{elapsed(log.elapsed_minutes)}</td>
+                    <td className="px-5 py-3 text-center text-gray-700">{log.estimated_duration_minutes ? elapsed(log.estimated_duration_minutes) : elapsed(log.elapsed_minutes)}</td>
                     <td className="px-5 py-3 text-center">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                         log.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
