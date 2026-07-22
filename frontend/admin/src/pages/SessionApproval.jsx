@@ -56,9 +56,17 @@ export default function SessionApproval() {
   }
 
   const handleReject = async (sessionId) => {
+    const rating = ratings[sessionId]
+    if (!rating || rating < 1) {
+      setRatingErrors(prev => ({ ...prev, [sessionId]: 'Please give a rating (1–5) before rejecting.' }))
+      return
+    }
     setProcessingId(sessionId)
     try {
       await api.post(`/admin/sessions/${sessionId}/reject`, {
+        action: 'reject',
+        rating,
+        feedback: feedbacks[sessionId] || null,
         notes: notes[sessionId] || null,
       })
       toast.success('Session rejected (earnings = 0)')

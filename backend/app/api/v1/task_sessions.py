@@ -59,10 +59,8 @@ async def finalize_checkout(
     if photo_url:
         session.proof_photo_url = photo_url
 
-    # Auto-mark the task as completed when the worker checks out
-    if task.status == TaskStatus.IN_PROGRESS:
-        task.status = TaskStatus.COMPLETED
-        db.add(task)
+    # Do NOT auto-mark the task as completed — only Session Approval should change task status.
+    # The completed session goes to the admin's Session Approval page for review.
 
     await db.flush()
     await db.refresh(session)

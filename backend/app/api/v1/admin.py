@@ -1324,7 +1324,7 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
 
 
 class SessionApprovalAction(BaseModel):
-    action: str
+    action: str | None = None  # Optional — endpoint URL already routes approve vs reject
     notes: str | None = None
     rating: float | None = None
     feedback: str | None = None

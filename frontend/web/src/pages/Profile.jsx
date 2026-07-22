@@ -318,10 +318,20 @@ export default function Profile() {
       return
     }
 
+    // Auto-save profile first so the server has all the data before verification
+    try {
+      const updated = await authApi.updateMe(form)
+      dispatch(setUser(updated))
+    } catch (err) {
+      const msg = extractFieldErrors(err)
+      toast.error(msg || 'Failed to save profile before submission. Please click "Save Profile" first.')
+      return
+    }
+
     try {
       const { data } = await api.post('/users/me/submit-verification')
       dispatch(setUser(data))
-      toast.success('Profile submitted for verification!')
+      toast.success('Profile saved and submitted for verification!')
     } catch (e) {
       const msg = extractFieldErrors(e)
       toast.error(msg || e.response?.data?.detail || 'Failed to submit')
