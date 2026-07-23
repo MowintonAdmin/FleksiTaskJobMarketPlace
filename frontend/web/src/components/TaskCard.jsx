@@ -32,9 +32,9 @@ export default function TaskCard({ task }) {
               {task.category}
             </span>
           </div>
-          <h3 className="font-semibold text-gray-900 truncate">{task.title}</h3>
-          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-            <span>📍</span> {task.location}
+          <h3 className="font-semibold text-gray-900 break-words">{task.title}</h3>
+          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1 break-words">
+            <span>📍</span> <span className="break-words">{task.location}</span>
           </p>
         </div>
         <div className="text-right shrink-0">

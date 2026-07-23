@@ -292,7 +292,7 @@ export default function TaskTracking() {
           <h2 className="text-xl font-bold text-gray-900">Work Completed!</h2>
 
           <p className="text-sm text-gray-600">
-            Your task has been submitted for review. An admin will verify your work and credit the amount to your wallet within <strong>1-3 working days</strong>.
+            Your task has been submitted for review. An admin will verify your work and credit the amount to your wallet within <strong>5-10 business days</strong>.
           </p>
 
           <div className="bg-blue-50 rounded-xl p-4 space-y-1 text-center">

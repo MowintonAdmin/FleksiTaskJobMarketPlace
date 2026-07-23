@@ -23,21 +23,8 @@ settings = get_settings()
 
 
 def get_worked_minutes(session: TaskSession, cap_minutes: float | None = None) -> float:
-    """Return the accumulated work time for a paused session.
-
-    cap_minutes should be task.estimated_duration_minutes so that a worker who
-    paused after the timer hit the limit isn't backdated past the cap on resume,
-    which would otherwise cause the timer to snap straight to the cap again.
-    """
-    if not session.checked_in_at or not session.checked_out_at:
-        return 0.0
-    raw = max(
-        0.0,
-        (session.checked_out_at.replace(tzinfo=timezone.utc) - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60,
-    )
-    if cap_minutes and cap_minutes > 0:
-        return min(raw, cap_minutes)
-    return raw
+    """Return the fixed task duration (estimated_duration_minutes). Never live-calculates."""
+    return cap_minutes or 0.0
 
 
 async def finalize_checkout(
@@ -263,12 +250,9 @@ async def pause_session(
     task = task_result.scalar_one()
 
     now = datetime.now(timezone.utc)
-    elapsed_minutes = (now - session.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-    # Cap at task duration limit to prevent over-billing
-    if task.estimated_duration_minutes > 0:
-        elapsed_minutes = min(elapsed_minutes, float(task.estimated_duration_minutes))
+    # Always use fixed task total (pay_rate x estimated_duration) - no live calculation
     session.checked_out_at = now
-    session.earnings = round(elapsed_minutes * task.pay_rate_per_minute, 2)
+    session.earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
     session.status = SessionStatus.PAUSED
 
     await db.flush()
@@ -397,12 +381,8 @@ async def get_history(
     for s in sessions:
         task_result = await db.execute(select(Task).where(Task.id == s.task_id))
         task = task_result.scalar_one_or_none()
-        elapsed = None
-        if s.checked_in_at and s.checked_out_at:
-            elapsed = round(
-                (s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60,
-                1,
-            )
+        # Use fixed task duration instead of elapsed time
+        fixed_duration = round(task.estimated_duration_minutes, 1) if task else None
         out.append({
             "session_id": str(s.id),
             "task_id": str(s.task_id),
@@ -412,7 +392,7 @@ async def get_history(
             "task_photo_url": task.photo_url if task else None,
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None,
-            "elapsed_minutes": elapsed,
+            "elapsed_minutes": fixed_duration,
             "earnings": s.earnings,
             "rating": s.rating,
             "feedback": s.feedback,
@@ -451,21 +431,21 @@ async def get_performance_stats(
         if s.checked_out_at and month_start <= s.checked_out_at.replace(tzinfo=timezone.utc) <= month_end
     ]
 
-    # Monthly totals
-    month_minutes = sum(
-        (s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-        for s in month_sessions
-        if s.checked_in_at and s.checked_out_at
-    )
+    # Monthly totals - use task estimated_duration_minutes
     month_earnings = sum(s.earnings or 0 for s in month_sessions)
+    month_minutes = 0.0
+    for s in month_sessions:
+        t_result = await db.execute(select(Task).where(Task.id == s.task_id))
+        t = t_result.scalar_one_or_none()
+        month_minutes += t.estimated_duration_minutes if t else 0
 
-    # All-time totals
-    total_minutes = sum(
-        (s.checked_out_at.replace(tzinfo=timezone.utc) - s.checked_in_at.replace(tzinfo=timezone.utc)).total_seconds() / 60
-        for s in all_sessions
-        if s.checked_in_at and s.checked_out_at
-    )
+    # All-time totals - use task estimated_duration_minutes
     total_earnings = sum(s.earnings or 0 for s in all_sessions)
+    total_minutes = 0.0
+    for s in all_sessions:
+        t_result = await db.execute(select(Task).where(Task.id == s.task_id))
+        t = t_result.scalar_one_or_none()
+        total_minutes += t.estimated_duration_minutes if t else 0
 
     # Ratings
     rated = [s for s in all_sessions if s.rating is not None]

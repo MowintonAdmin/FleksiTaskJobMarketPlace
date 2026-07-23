@@ -125,7 +125,7 @@ export default function SessionApproval() {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Duration</p>
-                    <p className="font-medium text-gray-900">{s.duration_minutes ? `${s.duration_minutes} min` : '—'}</p>
+                    <p className="font-medium text-gray-900">{s.duration_hours ? `${s.duration_hours} h` : (s.duration_minutes ? `${s.duration_minutes} min` : '—')}</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Earnings</p>

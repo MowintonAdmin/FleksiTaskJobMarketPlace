@@ -9,6 +9,19 @@
   body {
     @apply bg-gray-50 text-gray-900 antialiased overflow-x-hidden;
   }
+  * {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+  pre, code, kbd, samp {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  img, video, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
 }
 
 @layer components {

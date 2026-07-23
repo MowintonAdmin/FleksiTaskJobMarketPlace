@@ -66,7 +66,7 @@ export default function MyApplications() {
                   {app.task ? (
                     <>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Link to={`/tasks/${app.task_id}`} className="font-semibold text-gray-900 hover:text-primary-600 truncate">
+                        <Link to={`/tasks/${app.task_id}`} className="font-semibold text-gray-900 hover:text-primary-600 break-words">
                           {app.task.title}
                         </Link>
                         {app.task.status === 'completed' && (
@@ -76,7 +76,7 @@ export default function MyApplications() {
                           <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-400 font-medium">Cancelled</span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
+                      <p className="text-sm text-gray-500 break-words mt-0.5">
                         📍 {app.task.location}
                       </p>
                       <p className="text-sm text-primary-600 font-medium mt-1">

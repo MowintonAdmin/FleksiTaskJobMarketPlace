@@ -200,9 +200,9 @@ async def request_withdrawal(
 
     # Transaction record
     if bank.payment_type == "tng_ewallet":
-        desc = f"Withdrawal request to Touch 'n Go eWallet · {bank.phone_number}"
+        desc = f"Withdrawal request to Touch 'n Go eWallet · {bank.phone_number} RM {payload.amount:.2f}. The amount will be credited to your account in 5-10 business days."
     else:
-        desc = f"Withdrawal request to {bank.bank_name} ···{bank.account_number[-4:]}"
+        desc = f"Withdrawal request to {bank.bank_name} ···{bank.account_number[-4:]} RM {payload.amount:.2f}. The amount will be credited to your account in 5-10 business days."
     txn = Transaction(
         user_id=current_user.id,
         type=TransactionType.WITHDRAWAL_PENDING,
