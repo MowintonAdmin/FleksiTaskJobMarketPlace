@@ -6,6 +6,10 @@ frontend/admin/.env
 frontend/mobile/.env
 deploy/.env.prod
 
+# Personal local-dev helper scripts (contain machine-specific paths/credentials)
+backend/fix_env.py
+start_backend.bat
+
 # Python
 __pycache__/
 *.pyc
