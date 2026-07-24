@@ -630,15 +630,18 @@ async def admin_force_stop_session(
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
     now = datetime.now(timezone.utc)
-    fixed_minutes = float(task.estimated_duration_minutes)
-    earnings = round(task.pay_rate_per_minute * fixed_minutes, 2)
-    session.checked_out_at = now; session.earnings = earnings; session.status = SessionStatus.COMPLETED
+    # Use fixed task amount (pay_rate × estimated_duration) — NOT live calculated time
+    fixed_amount = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+    # Override any existing earnings with the fixed amount
+    session.earnings = fixed_amount
+    session.checked_out_at = now
+    session.status = SessionStatus.COMPLETED  # Goes to Session Approval for admin to approve/credit
     session.proof_notes = f"[Admin force-stopped by {current_user.full_name or current_user.email}]"
     db.add(session)
     db.add(Message(sender_id=current_user.id, recipient_id=session.worker_id,
-        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. The total amount will be credited upon approval from the session approval page."))
+        body=f"⚠️ Your session for \"{task.title}\" was stopped by an admin. RM {fixed_amount:.2f} is pending approval."))
     await db.flush()
-    return {"session_id": str(session.id), "elapsed_minutes": round(fixed_minutes, 1), "pending_earnings": earnings, "status": session.status}
+    return {"session_id": str(session.id), "elapsed_minutes": round(float(task.estimated_duration_minutes), 1), "pending_earnings": fixed_amount, "status": session.status}
 
 
 # ── Withdrawal Management ─────────────────────────────────────────────────────
@@ -1400,9 +1403,11 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
         estimated_hours = round(task.estimated_duration_minutes / 60, 1) if task and task.estimated_duration_minutes else 0
         final_earnings = display_earnings if is_adjusted else fixed_earnings
         final_proof = proof_note_text if is_adjusted else s.proof_notes
+        task_status_label = task.status if task else "unknown"
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
-            "task_location": task.location if task else "", "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
+            "task_location": task.location if task else "", "task_status": task_status_label,
+            "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": final_earnings, "is_adjusted": is_adjusted, "duration_minutes": estimated_minutes, "duration_hours": estimated_hours, "proof_notes": final_proof,
             "proof_photo_url": s.proof_photo_url, "status": s.status,
             "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,

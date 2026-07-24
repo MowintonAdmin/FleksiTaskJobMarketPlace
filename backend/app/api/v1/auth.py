@@ -159,7 +159,15 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
         select(User).where(User.email == payload.email, User.source == DataSource.APP)
     )
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is already registered. Try logging in instead.")
+
+    # Validate field lengths (matches database column constraints)
+    if payload.full_name and len(payload.full_name) > 255:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Full name must be 255 characters or less. Please shorten it.")
+    if payload.email and len(payload.email) > 255:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Email address is too long. Please use a shorter email.")
+    if payload.location and len(payload.location) > 255:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Location must be 255 characters or less. Please shorten it.")
 
     # Step 1: Try to link to an existing imported worker profile
     imported_user = await _find_imported_worker(db, payload)

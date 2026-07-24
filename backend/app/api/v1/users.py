@@ -90,6 +90,20 @@ async def update_my_profile(
     if errors:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
 
+    # Validate field lengths (matches database column constraints)
+    if "full_name" in update_data and update_data["full_name"] and len(update_data["full_name"]) > 255:
+        errors.append("Full name must be 255 characters or less. Please shorten it.")
+    if "bio" in update_data and update_data["bio"] and len(update_data["bio"]) > 1000:
+        errors.append("Bio must be 1000 characters or less. Please shorten it.")
+    if "phone" in update_data and update_data["phone"] and len(update_data["phone"]) > 20:
+        errors.append("Phone number must be 20 characters or less. Please shorten it.")
+    if "nric_passport" in update_data and update_data["nric_passport"] and len(update_data["nric_passport"]) > 50:
+        errors.append("NRIC/Passport must be 50 characters or less. Please shorten it.")
+    if "location" in update_data and update_data["location"] and len(update_data["location"]) > 255:
+        errors.append("Location must be 255 characters or less. Please shorten it.")
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
+
     if "skills" in update_data and update_data["skills"] is not None:
         update_data["skills"] = json.dumps(update_data["skills"])
     for field, value in update_data.items():

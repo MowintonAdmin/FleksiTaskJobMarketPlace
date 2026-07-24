@@ -9,6 +9,7 @@ from app.database import Base
 
 class TransactionType(str, enum.Enum):
     CREDIT = "CREDIT"                          # Earnings credited after checkout
+    DEBIT = "DEBIT"                            # Earnings reversed / clawed back
     WITHDRAWAL_PENDING = "WITHDRAWAL_PENDING"  # Withdrawal requested
     WITHDRAWAL_COMPLETED = "WITHDRAWAL_COMPLETED"  # Withdrawal paid out
     WITHDRAWAL_REJECTED = "WITHDRAWAL_REJECTED"    # Withdrawal denied

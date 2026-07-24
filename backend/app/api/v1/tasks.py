@@ -135,39 +135,67 @@ async def update_task(
     # If task is being completed or cancelled, auto-checkout active workers
     from app.models.task_session import TaskSession, SessionStatus
     from app.models.message import Message
+    from app.models.wallet import Wallet, Transaction as WalletTxn, TransactionType
 
-    if (task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED) and
-            old_status in (TaskStatus.OPEN, TaskStatus.IN_PROGRESS)):
-        # Find all active sessions for this task
-        sessions_result = await db.execute(
-            select(TaskSession).where(
-                TaskSession.task_id == task.id,
-                TaskSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED]),
+    if task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED):
+        # 1. Auto-checkout active/paused sessions
+        if old_status in (TaskStatus.OPEN, TaskStatus.IN_PROGRESS):
+            sessions_result = await db.execute(
+                select(TaskSession).where(
+                    TaskSession.task_id == task.id,
+                    TaskSession.status.in_([SessionStatus.ACTIVE, SessionStatus.PAUSED]),
+                )
             )
-        )
-        active_sessions = sessions_result.scalars().all()
+            active_sessions = sessions_result.scalars().all()
 
-        for session in active_sessions:
-            fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+            for session in active_sessions:
+                fixed_earnings = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+                now = datetime.now(timezone.utc)
+                session.checked_out_at = now
+                session.earnings = fixed_earnings
+                session.status = SessionStatus.COMPLETED
+                if task.status == TaskStatus.CANCELLED:
+                    session.proof_notes = f"[Task cancelled — auto-checked-out]"
+                else:
+                    session.proof_notes = f"[Auto-checked-out — task {task.status}]"
+                db.add(session)
 
-            # Auto-checkout — leave in COMPLETED state so Session Approval can process it.
-            # Do NOT credit the wallet here; payment is issued only upon admin approval.
-            now = datetime.now(timezone.utc)
-            session.checked_out_at = now
-            session.earnings = fixed_earnings
-            session.status = SessionStatus.COMPLETED
-            session.proof_notes = f"[Auto-checked-out — task {task.status}]"
-            db.add(session)
+                db.add(Message(
+                    sender_id=current_user.id,
+                    recipient_id=session.worker_id,
+                    body=f"⏳ Your session for \"{task.title}\" has been checked out automatically. Payment of RM {fixed_earnings:.2f} will be credited once the session is approved.",
+                ))
 
-            # Notify worker that their session is pending approval
-            db.add(Message(
-                sender_id=current_user.id,
-                recipient_id=session.worker_id,
-                body=f"⏳ Your session for \"{task.title}\" has been checked out automatically. Payment of RM {fixed_earnings:.2f} will be credited once the session is approved.",
-            ))
+            if active_sessions:
+                await db.flush()
 
-        if active_sessions:
-            await db.flush()
+        # 2. Claw back already-settled (paid out) sessions
+        if task.status == TaskStatus.CANCELLED:
+            settled_sessions = await db.execute(
+                select(TaskSession).where(
+                    TaskSession.task_id == task.id,
+                    TaskSession.status == SessionStatus.SETTLED,
+                )
+            )
+            for session in settled_sessions.scalars().all():
+                amount = session.earnings or 0.0
+                if amount > 0:
+                    wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
+                    wallet = wallet_result.scalar_one_or_none()
+                    if wallet:
+                        wallet.available_balance = round(wallet.available_balance - amount, 2)
+                    db.add(WalletTxn(
+                        user_id=session.worker_id,
+                        type=TransactionType.DEBIT,
+                        amount=amount,
+                        description=f"Task cancelled: {task.title} — earnings of RM {amount:.2f} reversed",
+                        reference_id=str(session.id),
+                    ))
+                    db.add(Message(
+                        sender_id=current_user.id,
+                        recipient_id=session.worker_id,
+                        body=f"⚠️ The task \"{task.title}\" has been cancelled. RM {amount:.2f} has been deducted from your wallet.",
+                    ))
 
     count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
     task_data = TaskResponse.model_validate(task)
@@ -188,14 +216,47 @@ async def delete_task(
     if task.employer_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    # Delete associated task sessions first to avoid FK violations
-    # when applications are cascade-deleted (task_sessions.application_id references applications.id)
-    from app.models.task_session import TaskSession
+    from app.models.task_session import TaskSession, SessionStatus
+    from app.models.wallet import Wallet, Transaction as WalletTxn, TransactionType
+    from app.models.message import Message
+
+    # Find all SETTLED (approved and credited) sessions for this task
+    settled_sessions = await db.execute(
+        select(TaskSession).where(
+            TaskSession.task_id == task.id,
+            TaskSession.status == SessionStatus.SETTLED,
+        )
+    )
+    for session in settled_sessions.scalars().all():
+        amount = session.earnings or 0.0
+        if amount > 0:
+            # Deduct from worker's wallet
+            wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
+            wallet = wallet_result.scalar_one_or_none()
+            if wallet:
+                wallet.available_balance = round(wallet.available_balance - amount, 2)
+            # Record the clawback transaction
+            db.add(WalletTxn(
+                user_id=session.worker_id,
+                type=TransactionType.DEBIT,
+                amount=amount,
+                description=f"Task cancelled/deleted: {task.title} — earnings of RM {amount:.2f} reversed",
+                reference_id=str(session.id),
+            ))
+            # Notify the worker
+            db.add(Message(
+                sender_id=current_user.id,
+                recipient_id=session.worker_id,
+                body=f"⚠️ The task \"{task.title}\" has been deleted. RM {amount:.2f} has been deducted from your wallet.",
+            ))
+
+    # Delete all task sessions for this task (including settled ones)
     await db.execute(
         sa.delete(TaskSession).where(TaskSession.task_id == task.id)
     )
 
     await db.delete(task)
+    await db.flush()
 
 
 @router.post("/{task_id}/photo", response_model=TaskResponse)
