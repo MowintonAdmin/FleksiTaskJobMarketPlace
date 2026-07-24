@@ -1202,7 +1202,7 @@ async def analytics_task_completion(db: AsyncSession = Depends(get_db), current_
 
 @router.get("/analytics/export/workers")
 async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
-    from app.models.wallet import WithdrawalRequest as _WD
+    from app.models.wallet import WithdrawalRequest as _WD, BankAccount
 
     users_q = select(User).where(User.is_admin == False).order_by(User.created_at.desc())
     if not current_user.is_super_admin:
@@ -1214,6 +1214,10 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     users_result = await db.execute(users_q)
     users = users_result.scalars().all()
 
+    # Load all bank accounts for payment info lookup
+    bank_result = await db.execute(select(BankAccount))
+    bank_accounts = {b.user_id: b for b in bank_result.scalars().all()}
+
     # Include both COMPLETED (app) and SETTLED (imported) sessions in worker exports
     sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
@@ -1224,14 +1228,28 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     all_sessions = sessions_result.scalars().all()
 
     output = io.StringIO(); writer = csv.writer(output)
-    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified", "Source"])
+    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified", "Source",
+        "Bank QR Image URL", "Payment Type", "Payment Details"])
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         hours = 0.0
         earnings = sum(s.earnings or 0 for s in u_sessions)
         rated = [s for s in u_sessions if s.rating is not None]
         avg_r = round(sum(s.rating for s in rated) / len(rated), 2) if rated else ""
-        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP"])
+        # Payment details
+        bank = bank_accounts.get(u.id)
+        if bank:
+            if bank.payment_type == "tng_ewallet":
+                payment_type = "Touch 'n Go eWallet"
+                payment_details = bank.phone_number or ""
+            else:
+                payment_type = "Bank Transfer"
+                payment_details = f"{bank.bank_name or ''} - {bank.account_number or ''} ({bank.account_holder_name or ''})".strip(" -()")
+        else:
+            payment_type = ""
+            payment_details = ""
+        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP",
+            u.bank_qr_code_url or "", payment_type, payment_details])
     output.seek(0)
     filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
