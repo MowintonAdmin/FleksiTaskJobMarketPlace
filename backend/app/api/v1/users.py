@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, FCMTokenUpdate
 from app.core.deps import get_current_user
+from app.core.security import hash_password, verify_password
 from app.config import get_settings
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -263,3 +265,27 @@ async def list_admin_users(
         select(User).where(User.is_admin == True).order_by(User.full_name)  # noqa: E712
     )
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+@router.post("/me/change-password")
+async def change_my_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the current user's password."""
+    if not current_user.hashed_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password login is not enabled for this account. Use Google Sign-In.")
+    if not verify_password(payload.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Current password is incorrect")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="New password must be at least 6 characters")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.add(current_user)
+    await db.flush()
+    return {"message": "Password changed successfully"}

@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { messagesApi } from '../api/messages'
 import api from '../api/client'
+import { toast } from 'react-toastify'
 import { logout } from '../slices/authSlice'
 
 function getLinks(user) {
@@ -110,9 +111,36 @@ export default function Sidebar({ open, onClose }) {
     navigate('/login')
   }
 
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [changingPass, setChangingPass] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
+
   const handleChangePassword = () => {
     setShowDropdown(false)
-    navigate('/change-password')
+    setShowChangePassword(true)
+    setPasswordChanged(false)
+    setOldPassword('')
+    setNewPass('')
+    setConfirmPass('')
+  }
+
+  const handleSubmitPasswordChange = async (e) => {
+    e.preventDefault()
+    if (newPass.length < 6) { toast.error('New password must be at least 6 characters'); return }
+    if (newPass !== confirmPass) { toast.error('New passwords do not match'); return }
+    setChangingPass(true)
+    try {
+      await api.post('/users/me/change-password', { old_password: oldPassword, new_password: newPass })
+      setPasswordChanged(true)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Failed to change password'
+      toast.error(msg)
+    } finally {
+      setChangingPass(false)
+    }
   }
 
   return (
@@ -141,7 +169,6 @@ export default function Sidebar({ open, onClose }) {
               Welcome, {user?.full_name || user?.email || 'Admin'}
             </p>
           </div>
-          {/* Close button — mobile only */}
           <button
             onClick={onClose}
             className="md:hidden p-1 rounded text-gray-400 hover:text-white shrink-0"
@@ -200,6 +227,56 @@ export default function Sidebar({ open, onClose }) {
           )}
         </div>
       </aside>
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowChangePassword(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            {!passwordChanged ? (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-bold text-gray-900">🔑 Change Password</h2>
+                  <button onClick={() => setShowChangePassword(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">✕</button>
+                </div>
+                <form onSubmit={handleSubmitPasswordChange} className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Current Password</label>
+                    <input required type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">New Password</label>
+                    <input required type="password" minLength={6} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min. 6 characters"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Confirm New Password</label>
+                    <input required type="password" minLength={6} value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button type="button" onClick={() => setShowChangePassword(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button type="submit" disabled={changingPass}
+                      className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
+                      {changingPass ? 'Changing…' : 'Change Password'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="px-6 py-10 text-center space-y-4">
+                <p className="text-5xl">✅</p>
+                <h2 className="text-xl font-bold text-gray-900">Password Changed!</h2>
+                <p className="text-sm text-gray-500">Your password has been changed successfully.</p>
+                <button onClick={() => setShowChangePassword(false)}
+                  className="mt-2 px-6 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }
