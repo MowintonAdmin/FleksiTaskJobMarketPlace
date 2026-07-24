@@ -1275,6 +1275,12 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
 
         # Embed Bank QR image if available
         if u.bank_qr_code_url:
+            from openpyxl.styles import Font
+            # Add URL as clickable link in cell
+            cell = ws.cell(row=row_idx, column=11)
+            cell.value = u.bank_qr_code_url
+            cell.font = Font(color="0563C1", underline="single")
+            # Also try to embed the actual image from disk
             qr_path_str = u.bank_qr_code_url
             if qr_path_str.startswith("/media/"):
                 qr_path_str = qr_path_str[len("/media/"):]
@@ -1284,11 +1290,10 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
                     img = XLImage(str(full_path))
                     img.width = 80
                     img.height = 80
-                    cell_ref = f"K{row_idx}"
-                    ws.add_image(img, cell_ref)
+                    ws.add_image(img, f"K{row_idx}")
                     ws.row_dimensions[row_idx].height = 80
                 except Exception:
-                    pass  # If image fails to load, just leave blank
+                    pass
         row_idx += 1
 
     output = io.BytesIO()
