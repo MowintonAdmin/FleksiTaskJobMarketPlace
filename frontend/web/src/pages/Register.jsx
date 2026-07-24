@@ -111,10 +111,12 @@ export default function Register() {
                 value={form.full_name}
                 onChange={(e) => set('full_name', e.target.value)}
                 className="input"
-                placeholder="Ahmad bin Ali"
+                placeholder="John Doe"
                 required
                 autoComplete="name"
+                maxLength={255}
               />
+              <p className="text-xs text-gray-400 mt-0.5">Max 255 characters</p>
             </div>
 
             {/* Email */}

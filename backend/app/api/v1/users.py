@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, FCMTokenUpdate
 from app.core.deps import get_current_user
+from app.core.security import hash_password, verify_password
 from app.config import get_settings
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -85,6 +87,20 @@ async def update_my_profile(
         errors.append("NRIC/Passport number is required")
     if "body_height_cm" in update_data and (update_data["body_height_cm"] is None or update_data["body_height_cm"] <= 0):
         errors.append("Body height must be greater than 0")
+    if errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
+
+    # Validate field lengths (matches database column constraints)
+    if "full_name" in update_data and update_data["full_name"] and len(update_data["full_name"]) > 255:
+        errors.append("Full name must be 255 characters or less. Please shorten it.")
+    if "bio" in update_data and update_data["bio"] and len(update_data["bio"]) > 1000:
+        errors.append("Bio must be 1000 characters or less. Please shorten it.")
+    if "phone" in update_data and update_data["phone"] and len(update_data["phone"]) > 20:
+        errors.append("Phone number must be 20 characters or less. Please shorten it.")
+    if "nric_passport" in update_data and update_data["nric_passport"] and len(update_data["nric_passport"]) > 50:
+        errors.append("NRIC/Passport must be 50 characters or less. Please shorten it.")
+    if "location" in update_data and update_data["location"] and len(update_data["location"]) > 255:
+        errors.append("Location must be 255 characters or less. Please shorten it.")
     if errors:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=errors)
 
@@ -263,3 +279,27 @@ async def list_admin_users(
         select(User).where(User.is_admin == True).order_by(User.full_name)  # noqa: E712
     )
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
+@router.post("/me/change-password")
+async def change_my_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the current user's password."""
+    if not current_user.hashed_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password login is not enabled for this account. Use Google Sign-In.")
+    if not verify_password(payload.old_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Current password is incorrect")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="New password must be at least 6 characters")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.add(current_user)
+    await db.flush()
+    return {"message": "Password changed successfully"}

@@ -328,6 +328,14 @@ export default function Profile() {
       return
     }
 
+    // Refresh user from server to ensure photo URLs are the latest (race condition fix)
+    try {
+      const fresh = await api.get('/users/me')
+      dispatch(setUser(fresh.data))
+    } catch {
+      // Non-critical — fall through with current state
+    }
+
     try {
       const { data } = await api.post('/users/me/submit-verification')
       dispatch(setUser(data))
@@ -459,7 +467,8 @@ export default function Profile() {
       <form onSubmit={handleSave} className="card space-y-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-          <input name="full_name" value={form.full_name} onChange={handleChange} className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`} required disabled={isVerified} />
+              <input name="full_name" value={form.full_name} onChange={handleChange} className={`input ${isVerified ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`} required disabled={isVerified} maxLength={255} />
+              {!isVerified && <p className="text-xs text-gray-400 mt-0.5">Max 255 characters</p>}
           {isVerified && <p className="text-xs text-blue-500 mt-1">🔒 Locked after verification.</p>}
         </div>
         <div>

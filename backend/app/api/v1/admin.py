@@ -7,6 +7,7 @@ import uuid
 import io
 import csv
 import math
+from pathlib import Path
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -14,6 +15,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from pydantic import BaseModel, EmailStr
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
 
 from app.database import get_db
 from app.models.application import Application, ApplicationStatus
@@ -66,15 +69,23 @@ async def require_super_admin(current_user: User = Depends(get_current_user)) ->
 
 async def get_accessible_task_ids(db: AsyncSession, current_user: User) -> list[uuid.UUID] | None:
     """Return task IDs this admin can see. None = super admin (no filter).
-    Includes the placeholder task used by imported historical sessions so that
-    normal admins can see historical data alongside their own project data.
+    Normal admins see tasks from projects created by ANY admin with the same company_tag.
+    Includes the placeholder task used by imported historical sessions.
     """
     if current_user.is_super_admin:
         return None
     from app.services.data_import import PLACEHOLDER_TASK_ID
+    # Get all admin user IDs with the same company_tag
+    same_company_admin_ids = [current_user.id]
+    if current_user.company_tag:
+        result = await db.execute(
+            select(User.id).where(User.is_admin == True, User.company_tag == current_user.company_tag)
+        )
+        same_company_admin_ids = [r[0] for r in result.all()]
+    # Get tasks from projects created by any same-company admin
     result = await db.execute(
         select(Task.id).join(Project, Task.project_id == Project.id)
-        .where(Project.created_by_id == current_user.id)
+        .where(Project.created_by_id.in_(same_company_admin_ids))
     )
     task_ids = [r[0] for r in result.all()]
     # Always include the placeholder task so imported sessions are visible to all admins
@@ -261,6 +272,77 @@ async def admin_create_admin(
     return {"message": f"Admin account created for {user.email}", "user_id": str(user.id), "email": user.email, "full_name": user.full_name}
 
 
+class UpdateAdminRequest(BaseModel):
+    full_name: str | None = None
+    company_tag: str | None = None
+    is_super_admin: bool | None = None
+
+
+@router.put("/users/admins/{admin_id}")
+async def admin_update_admin(
+    admin_id: uuid.UUID,
+    payload: UpdateAdminRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Update an admin account's details. Super admin only."""
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin = result.scalar_one_or_none()
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+    if admin.id == current_user.id and payload.is_super_admin is False:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot remove your own super admin status")
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(admin, field, value)
+    db.add(admin)
+    await db.flush()
+    await db.refresh(admin)
+    return {"message": f"Admin {admin.email} updated", "user_id": str(admin.id), "email": admin.email, "full_name": admin.full_name}
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+
+@router.post("/users/admins/{admin_id}/reset-password")
+async def admin_reset_admin_password(
+    admin_id: uuid.UUID,
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Reset an admin's password. Super admin only."""
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin = result.scalar_one_or_none()
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Password must be at least 6 characters")
+    admin.hashed_password = hash_password(payload.new_password)
+    db.add(admin)
+    await db.flush()
+    return {"message": f"Password reset for {admin.email}"}
+
+
+@router.delete("/users/admins/{admin_id}")
+async def admin_delete_admin(
+    admin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Delete an admin account. Super admin only. Cannot delete yourself."""
+    if admin_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin = result.scalar_one_or_none()
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+    await db.delete(admin)
+    await db.flush()
+    return {"message": f"Admin {admin.email} deleted", "user_id": str(admin.id)}
+
+
 # ── Applications ──────────────────────────────────────────────────────────────
 
 @router.get("/applications", response_model=list[ApplicationWithDetails])
@@ -322,12 +404,15 @@ async def admin_unverified_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all unverified users."""
-    result = await db.execute(
-        select(User)
-        .where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
-        .order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc())
-    )
+    """List all unverified users. Super admins see all; normal admins only see workers from their own company_tag."""
+    base_q = select(User).where(User.is_verified == False, User.is_admin == False, User.verification_status == "submitted")
+    if not current_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, current_user)
+        if accessible is not None:
+            if not accessible:
+                return []
+            base_q = base_q.where(User.id.in_(accessible))
+    result = await db.execute(base_q.order_by(User.verification_submitted_at.desc().nulls_last(), User.created_at.desc()))
     users = result.scalars().all()
     out = []
     for u in users:
@@ -471,6 +556,11 @@ async def admin_verify_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    # Normal admins can only verify users from their own company_tag tasks
+    if not admin_user.is_super_admin:
+        accessible = await get_accessible_user_ids(db, admin_user)
+        if accessible is not None and user.id not in accessible:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only verify users who applied to your own projects")
 
     action = payload.action.lower()
     if action == "approve":
@@ -543,15 +633,18 @@ async def admin_force_stop_session(
     task_result = await db.execute(select(Task).where(Task.id == session.task_id))
     task = task_result.scalar_one()
     now = datetime.now(timezone.utc)
-    fixed_minutes = float(task.estimated_duration_minutes)
-    earnings = round(task.pay_rate_per_minute * fixed_minutes, 2)
-    session.checked_out_at = now; session.earnings = earnings; session.status = SessionStatus.COMPLETED
+    # Use fixed task amount (pay_rate × estimated_duration) — NOT live calculated time
+    fixed_amount = round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+    # Override any existing earnings with the fixed amount
+    session.earnings = fixed_amount
+    session.checked_out_at = now
+    session.status = SessionStatus.COMPLETED  # Goes to Session Approval for admin to approve/credit
     session.proof_notes = f"[Admin force-stopped by {current_user.full_name or current_user.email}]"
     db.add(session)
     db.add(Message(sender_id=current_user.id, recipient_id=session.worker_id,
-        body=f"⚠️ Your active session for \"{task.title}\" was stopped by an admin. The total amount will be credited upon approval from the session approval page."))
+        body=f"⚠️ Your session for \"{task.title}\" was stopped by an admin. RM {fixed_amount:.2f} is pending approval."))
     await db.flush()
-    return {"session_id": str(session.id), "elapsed_minutes": round(fixed_minutes, 1), "pending_earnings": earnings, "status": session.status}
+    return {"session_id": str(session.id), "elapsed_minutes": round(float(task.estimated_duration_minutes), 1), "pending_earnings": fixed_amount, "status": session.status}
 
 
 # ── Withdrawal Management ─────────────────────────────────────────────────────
@@ -790,7 +883,13 @@ async def admin_list_projects(
 ):
     q = select(Project).order_by(Project.created_at.desc())
     if not current_user.is_super_admin:
-        q = q.where(Project.created_by_id == current_user.id)
+        same_company_admin_ids = [current_user.id]
+        if current_user.company_tag:
+            result = await db.execute(
+                select(User.id).where(User.is_admin == True, User.company_tag == current_user.company_tag)
+            )
+            same_company_admin_ids = [r[0] for r in result.all()]
+        q = q.where(Project.created_by_id.in_(same_company_admin_ids))
     result = await db.execute(q)
     projects = result.scalars().all()
     out = []
@@ -1106,7 +1205,7 @@ async def analytics_task_completion(db: AsyncSession = Depends(get_db), current_
 
 @router.get("/analytics/export/workers")
 async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
-    from app.models.wallet import WithdrawalRequest as _WD
+    from app.models.wallet import WithdrawalRequest as _WD, BankAccount
 
     users_q = select(User).where(User.is_admin == False).order_by(User.created_at.desc())
     if not current_user.is_super_admin:
@@ -1118,6 +1217,10 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     users_result = await db.execute(users_q)
     users = users_result.scalars().all()
 
+    # Load all bank accounts for payment info lookup
+    bank_result = await db.execute(select(BankAccount))
+    bank_accounts = {b.user_id: b for b in bank_result.scalars().all()}
+
     # Include both COMPLETED (app) and SETTLED (imported) sessions in worker exports
     sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
@@ -1127,18 +1230,78 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     sessions_result = await db.execute(sessions_q)
     all_sessions = sessions_result.scalars().all()
 
-    output = io.StringIO(); writer = csv.writer(output)
-    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified", "Source"])
+    # Build the Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Workers Export"
+
+    headers = ["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)",
+               "Average Rating", "Is Verified", "Source", "Bank QR Image", "Payment Type", "Payment Details"]
+    ws.append(headers)
+
+    # Column widths
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions['D'].width = 14
+    ws.column_dimensions['K'].width = 18
+
+    media_dir = Path(settings.MEDIA_DIR)
+    row_idx = 2  # row 1 is header
+
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         hours = 0.0
         earnings = sum(s.earnings or 0 for s in u_sessions)
         rated = [s for s in u_sessions if s.rating is not None]
         avg_r = round(sum(s.rating for s in rated) / len(rated), 2) if rated else ""
-        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP"])
+
+        # Payment details
+        bank = bank_accounts.get(u.id)
+        if bank:
+            if bank.payment_type == "tng_ewallet":
+                payment_type = "Touch 'n Go eWallet"
+                payment_details = bank.phone_number or ""
+            else:
+                payment_type = "Bank Transfer"
+                payment_details = f"{bank.bank_name or ''} - {bank.account_number or ''} ({bank.account_holder_name or ''})".strip(" -()")
+        else:
+            payment_type = ""
+            payment_details = ""
+
+        ws.append([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions),
+                   round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP",
+                   None, payment_type, payment_details])
+
+        # Embed Bank QR image if available
+        if u.bank_qr_code_url:
+            from openpyxl.styles import Font
+            # Add URL as clickable link in cell
+            cell = ws.cell(row=row_idx, column=11)
+            cell.value = u.bank_qr_code_url
+            cell.font = Font(color="0563C1", underline="single")
+            # Also try to embed the actual image from disk
+            qr_path_str = u.bank_qr_code_url
+            if qr_path_str.startswith("/media/"):
+                qr_path_str = qr_path_str[len("/media/"):]
+            full_path = media_dir / qr_path_str
+            if full_path.exists():
+                try:
+                    img = XLImage(str(full_path))
+                    img.width = 80
+                    img.height = 80
+                    ws.add_image(img, f"K{row_idx}")
+                    ws.row_dimensions[row_idx].height = 80
+                except Exception:
+                    pass
+        row_idx += 1
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
-    filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
+    filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
 @router.get("/export/workers-detailed")
@@ -1295,14 +1458,24 @@ async def admin_pending_sessions(db: AsyncSession = Depends(get_db), current_use
         task = task_result.scalar_one_or_none()
         fixed_earnings = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         if fixed_earnings <= 0: continue
+        # If earnings were manually adjusted, use adjusted value and mark as adjusted
+        is_adjusted = bool(s.earnings and s.earnings > 0 and abs(s.earnings - fixed_earnings) > 0.01)
+        display_earnings = s.earnings if is_adjusted else fixed_earnings
+        proof_note_text = s.proof_notes or ""
+        if is_adjusted and "[Adjusted]" not in proof_note_text:
+            proof_note_text = ("[Adjusted] " + proof_note_text).strip()
         bank_result = await db.execute(select(_BankAccountForApproval).where(_BankAccountForApproval.user_id == s.worker_id))
         bank = bank_result.scalar_one_or_none()
         estimated_minutes = round(task.estimated_duration_minutes) if task and task.estimated_duration_minutes else 0
         estimated_hours = round(task.estimated_duration_minutes / 60, 1) if task and task.estimated_duration_minutes else 0
+        final_earnings = display_earnings if is_adjusted else fixed_earnings
+        final_proof = proof_note_text if is_adjusted else s.proof_notes
+        task_status_label = task.status if task else "unknown"
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
             "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": task.title if task else "Unknown",
-            "task_location": task.location if task else "", "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
-            "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": fixed_earnings, "duration_minutes": estimated_minutes, "duration_hours": estimated_hours, "proof_notes": s.proof_notes,
+            "task_location": task.location if task else "", "task_status": task_status_label,
+            "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
+            "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None, "earnings": final_earnings, "is_adjusted": is_adjusted, "duration_minutes": estimated_minutes, "duration_hours": estimated_hours, "proof_notes": final_proof,
             "proof_photo_url": s.proof_photo_url, "status": s.status,
             "worker_bank_qr_url": worker.bank_qr_code_url if worker else None,
             "worker_id_photo_front_url": worker.id_photo_front_url if worker else None,
@@ -1346,18 +1519,32 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()
         # Use existing earnings (may have been adjusted manually) or calculate from task
-        amount_to_credit = session.earnings if session.earnings and session.earnings > 0 else round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
-        if amount_to_credit <= 0:
+        new_amount = session.earnings if session.earnings and session.earnings > 0 else round(task.pay_rate_per_minute * task.estimated_duration_minutes, 2)
+        if new_amount <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session has no calculable earnings")
-        session.earnings = amount_to_credit
+
+        # Check if this session was already credited before (e.g. after an adjustment)
+        existing_credit = await db.execute(
+            select(_Txn).where(_Txn.reference_id == str(session.id), _Txn.type == _TT.CREDIT)
+        )
+        prior_txn = existing_credit.scalar_one_or_none()
+        prior_amount = prior_txn.amount if prior_txn else 0.0
+        # Only credit the difference between new amount and what was already credited
+        delta = round(new_amount - prior_amount, 2)
+        if prior_txn:
+            # Update the existing transaction amount to reflect the new total
+            prior_txn.amount = new_amount
+            prior_txn.description = f"Earnings approved for task: {task.title} (adjusted)"
+        session.earnings = new_amount
 
         wallet_result = await db.execute(select(_W).where(_W.user_id == session.worker_id))
         wallet = wallet_result.scalar_one_or_none()
         if not wallet:
             wallet = _W(user_id=session.worker_id); db.add(wallet); await db.flush()
-        wallet.available_balance = round(wallet.available_balance + amount_to_credit, 2)
-        db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=amount_to_credit,
-            description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
+        wallet.available_balance = round(wallet.available_balance + delta, 2)
+        if not prior_txn:
+            db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=new_amount,
+                description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
         if task.status != TaskStatus.COMPLETED: task.status = TaskStatus.COMPLETED
 
         session.rating = round(payload.rating, 1)
@@ -1365,9 +1552,9 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
 
         reason = f" Notes: {payload.notes}" if payload.notes else ""
         db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
-            body=f"✅ Your task \"{task.title}\" has been approved! RM {amount_to_credit:.2f} has been credited to your wallet.{reason}"))
+            body=f"✅ Your task \"{task.title}\" has been approved! RM {new_amount:.2f} has been credited to your wallet.{reason}"))
         session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
-        return {"status": "approved", "session_id": str(session.id), "amount_credited": amount_to_credit, "rating": session.rating, "feedback": session.feedback}
+        return {"status": "approved", "session_id": str(session.id), "amount_credited": new_amount, "rating": session.rating, "feedback": session.feedback}
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))
         task = task_result.scalar_one()

@@ -38,9 +38,13 @@ async def apply_for_task(
 ):
     """One-tap task application. User must be verified."""
     if not current_user.is_verified:
+        if current_user.verification_status == "submitted":
+            msg = "Your profile is currently under review. Please wait for verification before applying."
+        else:
+            msg = "Please complete your profile first — fill in required fields, upload your selfie with ID, then submit for verification."
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account must be verified before you can apply for tasks. Please complete your profile and wait for admin verification.",
+            detail=msg,
         )
     if not current_user.phone:
         raise HTTPException(

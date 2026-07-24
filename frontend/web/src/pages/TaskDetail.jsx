@@ -36,8 +36,11 @@ export default function TaskDetail() {
       toast.success('Application submitted! You\'ll be notified of the status.')
     } catch (err) {
       const msg = err.response?.data?.detail || 'Failed to apply'
-      // If profile is incomplete, redirect them to complete it
-      if (msg?.toLowerCase().includes('phone') || msg?.toLowerCase().includes('profile') || msg?.toLowerCase().includes('verified')) {
+      // If verification pending or profile incomplete
+      if (msg?.toLowerCase().includes('under review') || msg?.toLowerCase().includes('verification') || msg?.toLowerCase().includes('verified')) {
+        navigate('/profile')
+        toast.info(msg, { autoClose: 8000 })
+      } else if (msg?.toLowerCase().includes('phone') || msg?.toLowerCase().includes('profile')) {
         navigate('/profile')
         toast.info('Please complete your profile first — fill in required fields, upload your selfie with ID, then submit for verification.', { autoClose: 8000 })
       } else {
