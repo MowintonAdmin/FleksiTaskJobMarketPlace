@@ -7,6 +7,7 @@ import uuid
 import io
 import csv
 import math
+from pathlib import Path
 from calendar import monthrange
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -14,6 +15,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from pydantic import BaseModel, EmailStr
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
 
 from app.database import get_db
 from app.models.application import Application, ApplicationStatus
@@ -1227,15 +1230,32 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
     sessions_result = await db.execute(sessions_q)
     all_sessions = sessions_result.scalars().all()
 
-    output = io.StringIO(); writer = csv.writer(output)
-    writer.writerow(["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)", "Average Rating", "Is Verified", "Source",
-        "Bank QR Image URL", "Payment Type", "Payment Details"])
+    # Build the Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Workers Export"
+
+    headers = ["Full Name", "Email", "Location", "Joined", "Total Sessions", "Total Hours", "Total Earnings (RM)",
+               "Average Rating", "Is Verified", "Source", "Bank QR Image", "Payment Type", "Payment Details"]
+    ws.append(headers)
+
+    # Column widths
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions['D'].width = 14
+    ws.column_dimensions['K'].width = 18
+
+    media_dir = Path(settings.MEDIA_DIR)
+    row_idx = 2  # row 1 is header
+
     for u in users:
         u_sessions = [s for s in all_sessions if s.worker_id == u.id]
         hours = 0.0
         earnings = sum(s.earnings or 0 for s in u_sessions)
         rated = [s for s in u_sessions if s.rating is not None]
         avg_r = round(sum(s.rating for s in rated) / len(rated), 2) if rated else ""
+
         # Payment details
         bank = bank_accounts.get(u.id)
         if bank:
@@ -1248,11 +1268,35 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
         else:
             payment_type = ""
             payment_details = ""
-        writer.writerow([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions), round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP",
-            u.bank_qr_code_url or "", payment_type, payment_details])
+
+        ws.append([u.full_name, u.email, u.location or "", u.created_at.strftime("%Y-%m-%d"), len(u_sessions),
+                   round(hours, 1), round(earnings, 2), avg_r, "Yes" if u.is_verified else "No", u.source or "APP",
+                   None, payment_type, payment_details])
+
+        # Embed Bank QR image if available
+        if u.bank_qr_code_url:
+            qr_path_str = u.bank_qr_code_url
+            if qr_path_str.startswith("/media/"):
+                qr_path_str = qr_path_str[len("/media/"):]
+            full_path = media_dir / qr_path_str
+            if full_path.exists():
+                try:
+                    img = XLImage(str(full_path))
+                    img.width = 80
+                    img.height = 80
+                    cell_ref = f"K{row_idx}"
+                    ws.add_image(img, cell_ref)
+                    ws.row_dimensions[row_idx].height = 80
+                except Exception:
+                    pass  # If image fails to load, just leave blank
+        row_idx += 1
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
-    filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.csv"
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
+    filename = f"workers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 
 @router.get("/export/workers-detailed")
