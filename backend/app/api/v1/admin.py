@@ -1204,9 +1204,9 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
 
     sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
-        accessible = await get_accessible_task_ids(db, current_user)
-        if accessible is not None:
-            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible))
+        accessible_tasks = await get_accessible_task_ids(db, current_user)
+        if accessible_tasks is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible_tasks))
     sessions_result = await db.execute(sessions_q)
     sessions = sessions_result.scalars().all()
 
@@ -1219,14 +1219,9 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
         spending = sum(s.earnings or 0 for s in m_sessions)
         # Calculate hours from estimated_duration_minutes per session
         minutes = 0
-        task_ids = [s.task_id for s in m_sessions]
-        if task_ids:
-            tr = await db.execute(select(Task).where(Task.id.in_(task_ids)))
-            tasks_map = {t.id: t for t in tr.scalars().all()}
-            for s in m_sessions:
-                task = tasks_map.get(s.task_id)
-                if task and task.estimated_duration_minutes:
-                    minutes += task.estimated_duration_minutes
+        for s in m_sessions:
+            if s.estimated_duration_minutes:
+                minutes += s.estimated_duration_minutes
         hours = minutes / 60.0
         monthly.append({"month": month, "month_name": m_start.strftime("%b"), "year": target_year, "sessions": len(m_sessions), "spending": round(spending, 2), "hours": round(hours, 1)})
     return {"year": target_year, "months": monthly}
