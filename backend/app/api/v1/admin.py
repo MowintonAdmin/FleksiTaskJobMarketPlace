@@ -1645,7 +1645,7 @@ async def admin_reject_session(session_id: uuid.UUID, payload: SessionApprovalAc
     session.status = SessionStatus.SETTLED
     db.add(session)
     reason = f" Reason: {payload.notes}" if payload.notes else ""
-    msg = f"Your task "" + str(task.title) + "" was not approved. Please contact support for more details." + (reason or "")
+    msg = f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason or ''}"
     db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id, body=msg))
     await db.flush()
     return {"status": "rejected", "session_id": str(session.id), "rating": session.rating, "feedback": session.feedback}
