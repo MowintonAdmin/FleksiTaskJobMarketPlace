@@ -339,8 +339,11 @@ async def admin_delete_admin(
     if not admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
 
-    # Check for existing projects created by this admin
     from app.models.project import Project
+    from app.models.task import Task
+    from app.models.message import Message
+
+    # Check for existing projects
     proj_count = await db.execute(select(func.count()).select_from(Project).where(Project.created_by_id == admin_id))
     if proj_count.scalar_one() > 0:
         raise HTTPException(
@@ -348,9 +351,18 @@ async def admin_delete_admin(
             detail=f"Cannot delete admin '{admin.full_name or admin.email}': they have {proj_count.scalar_one()} project(s). Reassign or delete their projects first."
         )
 
-    await db.delete(admin)
+    # Soft-delete: nullify admin's fields instead of hard-deleting
+    # to avoid FK constraint issues with messages, tasks, etc.
+    admin.full_name = "[Deleted Admin]"
+    admin.email = f"deleted_admin_{admin_id}@deleted.local"
+    admin.hashed_password = None
+    admin.is_active = False
+    admin.is_admin = False
+    admin.is_super_admin = False
+    admin.company_tag = None
+    db.add(admin)
     await db.flush()
-    return {"message": f"Admin {admin.email} deleted", "user_id": str(admin.id)}
+    return {"message": f"Admin account deleted", "user_id": str(admin.id)}
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
@@ -449,9 +461,9 @@ async def admin_list_admins(
 ):
     """List admin users."""
     if current_user.is_super_admin:
-        q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True, User.is_active == True).order_by(User.created_at.desc())
     else:
-        q = select(User).where(User.is_admin == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True, User.is_active == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
     result = await db.execute(q)
     admins = result.scalars().all()
     if search:
