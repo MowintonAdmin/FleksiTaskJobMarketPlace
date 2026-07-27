@@ -390,19 +390,45 @@ async def admin_list_applications(
     result = await db.execute(q)
     applications = result.scalars().all()
 
+    if not applications:
+        return []
+
+    # Batch-load all related tasks and workers to avoid N+1 queries
+    task_ids = list(set(app.task_id for app in applications))
+    worker_ids = list(set(app.worker_id for app in applications))
+
+    # Load all tasks
+    task_result = await db.execute(select(Task).where(Task.id.in_(task_ids)))
+    tasks_map = {t.id: t for t in task_result.scalars().all()}
+
+    # Load application counts for all tasks in one query
+    if task_ids:
+        count_result = await db.execute(
+            select(Application.task_id, func.count())
+            .where(Application.task_id.in_(task_ids))
+            .group_by(Application.task_id)
+        )
+        app_counts = dict(count_result.all())
+    else:
+        app_counts = {}
+
+    # Load all workers
+    if worker_ids:
+        worker_result = await db.execute(select(User).where(User.id.in_(worker_ids)))
+        workers_map = {w.id: w for w in worker_result.scalars().all()}
+    else:
+        workers_map = {}
+
     response = []
     for app in applications:
         app_base = ApplicationResponse.model_validate(app)
         app_data = ApplicationWithDetails(**app_base.model_dump())
-        task_result = await db.execute(select(Task).where(Task.id == app.task_id))
-        task = task_result.scalar_one_or_none()
+        task = tasks_map.get(app.task_id)
         if task:
-            count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
             td = TaskResponse.model_validate(task)
-            td.application_count = count_result.scalar_one()
+            td.application_count = app_counts.get(task.id, 0)
             app_data.task = td
-        worker_result = await db.execute(select(User).where(User.id == app.worker_id))
-        worker = worker_result.scalar_one_or_none()
+        worker = workers_map.get(app.worker_id)
         if worker:
             app_data.worker = build_user_public(worker)
         response.append(app_data)
@@ -1191,7 +1217,17 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
         m_end = datetime(target_year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
         m_sessions = [s for s in sessions if s.checked_out_at and m_start <= s.checked_out_at.replace(tzinfo=timezone.utc) <= m_end]
         spending = sum(s.earnings or 0 for s in m_sessions)
-        hours = 0.0
+        # Calculate hours from estimated_duration_minutes per session
+        minutes = 0
+        task_ids = [s.task_id for s in m_sessions]
+        if task_ids:
+            tr = await db.execute(select(Task).where(Task.id.in_(task_ids)))
+            tasks_map = {t.id: t for t in tr.scalars().all()}
+            for s in m_sessions:
+                task = tasks_map.get(s.task_id)
+                if task and task.estimated_duration_minutes:
+                    minutes += task.estimated_duration_minutes
+        hours = minutes / 60.0
         monthly.append({"month": month, "month_name": m_start.strftime("%b"), "year": target_year, "sessions": len(m_sessions), "spending": round(spending, 2), "hours": round(hours, 1)})
     return {"year": target_year, "months": monthly}
 
