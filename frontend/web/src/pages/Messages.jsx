@@ -428,9 +428,6 @@ export default function Messages() {
 
   useEffect(() => { loadConversations() }, [loadConversations])
 
-  // Auto-refresh conversation list every 5s so new messages appear
-  usePolling(loadConversations, 5000)
-
   const handleSelect = (conv) => {
     setActiveConv(conv)
     setMobileShowChat(true)
