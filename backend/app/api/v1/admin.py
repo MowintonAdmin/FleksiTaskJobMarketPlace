@@ -713,12 +713,9 @@ async def admin_process_withdrawal(
     action = payload.action.lower()
     if action == "approve":
         withdrawal.status = WithdrawalStatus.APPROVED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
-        if withdrawal.payment_type == "tng_ewallet":
-            txn_desc = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-            msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-        else:
-            txn_desc = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-            msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
+        business_days = "The amount will be credited to your account in 5-10 business days."
+        msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved. {business_days}"
+        txn_desc = msg_body
         db.add(Transaction(user_id=withdrawal.user_id, type=TransactionType.WITHDRAWAL_COMPLETED, amount=-withdrawal.amount,
             description=txn_desc, reference_id=str(withdrawal.id)))
         db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id, body=msg_body))
