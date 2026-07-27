@@ -219,8 +219,12 @@ async def delete_task(
     from app.models.task_session import TaskSession, SessionStatus
     from app.models.wallet import Wallet, Transaction as WalletTxn, TransactionType
     from app.models.message import Message
+    from app.models.application import Application
 
-    # Find all SETTLED (approved and credited) sessions for this task
+    # Collect all worker IDs who have any session or application for this task
+    notified_workers = set()
+
+    # 1. Handle SETTLED sessions — claw back wallet credits
     settled_sessions = await db.execute(
         select(TaskSession).where(
             TaskSession.task_id == task.id,
@@ -230,12 +234,10 @@ async def delete_task(
     for session in settled_sessions.scalars().all():
         amount = session.earnings or 0.0
         if amount > 0:
-            # Deduct from worker's wallet
             wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == session.worker_id))
             wallet = wallet_result.scalar_one_or_none()
             if wallet:
                 wallet.available_balance = round(wallet.available_balance - amount, 2)
-            # Record the clawback transaction
             db.add(WalletTxn(
                 user_id=session.worker_id,
                 type=TransactionType.DEBIT,
@@ -243,14 +245,34 @@ async def delete_task(
                 description=f"Task cancelled/deleted: {task.title} — earnings of RM {amount:.2f} reversed",
                 reference_id=str(session.id),
             ))
-            # Notify the worker
-            db.add(Message(
-                sender_id=current_user.id,
-                recipient_id=session.worker_id,
-                body=f"⚠️ The task \"{task.title}\" has been deleted. RM {amount:.2f} has been deducted from your wallet.",
-            ))
+        notified_workers.add(session.worker_id)
 
-    # Delete all task sessions for this task (including settled ones)
+    # 2. Handle non-settled sessions (ACTIVE, COMPLETED, PAUSED)
+    other_sessions = await db.execute(
+        select(TaskSession).where(
+            TaskSession.task_id == task.id,
+            TaskSession.status != SessionStatus.SETTLED,
+        )
+    )
+    for session in other_sessions.scalars().all():
+        notified_workers.add(session.worker_id)
+
+    # 3. Handle applicants who never got a session
+    apps_result = await db.execute(
+        select(Application.worker_id).where(Application.task_id == task.id)
+    )
+    for row in apps_result.all():
+        notified_workers.add(row[0])
+
+    # 4. Send notification to ALL workers affected
+    for worker_id in notified_workers:
+        db.add(Message(
+            sender_id=current_user.id,
+            recipient_id=worker_id,
+            body=f"⚠️ The task \"{task.title}\" has been deleted by admin. Please check your dashboard for more details.",
+        ))
+
+    # Delete all task sessions for this task
     await db.execute(
         sa.delete(TaskSession).where(TaskSession.task_id == task.id)
     )
