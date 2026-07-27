@@ -338,9 +338,31 @@ async def admin_delete_admin(
     admin = result.scalar_one_or_none()
     if not admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
-    await db.delete(admin)
+
+    from app.models.project import Project
+    from app.models.task import Task
+    from app.models.message import Message
+
+    # Check for existing projects
+    proj_count = await db.execute(select(func.count()).select_from(Project).where(Project.created_by_id == admin_id))
+    if proj_count.scalar_one() > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete admin '{admin.full_name or admin.email}': they have {proj_count.scalar_one()} project(s). Reassign or delete their projects first."
+        )
+
+    # Soft-delete: nullify admin's fields instead of hard-deleting
+    # to avoid FK constraint issues with messages, tasks, etc.
+    admin.full_name = "[Deleted Admin]"
+    admin.email = f"deleted_admin_{admin_id}@deleted.local"
+    admin.hashed_password = None
+    admin.is_active = False
+    admin.is_admin = False
+    admin.is_super_admin = False
+    admin.company_tag = None
+    db.add(admin)
     await db.flush()
-    return {"message": f"Admin {admin.email} deleted", "user_id": str(admin.id)}
+    return {"message": f"Admin account deleted", "user_id": str(admin.id)}
 
 
 # ── Applications ──────────────────────────────────────────────────────────────
@@ -368,19 +390,45 @@ async def admin_list_applications(
     result = await db.execute(q)
     applications = result.scalars().all()
 
+    if not applications:
+        return []
+
+    # Batch-load all related tasks and workers to avoid N+1 queries
+    task_ids = list(set(app.task_id for app in applications))
+    worker_ids = list(set(app.worker_id for app in applications))
+
+    # Load all tasks
+    task_result = await db.execute(select(Task).where(Task.id.in_(task_ids)))
+    tasks_map = {t.id: t for t in task_result.scalars().all()}
+
+    # Load application counts for all tasks in one query
+    if task_ids:
+        count_result = await db.execute(
+            select(Application.task_id, func.count())
+            .where(Application.task_id.in_(task_ids))
+            .group_by(Application.task_id)
+        )
+        app_counts = dict(count_result.all())
+    else:
+        app_counts = {}
+
+    # Load all workers
+    if worker_ids:
+        worker_result = await db.execute(select(User).where(User.id.in_(worker_ids)))
+        workers_map = {w.id: w for w in worker_result.scalars().all()}
+    else:
+        workers_map = {}
+
     response = []
     for app in applications:
         app_base = ApplicationResponse.model_validate(app)
         app_data = ApplicationWithDetails(**app_base.model_dump())
-        task_result = await db.execute(select(Task).where(Task.id == app.task_id))
-        task = task_result.scalar_one_or_none()
+        task = tasks_map.get(app.task_id)
         if task:
-            count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
             td = TaskResponse.model_validate(task)
-            td.application_count = count_result.scalar_one()
+            td.application_count = app_counts.get(task.id, 0)
             app_data.task = td
-        worker_result = await db.execute(select(User).where(User.id == app.worker_id))
-        worker = worker_result.scalar_one_or_none()
+        worker = workers_map.get(app.worker_id)
         if worker:
             app_data.worker = build_user_public(worker)
         response.append(app_data)
@@ -439,9 +487,9 @@ async def admin_list_admins(
 ):
     """List admin users."""
     if current_user.is_super_admin:
-        q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True, User.is_active == True).order_by(User.created_at.desc())
     else:
-        q = select(User).where(User.is_admin == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True, User.is_active == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
     result = await db.execute(q)
     admins = result.scalars().all()
     if search:
@@ -713,12 +761,9 @@ async def admin_process_withdrawal(
     action = payload.action.lower()
     if action == "approve":
         withdrawal.status = WithdrawalStatus.APPROVED; withdrawal.processed_at = now; withdrawal.admin_notes = payload.notes
-        if withdrawal.payment_type == "tng_ewallet":
-            txn_desc = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-            msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-        else:
-            txn_desc = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
-            msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved."
+        business_days = "The amount will be credited to your account in 5-10 business days."
+        msg_body = f"Withdrawal of RM {withdrawal.amount:.2f} has been approved. {business_days}"
+        txn_desc = msg_body
         db.add(Transaction(user_id=withdrawal.user_id, type=TransactionType.WITHDRAWAL_COMPLETED, amount=-withdrawal.amount,
             description=txn_desc, reference_id=str(withdrawal.id)))
         db.add(Message(sender_id=current_user.id, recipient_id=withdrawal.user_id, body=msg_body))
@@ -1159,11 +1204,20 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
 
     sessions_q = select(TaskSession).where(TaskSession.status.in_([SessionStatus.COMPLETED, SessionStatus.SETTLED]))
     if not current_user.is_super_admin:
-        accessible = await get_accessible_task_ids(db, current_user)
-        if accessible is not None:
-            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible))
+        accessible_tasks = await get_accessible_task_ids(db, current_user)
+        if accessible_tasks is not None:
+            sessions_q = sessions_q.where(TaskSession.task_id.in_(accessible_tasks))
     sessions_result = await db.execute(sessions_q)
     sessions = sessions_result.scalars().all()
+
+    # Pre-load all unique task IDs from the sessions to batch-load tasks
+    all_task_ids = list(set(s.task_id for s in sessions if s.task_id))
+    task_durations = {}
+    if all_task_ids:
+        tr = await db.execute(select(Task.id, Task.estimated_duration_minutes).where(Task.id.in_(all_task_ids)))
+        for row in tr.all():
+            if row.estimated_duration_minutes:
+                task_durations[row.id] = row.estimated_duration_minutes
 
     monthly = []
     for month in range(1, 13):
@@ -1172,7 +1226,9 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
         m_end = datetime(target_year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
         m_sessions = [s for s in sessions if s.checked_out_at and m_start <= s.checked_out_at.replace(tzinfo=timezone.utc) <= m_end]
         spending = sum(s.earnings or 0 for s in m_sessions)
-        hours = 0.0
+        # Calculate hours from each session's task estimated_duration_minutes
+        minutes = sum(task_durations.get(s.task_id, 0) for s in m_sessions)
+        hours = minutes / 60.0
         monthly.append({"month": month, "month_name": m_start.strftime("%b"), "year": target_year, "sessions": len(m_sessions), "spending": round(spending, 2), "hours": round(hours, 1)})
     return {"year": target_year, "months": monthly}
 
@@ -1589,7 +1645,7 @@ async def admin_reject_session(session_id: uuid.UUID, payload: SessionApprovalAc
     session.status = SessionStatus.SETTLED
     db.add(session)
     reason = f" Reason: {payload.notes}" if payload.notes else ""
-    msg = f"Your task "" + str(task.title) + "" was not approved. Please contact support for more details." + (reason or "")
+    msg = f"❌ Your task \"{task.title}\" was not approved. Please contact support for more details.{reason or ''}"
     db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id, body=msg))
     await db.flush()
     return {"status": "rejected", "session_id": str(session.id), "rating": session.rating, "feedback": session.feedback}
