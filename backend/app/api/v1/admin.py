@@ -338,6 +338,16 @@ async def admin_delete_admin(
     admin = result.scalar_one_or_none()
     if not admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+
+    # Check for existing projects created by this admin
+    from app.models.project import Project
+    proj_count = await db.execute(select(func.count()).select_from(Project).where(Project.created_by_id == admin_id))
+    if proj_count.scalar_one() > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete admin '{admin.full_name or admin.email}': they have {proj_count.scalar_one()} project(s). Reassign or delete their projects first."
+        )
+
     await db.delete(admin)
     await db.flush()
     return {"message": f"Admin {admin.email} deleted", "user_id": str(admin.id)}
