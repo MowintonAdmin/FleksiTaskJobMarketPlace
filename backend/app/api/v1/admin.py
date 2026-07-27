@@ -1210,6 +1210,15 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
     sessions_result = await db.execute(sessions_q)
     sessions = sessions_result.scalars().all()
 
+    # Pre-load all unique task IDs from the sessions to batch-load tasks
+    all_task_ids = list(set(s.task_id for s in sessions if s.task_id))
+    task_durations = {}
+    if all_task_ids:
+        tr = await db.execute(select(Task.id, Task.estimated_duration_minutes).where(Task.id.in_(all_task_ids)))
+        for row in tr.all():
+            if row.estimated_duration_minutes:
+                task_durations[row.id] = row.estimated_duration_minutes
+
     monthly = []
     for month in range(1, 13):
         last_day = monthrange(target_year, month)[1]
@@ -1217,11 +1226,8 @@ async def analytics_monthly(year: int | None = Query(None), db: AsyncSession = D
         m_end = datetime(target_year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
         m_sessions = [s for s in sessions if s.checked_out_at and m_start <= s.checked_out_at.replace(tzinfo=timezone.utc) <= m_end]
         spending = sum(s.earnings or 0 for s in m_sessions)
-        # Calculate hours from estimated_duration_minutes per session
-        minutes = 0
-        for s in m_sessions:
-            if s.estimated_duration_minutes:
-                minutes += s.estimated_duration_minutes
+        # Calculate hours from each session's task estimated_duration_minutes
+        minutes = sum(task_durations.get(s.task_id, 0) for s in m_sessions)
         hours = minutes / 60.0
         monthly.append({"month": month, "month_name": m_start.strftime("%b"), "year": target_year, "sessions": len(m_sessions), "spending": round(spending, 2), "hours": round(hours, 1)})
     return {"year": target_year, "months": monthly}
