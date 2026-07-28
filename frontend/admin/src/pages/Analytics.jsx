@@ -416,17 +416,26 @@ function ExportTab() {
     setLoading(true)
     try {
       const res = await api.get(endpoint, { responseType: 'blob' })
-      const blob = new Blob([res.data], { type: 'text/csv' })
+      const contentType = res.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const blob = new Blob([res.data], { type: contentType })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = filename
+      // Use the filename from Content-Disposition header if available, otherwise use provided filename
+      const disposition = res.headers?.['content-disposition']
+      let downloadName = filename
+      if (disposition) {
+        const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"'\s;]+)/i)
+        if (match && match[1]) downloadName = match[1]
+      }
+      a.download = downloadName
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch {
-      alert('Export failed. Please try again.')
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || 'Export failed. Please try again.'
+      alert(msg)
     } finally {
       setLoading(false)
     }
