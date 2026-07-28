@@ -339,20 +339,7 @@ async def admin_delete_admin(
     if not admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
 
-    from app.models.project import Project
-    from app.models.task import Task
-    from app.models.message import Message
-
-    # Check for existing projects
-    proj_count = await db.execute(select(func.count()).select_from(Project).where(Project.created_by_id == admin_id))
-    if proj_count.scalar_one() > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete admin '{admin.full_name or admin.email}': they have {proj_count.scalar_one()} project(s). Reassign or delete their projects first."
-        )
-
-    # Soft-delete: nullify admin's fields instead of hard-deleting
-    # to avoid FK constraint issues with messages, tasks, etc.
+    # Soft-delete: nullify admin's fields to avoid FK constraint issues
     admin.full_name = "[Deleted Admin]"
     admin.email = f"deleted_admin_{admin_id}@deleted.local"
     admin.hashed_password = None
