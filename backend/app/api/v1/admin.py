@@ -1319,24 +1319,26 @@ async def export_workers_csv(db: AsyncSession = Depends(get_db), current_user: U
         # Embed Bank QR image if available
         if u.bank_qr_code_url:
             from openpyxl.styles import Font
-            # Add URL as clickable link in cell
+            from openpyxl.utils import get_column_letter
+            # Strip protocol/host prefix if present (e.g. http://localhost:8000/media/... -> media/...)
+            raw_url = u.bank_qr_code_url
+            if "://" in raw_url:
+                raw_url = raw_url.split("://", 1)[1].split("/", 1)[1]
+            # Construct full local filesystem path
+            local_path = media_dir / raw_url.replace("/media/", "", 1) if raw_url.startswith("media/") else media_dir / raw_url
+            if local_path.exists():
+                try:
+                    img = XLImage(str(local_path))
+                    img.width = 100
+                    img.height = 100
+                    ws.add_image(img, f"K{row_idx}")
+                    ws.row_dimensions[row_idx].height = 100
+                except Exception:
+                    pass
+            # Add HYPERLINK formula so the URL is clickable
             cell = ws.cell(row=row_idx, column=11)
             cell.value = u.bank_qr_code_url
             cell.font = Font(color="0563C1", underline="single")
-            # Also try to embed the actual image from disk
-            qr_path_str = u.bank_qr_code_url
-            if qr_path_str.startswith("/media/"):
-                qr_path_str = qr_path_str[len("/media/"):]
-            full_path = media_dir / qr_path_str
-            if full_path.exists():
-                try:
-                    img = XLImage(str(full_path))
-                    img.width = 80
-                    img.height = 80
-                    ws.add_image(img, f"K{row_idx}")
-                    ws.row_dimensions[row_idx].height = 80
-                except Exception:
-                    pass
         row_idx += 1
 
     output = io.BytesIO()
