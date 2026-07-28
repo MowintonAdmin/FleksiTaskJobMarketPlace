@@ -48,7 +48,6 @@ function ProjectModal({ project, onClose, onSaved }) {
   const [description, setDescription] = useState(project?.description || '')
   const [category, setCategory] = useState(project?.category || '')
   const [location, setLocation] = useState(project?.location || '')
-  const [projectTag, setProjectTag] = useState(project?.project_tag || '')
   const [dueDate, setDueDate] = useState(project?.due_date ? project.due_date.slice(0, 16) : '')
   const [saving, setSaving] = useState(false)
 
@@ -62,7 +61,6 @@ function ProjectModal({ project, onClose, onSaved }) {
         description: description.trim() || null,
         category: category || null,
         location: location.trim() || null,
-        project_tag: projectTag.trim() || null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
       }
       if (project) {
@@ -93,10 +91,6 @@ function ProjectModal({ project, onClose, onSaved }) {
             <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Office Tower Cleaning Q3" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Project Tag</label>
-              <input value={projectTag} onChange={e => setProjectTag(e.target.value)} placeholder="e.g. ClientA, CompanyB, SiteC" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-            </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
