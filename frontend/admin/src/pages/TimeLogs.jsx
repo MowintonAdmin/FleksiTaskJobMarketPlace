@@ -90,16 +90,13 @@ function AdjustModal({ session, onClose, onSaved }) {
 function TaskCostPanel({ costs, loading }) {
   const total = costs.reduce((s, t) => s + t.total_cost, 0)
   const totalPaid = costs.reduce((s, t) => s + t.paid_cost, 0)
-  const totalLive = costs.reduce((s, t) => s + t.live_cost, 0)
-
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
       {/* Summary bar */}
-      <div className="grid grid-cols-3 divide-x divide-gray-100 bg-gray-50 border-b border-gray-100">
+      <div className="grid grid-cols-2 divide-x divide-gray-100 bg-gray-50 border-b border-gray-100">
         {[
           { label: 'Total Cost', value: `RM ${total.toFixed(2)}`, color: 'text-gray-900' },
           { label: 'Paid Out', value: `RM ${totalPaid.toFixed(2)}`, color: 'text-green-700' },
-          { label: 'Live Accruing', value: `RM ${totalLive.toFixed(2)}`, color: 'text-blue-700' },
         ].map(s => (
           <div key={s.label} className="px-5 py-3 text-center">
             <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -115,7 +112,6 @@ function TaskCostPanel({ costs, loading }) {
             <th className="px-5 py-3 text-center">Status</th>
             <th className="px-5 py-3 text-right">Estimated</th>
             <th className="px-5 py-3 text-right">Paid</th>
-            <th className="px-5 py-3 text-right">Live</th>
             <th className="px-5 py-3 text-right font-semibold">Total</th>
           </tr>
         </thead>
@@ -142,9 +138,6 @@ function TaskCostPanel({ costs, loading }) {
               </td>
               <td className="px-5 py-3 text-right text-gray-500">RM {t.estimated_cost.toFixed(2)}</td>
               <td className="px-5 py-3 text-right text-green-700 font-medium">RM {t.paid_cost.toFixed(2)}</td>
-              <td className="px-5 py-3 text-right text-blue-600">
-                {t.live_cost > 0 ? `RM ${t.live_cost.toFixed(2)}` : '—'}
-              </td>
               <td className="px-5 py-3 text-right font-bold text-gray-900">RM {t.total_cost.toFixed(2)}</td>
             </tr>
           ))}
