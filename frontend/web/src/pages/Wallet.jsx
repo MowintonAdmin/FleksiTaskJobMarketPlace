@@ -262,6 +262,26 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
 }
 
 /* ── Main Wallet Page ────────────────────────────────────────────────────── */
+const PAGE_SIZE = 25
+
+function WalletPagination({ data, page, onPage }) {
+  const totalPages = Math.ceil(data.length / PAGE_SIZE)
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-between gap-4 pt-2">
+      <p className="text-xs text-gray-400">{Math.min((page - 1) * PAGE_SIZE + 1, data.length)}–{Math.min(page * PAGE_SIZE, data.length)} of {data.length}</p>
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 text-xs border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+          let p = totalPages <= 5 ? i + 1 : (page <= 3 ? i + 1 : (page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i))
+          return <button key={p} onClick={() => onPage(p)} className={`w-7 h-7 text-xs rounded-lg ${page === p ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{p}</button>
+        })}
+        <button onClick={() => onPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="px-3 py-1 text-xs border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next →</button>
+      </div>
+    </div>
+  )
+}
+
 export default function Wallet() {
   const [wallet, setWallet] = useState(null)
   const [transactions, setTransactions] = useState([])
@@ -271,6 +291,8 @@ export default function Wallet() {
   const [tab, setTab] = useState('transactions') // 'transactions' | 'withdrawals'
   const [showBankModal, setShowBankModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [txnPage, setTxnPage] = useState(1)
+  const [wdPage, setWdPage] = useState(1)
 
   const load = useCallback(async () => {
     try {
@@ -401,24 +423,33 @@ export default function Wallet() {
                 .map(t => t.reference_id)
                 .filter(Boolean)
             )
-            return transactions.filter(txn =>
+            const filtered = transactions.filter(txn =>
               !(txn.type === 'WITHDRAWAL_PENDING' && resolvedWithdrawalIds.has(txn.reference_id))
             )
-          })().map(txn => {
-            const s = TXN_STYLES[txn.type] || { icon: '•', color: 'text-gray-600', sign: '' }
+            const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+            const page = Math.min(txnPage, totalPages)
+            const displayed = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
             return (
-              <div key={txn.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3">
-                <span className="text-xl">{s.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{txn.description}</p>
-                  <p className="text-xs text-gray-400">{new Date(txn.created_at).toLocaleString()}</p>
-                </div>
-                <p className={`text-sm font-bold ${s.color}`}>
-                  {s.sign}RM {Math.abs(txn.amount).toFixed(2)}
-                </p>
-              </div>
+              <>
+                {displayed.map(txn => {
+                  const s = TXN_STYLES[txn.type] || { icon: '•', color: 'text-gray-600', sign: '' }
+                  return (
+                    <div key={txn.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3">
+                      <span className="text-xl">{s.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{txn.description}</p>
+                        <p className="text-xs text-gray-400">{new Date(txn.created_at).toLocaleString()}</p>
+                      </div>
+                      <p className={`text-sm font-bold ${s.color}`}>
+                        {s.sign}RM {Math.abs(txn.amount).toFixed(2)}
+                      </p>
+                    </div>
+                  )
+                })}
+                <WalletPagination data={filtered} page={page} onPage={setTxnPage} />
+              </>
             )
-          })}
+          })()}
         </div>
       )}
 
@@ -430,29 +461,38 @@ export default function Wallet() {
               <p className="text-3xl mb-2">💸</p>
               <p className="font-medium">No withdrawal requests yet</p>
             </div>
-          ) : withdrawals.map(w => (
-            <div key={w.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">RM {w.amount.toFixed(2)}</p>
-                  {w.payment_type === 'tng_ewallet' ? (
-                    <p className="text-xs text-gray-500">📱 Touch 'n Go · {w.phone_number}</p>
-                  ) : (
-                    <p className="text-xs text-gray-500">{w.bank_name} · {w.account_number}</p>
-                  )}
-                  <p className="text-xs text-gray-400">{new Date(w.created_at).toLocaleString()}</p>
-                </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${WD_COLORS[w.status]}`}>
-                  {w.status}
-                </span>
-              </div>
-              {w.admin_notes && (
-                <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg px-3 py-1.5 italic">
-                  Admin: {w.admin_notes}
-                </p>
-              )}
-            </div>
-          ))}
+          ) : (() => {
+            const page = Math.min(wdPage, Math.ceil(withdrawals.length / PAGE_SIZE))
+            const displayed = withdrawals.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+            return (
+              <>
+                {displayed.map(w => (
+                  <div key={w.id} className="bg-white rounded-xl border border-gray-100 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">RM {w.amount.toFixed(2)}</p>
+                        {w.payment_type === 'tng_ewallet' ? (
+                          <p className="text-xs text-gray-500">📱 Touch 'n Go · {w.phone_number}</p>
+                        ) : (
+                          <p className="text-xs text-gray-500">{w.bank_name} · {w.account_number}</p>
+                        )}
+                        <p className="text-xs text-gray-400">{new Date(w.created_at).toLocaleString()}</p>
+                      </div>
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${WD_COLORS[w.status]}`}>
+                        {w.status}
+                      </span>
+                    </div>
+                    {w.admin_notes && (
+                      <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg px-3 py-1.5 italic">
+                        Admin: {w.admin_notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                <WalletPagination data={withdrawals} page={page} onPage={setWdPage} />
+              </>
+            )
+          })()}
         </div>
       )}
 
