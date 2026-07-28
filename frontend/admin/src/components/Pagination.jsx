@@ -1,11 +1,11 @@
 const PAGE_SIZE = 25
 
-export default function Pagination({ data, page, onPage }) {
-  const totalPages = Math.ceil(data.length / PAGE_SIZE)
+export default function Pagination({ data, page, onPage, pageSize = PAGE_SIZE }) {
+  const totalPages = Math.ceil(data.length / pageSize)
   if (totalPages <= 1) return null
 
-  const start = (page - 1) * PAGE_SIZE + 1
-  const end = Math.min(page * PAGE_SIZE, data.length)
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, data.length)
 
   return (
     <div className="flex items-center justify-between gap-4 pt-3 pb-1">

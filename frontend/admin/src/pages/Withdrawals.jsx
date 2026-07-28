@@ -153,7 +153,6 @@ export default function Withdrawals() {
     )
   }, [withdrawals, search])
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
   const paginated = useMemo(() =>
     filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
     [filtered, page]
@@ -283,7 +282,7 @@ export default function Withdrawals() {
         </table>
       </div>
 
-      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+      <Pagination data={filtered} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
 
       {selected && (
         <ProcessModal

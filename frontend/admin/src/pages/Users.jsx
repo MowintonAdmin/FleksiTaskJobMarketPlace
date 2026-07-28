@@ -283,7 +283,6 @@ export default function Users() {
 
   useEffect(() => { setPage(1) }, [search])
 
-  const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE)
   const paginatedUsers = useMemo(() =>
     users.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
     [users, page]
@@ -375,7 +374,7 @@ export default function Users() {
         </table>
       </div>
 
-      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+      <Pagination data={users} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
 
       {selectedUser && (
         <WorkerDrawer
