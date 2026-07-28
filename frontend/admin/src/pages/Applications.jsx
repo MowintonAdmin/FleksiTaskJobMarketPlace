@@ -270,7 +270,7 @@ export default function Applications() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
               <th className="px-4 py-3 text-left">Worker</th>
@@ -313,8 +313,8 @@ export default function Applications() {
                     <span className="font-medium text-gray-900">{app.worker?.full_name ?? '—'}</span>
                   </button>
                 </td>
-                <td className="px-4 py-3 text-gray-600 min-w-[160px]">{app.task?.title ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-500 min-w-[160px] italic text-xs whitespace-pre-wrap break-words">{app.cover_note ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600 break-words">{app.task?.title ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-500 italic text-xs whitespace-pre-wrap break-words">{app.cover_note ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{new Date(app.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-center">
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[app.status]}`}>
