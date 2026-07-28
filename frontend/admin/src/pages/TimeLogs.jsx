@@ -154,6 +154,39 @@ function TaskCostPanel({ costs, loading }) {
   )
 }
 
+/* ── Pagination ────────────────────────────────────────────────────────── */
+const PAGE_SIZE = 50
+
+function Pagination({ page, totalPages, onPage }) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex items-center justify-center gap-2 pt-3 pb-1">
+      <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1}
+        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">← Prev</button>
+      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+        let pageNum
+        if (totalPages <= 7) {
+          pageNum = i + 1
+        } else if (page <= 4) {
+          pageNum = i + 1
+        } else if (page >= totalPages - 3) {
+          pageNum = totalPages - 6 + i
+        } else {
+          pageNum = page - 3 + i
+        }
+        return (
+          <button key={pageNum} onClick={() => onPage(pageNum)}
+            className={`w-8 h-8 text-sm rounded-lg transition-colors ${
+              page === pageNum ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            }`}>{pageNum}</button>
+        )
+      })}
+      <button onClick={() => onPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">Next →</button>
+    </div>
+  )
+}
+
 /* ── Main TimeLogs page ────────────────────────────────────────────────── */
 export default function TimeLogs() {
   const [logs, setLogs] = useState([])
@@ -166,6 +199,10 @@ export default function TimeLogs() {
   const [filterStatus, setFilterStatus] = useState('')
   const [tab, setTab] = useState('logs')     // 'logs' | 'costs'
   const [adjustSession, setAdjustSession] = useState(null)
+  const [page, setPage] = useState(1)
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1) }, [filterTask, filterStatus, search])
 
   const loadLogs = useCallback(() => {
     setLoadingLogs(true)
@@ -279,13 +316,17 @@ export default function TimeLogs() {
                          (l.task_title || '').toLowerCase().includes(q)
                 }).length === 0 ? (
                   <tr><td colSpan={8} className="text-center py-12 text-gray-400">{search ? 'No sessions match your search' : 'No sessions found'}</td></tr>
-                ) : logs.filter(l => {
-                  if (!search) return true
-                  const q = search.toLowerCase()
-                  return (l.worker_name || '').toLowerCase().includes(q) ||
-                         (l.worker_email || '').toLowerCase().includes(q) ||
-                         (l.task_title || '').toLowerCase().includes(q)
-                }).map(log => (
+                ) : (() => {
+                  const filtered = logs.filter(l => {
+                    if (!search) return true
+                    const q = search.toLowerCase()
+                    return (l.worker_name || '').toLowerCase().includes(q) ||
+                           (l.worker_email || '').toLowerCase().includes(q) ||
+                           (l.task_title || '').toLowerCase().includes(q)
+                  })
+                  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+                  const displayed = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+                  return displayed.map(log => (
                   <tr key={log.session_id} className={`hover:bg-gray-50 transition-colors ${log.status === 'active' ? 'bg-green-50/40' : ''}`}>
                     <td className="px-5 py-3">
                       <p className="font-medium text-gray-900">{log.worker_name}</p>
@@ -313,21 +354,31 @@ export default function TimeLogs() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  ))
+                })()}
               </tbody>
-              {logs.length > 0 && (
-                <tfoot className="bg-gray-50 border-t border-gray-200">
-                  <tr>
-                    <td colSpan={6} className="px-5 py-3 text-xs text-gray-500 font-semibold uppercase">Total</td>
-                    <td className="px-5 py-3 text-right font-bold text-gray-900">
-                      RM {logs.reduce((s, l) => s + (l.cost ?? 0), 0).toFixed(2)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
+              <tfoot className="bg-gray-50 border-t border-gray-200">
+                <tr>
+                  <td colSpan={6} className="px-5 py-3 text-xs text-gray-500 font-semibold uppercase">Total</td>
+                  <td className="px-5 py-3 text-right font-bold text-gray-900">
+                    RM {logs.reduce((s, l) => s + (l.cost ?? 0), 0).toFixed(2)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
             </table>
           </div>
+          {(() => {
+            const filtered = logs.filter(l => {
+              if (!search) return true
+              const q = search.toLowerCase()
+              return (l.worker_name || '').toLowerCase().includes(q) ||
+                     (l.worker_email || '').toLowerCase().includes(q) ||
+                     (l.task_title || '').toLowerCase().includes(q)
+            })
+            const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+            return <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+          })()}
         </>
       )}
 
