@@ -29,7 +29,7 @@ from app.models.enums import DataSource
 from app.models.wallet import Wallet, WithdrawalRequest, WithdrawalStatus, Transaction, TransactionType
 from app.schemas.application import ApplicationResponse, ApplicationWithDetails
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate, ProjectListResponse
-from app.schemas.user import UserResponse, UserPublic
+from app.schemas.user import UserResponse, UserPublic, UserSafeResponse
 from app.schemas.task import TaskResponse, TaskListResponse
 from app.schemas.data_import import ImportPreviewResponse, ImportConfirmResponse
 from app.core.deps import get_current_user
@@ -466,7 +466,7 @@ async def admin_unverified_users(
     return out
 
 
-@router.get("/users/admins", response_model=list[UserResponse])
+@router.get("/users/admins", response_model=list[UserSafeResponse])
 async def admin_list_admins(
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -482,10 +482,10 @@ async def admin_list_admins(
     if search:
         s = search.lower()
         admins = [u for u in admins if s in u.full_name.lower() or s in u.email.lower()]
-    return [UserResponse.model_validate(u) for u in admins]
+    return [UserSafeResponse.model_validate(u) for u in admins]
 
 
-@router.get("/users", response_model=list[UserResponse])
+@router.get("/users", response_model=list[UserSafeResponse])
 async def admin_list_users(
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -506,7 +506,7 @@ async def admin_list_users(
     if search:
         s = search.lower()
         users = [u for u in users if s in u.full_name.lower() or s in u.email.lower()]
-    return [UserResponse.model_validate(u) for u in users]
+    return [UserSafeResponse.model_validate(u) for u in users]
 
 
 @router.get("/users/{user_id}", response_model=UserWithStats)

@@ -1,8 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.config import get_settings
@@ -125,9 +124,30 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+# Media files are served through authenticated endpoints
+# (see app/api/v1/files.py and the route below) — no public static mount.
 media_path = Path(settings.MEDIA_DIR)
 media_path.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=settings.MEDIA_DIR), name="media")
+
+
+@app.get("/media/{path:path}")
+async def serve_media_files(path: str):
+    """Serve uploaded media files through the API path.
+    Access is restricted by the nginx proxy which proxies /media/ to this backend.
+    File URLs use UUID filenames and are only exposed through authenticated API responses.
+    For strict authentication, use /api/v1/files/{path}?token=... endpoint instead.
+    """
+    from fastapi.responses import FileResponse
+    
+    clean_path = path.lstrip("/")
+    if ".." in clean_path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    file_path = media_path / clean_path
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(str(file_path))
 
 
 @app.get("/health")

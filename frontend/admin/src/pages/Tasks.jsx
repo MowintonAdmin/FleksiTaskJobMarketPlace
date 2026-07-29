@@ -5,11 +5,11 @@ import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
 import TagBadge from '../utils/tagColors'
 
-// Route media through /api/v1/files/... — same proxy path as all API calls.
+// Media files are served via nginx at /media/{path} (proxied to backend).
+// Browser <img> tags use this path (no auth needed — filenames are UUID-based).
 const mediaUrl = (path) => {
   if (!path) return null
-  const filename = path.replace(/^\/media\//, '')
-  return `${apiBaseUrl}/files/${filename}`
+  return path  // Paths stored in DB already start with /media/
 }
 
 const CATEGORIES = ['Cleaning', 'Delivery', 'Moving', 'Gardening', 'Repair', 'Cooking', 'Security', 'Events', 'Other']

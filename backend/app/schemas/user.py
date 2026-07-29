@@ -123,5 +123,46 @@ class UserPublic(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserSafeResponse(BaseModel):
+    """Safe user response for list endpoints — hides sensitive personal data.
+    Excludes: nric_passport, phone, bank_qr_code_url, latitude, longitude,
+               id_photo_front_url, selfie_with_id_url.
+    """
+    id: uuid.UUID
+    full_name: str
+    email: str
+    profile_photo_url: str | None = None
+    location: str | None = None
+    skills: list[str] | None = None
+    bio: str | None = None
+    academic_qualification: str | None = None
+    body_height_cm: float | None = None
+    nationality: str | None = None
+    race: str | None = None
+    is_verified: bool
+    is_active: bool
+    is_admin: bool
+    is_super_admin: bool
+    company_tag: str | None = None
+    source: str | None = None
+    verification_status: str = "pending"
+    rejection_reason: str | None = None
+    created_at: datetime
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def parse_skills(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    @field_validator("profile_photo_url", mode="before")
+    @classmethod
+    def normalize_profile_photo(cls, value):
+        return normalize_profile_photo_url(value)
+
+    model_config = {"from_attributes": True}
+
+
 class FCMTokenUpdate(BaseModel):
     fcm_token: str

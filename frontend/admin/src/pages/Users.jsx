@@ -158,7 +158,7 @@ function WorkerDrawer({ user, onClose, onMessage }) {
     ]).then(([p, s]) => {
       setProfile(p.data)
       setSessions(s.data)
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch(() => toast.error('Failed to load user details')).finally(() => setLoading(false))
   }, [user.id])
 
   const handleRated = (sessionId, value) => {
@@ -190,6 +190,31 @@ function WorkerDrawer({ user, onClose, onMessage }) {
             </div>
           </div>
           {user.bio && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{user.bio}</p>}
+
+          {/* Personal Details - from detail endpoint */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Personal Details</p>
+            <div className="grid grid-cols-2 gap-2">
+              {profile?.phone && <div><span className="text-gray-400">Phone:</span> <span className="font-medium">{profile.phone}</span></div>}
+              {profile?.nric_passport && <div><span className="text-gray-400">NRIC/Passport:</span> <span className="font-medium">{profile.nric_passport}</span></div>}
+              {profile?.nationality && <div><span className="text-gray-400">Nationality:</span> <span className="font-medium">{profile.nationality}</span></div>}
+              {profile?.race && <div><span className="text-gray-400">Race:</span> <span className="font-medium">{profile.race}</span></div>}
+              {profile?.body_height_cm && <div><span className="text-gray-400">Height:</span> <span className="font-medium">{profile.body_height_cm} cm</span></div>}
+              {profile?.academic_qualification && <div><span className="text-gray-400">Education:</span> <span className="font-medium">{profile.academic_qualification}</span></div>}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              {profile?.bank_qr_code_url && (
+                <a href={profile.bank_qr_code_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                  🏦 View Bank QR Code
+                </a>
+              )}
+              {profile?.selfie_with_id_url && (
+                <a href={profile.selfie_with_id_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                  🆔 View Selfie
+                </a>
+              )}
+            </div>
+          </div>
 
           {/* Stats */}
           {stats && (

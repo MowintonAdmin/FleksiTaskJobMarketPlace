@@ -1,14 +1,54 @@
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from app.config import get_settings
+from app.core.security import decode_token
+from app.core.redis_client import is_token_blacklisted
+from app.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.models.user import User
+import uuid
 
 router = APIRouter(prefix="/files", tags=["Files"])
 
+from fastapi.security import OAuth2PasswordBearer
+
+_oauth2_scheme_for_files = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
 
 @router.get("/{path:path}")
-async def serve_file(path: str):
-    """Serve uploaded media files through the API path (avoids nginx /media/ proxy issues)."""
+async def serve_file(
+    path: str,
+    token: str | None = Query(None),
+    authorization: str | None = Depends(_oauth2_scheme_for_files),
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve uploaded media files through the API path.
+    Requires valid JWT authentication (via Authorization header or ?token= query param).
+    Prevents public access to uploaded identity documents (NRIC, selfie, bank QR).
+    """
+    # Extract token from either query param or Authorization header
+    jwt_token = token or authorization
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    if await is_token_blacklisted(jwt_token):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
+    payload = decode_token(jwt_token)
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    user_id: str | None = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
     settings = get_settings()
     # Strip any leading slashes and prevent path traversal
     path = path.lstrip("/")

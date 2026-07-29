@@ -1,6 +1,6 @@
 import logging
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from google.oauth2 import id_token
@@ -209,19 +209,63 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     return {"message": "Account created! Welcome to FlekxiTask. Please log in, complete your profile, and submit for verification."}
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Email/password login."""
+from fastapi.responses import JSONResponse
+from app.core.rate_limit import check_login_rate_limit, record_failed_login, clear_login_rate_limit
+
+
+@router.post("/login")
+async def login(
+    payload: LoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Email/password login with rate limiting.
+    Uses same error message for invalid email, wrong password, or inactive account
+    to prevent email enumeration.
+    """
+    ip = request.client.host if request.client else "unknown"
+    
+    # Check rate limit
+    allowed, error_msg = await check_login_rate_limit(ip, payload.email)
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=error_msg)
+    
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
+    
+    # Same generic error for all auth failures to prevent email enumeration
+    auth_failed = False
     if not user or not user.hashed_password or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
-    # Rejected users can still log in to see their rejection reason and resubmit
+        auth_failed = True
+    if user and not user.is_active:
+        auth_failed = True  # Also treat inactive as generic failure
+    
+    if auth_failed:
+        await record_failed_login(ip, payload.email)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
+    # Clear rate limit on successful login
+    await clear_login_rate_limit(ip, payload.email)
+    
     access_token, refresh_token = create_token_pair(user.id)
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    })
+    
+    # Set httpOnly cookie for XSS protection
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="strict",
+        max_age=3600,  # 1 hour
+        path="/",
+    )
+    
+    return response
 
 
 @router.post("/refresh", response_model=TokenResponse)
