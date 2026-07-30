@@ -99,32 +99,37 @@ export default function MyApplications() {
               {app.cover_note && (
                 <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100 italic">"{app.cover_note}"</p>
               )}
-              {app.status === 'approved' && app.task?.status === 'completed' && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
-                    <span className="text-2xl">✅</span>
-                    <div>
-                      <p className="font-semibold text-green-800 text-sm">Task Completed</p>
-                      <p className="text-xs text-green-600">This task has been completed and earnings have been credited to your wallet.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
               {(() => {
-                // Hide Track Work if a completed/settled session already exists for this application
                 const appSession = sessions.find(s => s.application_id === app.id)
                 const hasCompletedSession = appSession && (appSession.status === 'completed' || appSession.status === 'settled')
-                return app.status === 'approved' && !hasCompletedSession && app.task?.status !== 'completed' && app.task?.status !== 'cancelled'
-              })() && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <Link
-                    to={`/track/${app.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                  >
-                    ⏱ Track Work
-                  </Link>
-                </div>
-              )}
+                const showCompletedBanner = app.status === 'approved' && (app.task?.status === 'completed' || hasCompletedSession)
+                const showTrackWork = app.status === 'approved' && !hasCompletedSession && app.task?.status !== 'completed' && app.task?.status !== 'cancelled'
+                return (
+                  <>
+                    {showCompletedBanner && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                          <span className="text-2xl">✅</span>
+                          <div>
+                            <p className="font-semibold text-green-800 text-sm">Task Completed</p>
+                            <p className="text-xs text-green-600">This task has been completed and earnings have been credited to your wallet.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {showTrackWork && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <Link
+                          to={`/track/${app.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          ⏱ Track Work
+                        </Link>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
               {app.task?.status === 'cancelled' && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
