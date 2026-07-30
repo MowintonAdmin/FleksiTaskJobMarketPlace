@@ -1122,7 +1122,11 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
         all_sessions = sessions_result.scalars().all()
         pend_wd = (await db.execute(select(func.count()).select_from(_WD).where(_WD.status == "PENDING"))).scalar_one()
     else:
-        total_users = 0
+        # Count users accessible to this admin
+        if accessible is not None:
+            total_users = len(accessible)
+        else:
+            total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
         if accessible_tasks is not None:
             total_tasks = (await db.execute(select(func.count()).select_from(Task).where(Task.id.in_(accessible_tasks)))).scalar_one() if accessible_tasks else 0
             all_tasks_raw = await db.execute(select(Task).where(Task.id.in_(accessible_tasks)))
