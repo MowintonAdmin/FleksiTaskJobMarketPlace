@@ -1085,7 +1085,7 @@ async def admin_all_task_costs(db: AsyncSession = Depends(get_db), current_user:
                     "pay_rate_per_minute": 0, "estimated_cost": 0, "paid_cost": round(wg["paid"], 2),
                     "live_cost": 0, "total_cost": round(wg["paid"], 2), "session_count": wg["sessions"]})
         else:
-            paid = sum(s.earnings or 0 for s in t_sessions if s.status == SessionStatus.COMPLETED)
+            paid = sum(s.earnings or 0 for s in t_sessions if s.status in (SessionStatus.COMPLETED, SessionStatus.SETTLED))
             live = 0.0
             estimated = t.pay_rate_per_minute * t.estimated_duration_minutes
             out.append({"task_id": str(t.id), "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,

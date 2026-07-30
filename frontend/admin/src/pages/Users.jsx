@@ -329,14 +329,14 @@ export default function Users() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
-              <th className="px-5 py-3 text-left">Worker</th>
-              <th className="px-5 py-3 text-left">Email</th>
-              <th className="px-5 py-3 text-left">Location</th>
-              <th className="px-5 py-3 text-center">Role</th>
-              <th className="px-5 py-3 text-center">Actions</th>
+              <th className="px-5 py-3 text-left w-[30%]">Worker</th>
+              <th className="px-5 py-3 text-left w-[25%]">Email</th>
+              <th className="px-5 py-3 text-left w-[20%]">Location</th>
+              <th className="px-5 py-3 text-center w-[10%]">Role</th>
+              <th className="px-5 py-3 text-center w-[15%]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -352,17 +352,17 @@ export default function Users() {
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <button onClick={() => setSelectedUser(u)}
-                    className="flex items-center gap-3 hover:text-blue-600 transition-colors text-left">
+                    className="flex items-center gap-2 hover:text-blue-600 transition-colors text-left w-full">
                     {u.profile_photo_url
-                      ? <img src={u.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover" />
-                      : <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-600">
+                      ? <img src={u.profile_photo_url} alt="" referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      : <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 shrink-0">
                           {(u.full_name || u.email || '?')[0].toUpperCase()}
                         </div>
                     }
-                    <span className="font-medium text-gray-900">{u.full_name || '—'}</span>
+                    <span className="font-medium text-gray-900 truncate">{u.full_name || '—'}</span>
                   </button>
                 </td>
-                <td className="px-5 py-3 text-gray-500">
+                <td className="px-5 py-3 text-gray-500 truncate">
                   {u.source === 'IMPORTED' ? (
                     <div>
                       <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">⚠ Not registered</span>
