@@ -1180,7 +1180,7 @@ async def analytics_dashboard(db: AsyncSession = Depends(get_db), current_user: 
     return {"users": {"total": total_users}, "tasks": {"total": total_tasks, "open": open_tasks, "completed": completed_tasks, "cancelled": cancelled_tasks, "completion_rate": completion_rate},
         "applications": {"total": total_apps, "pending": sum(1 for a in all_apps if a.status == "pending"), "approved": sum(1 for a in all_apps if a.status == "approved")},
         "sessions": {"total": len(all_sessions), "completed": len(settled_sessions), "active_now": active_workers},
-        "revenue": {"total_paid": round(total_revenue, 2), "live_accruing": round(live_cost, 2), "today": round(today_revenue, 2)},
+        "revenue": {"total_paid": round(total_revenue, 2), "today": round(today_revenue, 2)},
         "withdrawals": {"pending": pend_wd}, "rating": {"average": avg_rating, "count": len(rated)}}
 
 

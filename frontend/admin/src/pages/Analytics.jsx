@@ -146,7 +146,6 @@ function OverviewTab() {
         <Card label="Active Now" value={sessions.active_now} icon="🟢" color="purple" />
         <Card label="Total Paid Out" value={`RM ${revenue.total_paid.toLocaleString()}`}
           icon="💰" color="green" sub={`RM ${revenue.today} today`} />
-        <Card label="Live Accruing" value={`RM ${revenue.live_accruing}`} icon="⏳" color="indigo" />
         <Card label="Completion Rate" value={`${tasks.completion_rate}%`} icon="✅" color="blue" />
         <Card label="Pending Withdrawals" value={withdrawals.pending} icon="💸" color="red" />
       </div>
