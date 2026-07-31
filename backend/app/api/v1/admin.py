@@ -354,14 +354,18 @@ async def admin_delete_admin(
 
 # ── Applications ──────────────────────────────────────────────────────────────
 
-@router.get("/applications", response_model=list[ApplicationWithDetails])
+@router.get("/applications")
 async def admin_list_applications(
     task_id: uuid.UUID | None = Query(None),
     app_status: str | None = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """List all applications, optionally filtered by task or status."""
+    """List all applications, optionally filtered by task or status.
+    Paginated server-side for performance with large datasets (super admin).
+    """
     filters = []
     if task_id:
         filters.append(Application.task_id == task_id)
@@ -371,9 +375,18 @@ async def admin_list_applications(
     if accessible is not None:
         filters.append(Application.task_id.in_(accessible))
 
+    # Count query for pagination
+    count_q = select(func.count()).select_from(Application)
+    if filters:
+        count_q = count_q.where(and_(*filters))
+    total = (await db.execute(count_q)).scalar_one()
+
+    # Page query with limit/offset
     q = select(Application).order_by(Application.created_at.desc())
     if filters:
         q = q.where(and_(*filters))
+    q = q.offset((page - 1) * page_size).limit(page_size)
+
     result = await db.execute(q)
     applications = result.scalars().all()
 
@@ -419,7 +432,8 @@ async def admin_list_applications(
         if worker:
             app_data.worker = build_user_public(worker)
         response.append(app_data)
-    return response
+
+    return {"items": response, "total": total}
 
 
 # ── Users / Workers ───────────────────────────────────────────────────────────

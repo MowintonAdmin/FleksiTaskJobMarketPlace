@@ -209,20 +209,27 @@ export default function Applications() {
   const [selectedWorker, setSelectedWorker] = useState(null)
   const [messageWorker, setMessageWorker] = useState(null)
   const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
   const load = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (filterTask) params.set('task_id', filterTask)
     if (filterStatus) params.set('status', filterStatus)
+    params.set('page', page)
+    params.set('page_size', ITEMS_PER_PAGE)
     api.get(`/admin/applications?${params}`)
-      .then(appsRes => setApps(appsRes.data))
+      .then(appsRes => {
+        const data = Array.isArray(appsRes.data) ? appsRes.data : (appsRes.data?.items || [])
+        setApps(data)
+        setTotal(Array.isArray(appsRes.data) ? data.length : (appsRes.data?.total ?? data.length))
+      })
       .catch(() => toast.error('Failed to load applications'))
     api.get('/admin/tasks?page=1&page_size=100')
       .then(tasksRes => setTasks(tasksRes.data.tasks || []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [filterTask, filterStatus])
+  }, [filterTask, filterStatus, page])
 
   useEffect(() => { load() }, [load])
 
@@ -239,10 +246,10 @@ export default function Applications() {
     )
   }, [apps, search])
 
-  const paginatedApps = useMemo(() =>
-    filteredApps.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
-    [filteredApps, page]
-  )
+  // Backend is already paginated — display filtered current page directly.
+  const paginatedApps = filteredApps
+  // Synthetic array for Pagination component's total-page calculation.
+  const paginationData = useMemo(() => Array.from({ length: total }), [total])
 
   const updateStatus = async (id, newStatus) => {
     try {
@@ -357,7 +364,7 @@ export default function Applications() {
         </table>
       </div>
 
-      <Pagination data={filteredApps} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
+      <Pagination data={paginationData} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
 
       {selectedWorker && (
         <WorkerDrawer
