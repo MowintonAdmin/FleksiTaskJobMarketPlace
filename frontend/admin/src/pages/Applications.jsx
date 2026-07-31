@@ -1,8 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
+import Pagination from '../components/Pagination'
+
+const ITEMS_PER_PAGE = 50
 
 
 const STATUS_COLORS = {
@@ -205,6 +208,7 @@ export default function Applications() {
   const [filterStatus, setFilterStatus] = useState('')
   const [selectedWorker, setSelectedWorker] = useState(null)
   const [messageWorker, setMessageWorker] = useState(null)
+  const [page, setPage] = useState(1)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -222,8 +226,23 @@ export default function Applications() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 30s — pauses while admin is typing/clicking
-  // Real-time updates via WebSocket
+  // Reset to page 1 when search/filters change
+  useEffect(() => { setPage(1) }, [search, filterTask, filterStatus])
+
+  const filteredApps = useMemo(() => {
+    if (!search) return apps
+    const q = search.toLowerCase()
+    return apps.filter(a =>
+      (a.worker?.full_name || '').toLowerCase().includes(q) ||
+      (a.worker?.email || '').toLowerCase().includes(q) ||
+      (a.task?.title || '').toLowerCase().includes(q)
+    )
+  }, [apps, search])
+
+  const paginatedApps = useMemo(() =>
+    filteredApps.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
+    [filteredApps, page]
+  )
 
   const updateStatus = async (id, newStatus) => {
     try {
@@ -288,21 +307,9 @@ export default function Applications() {
                   <td key={j} className="px-4 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                 ))}</tr>
               ))
-            ) : apps.filter(a => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return (a.worker?.full_name || '').toLowerCase().includes(q) ||
-                     (a.worker?.email || '').toLowerCase().includes(q) ||
-                     (a.task?.title || '').toLowerCase().includes(q)
-            }).length === 0 ? (
+            ) : filteredApps.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-12 text-gray-400">No applications match your search</td></tr>
-            ) : apps.filter(a => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return (a.worker?.full_name || '').toLowerCase().includes(q) ||
-                     (a.worker?.email || '').toLowerCase().includes(q) ||
-                     (a.task?.title || '').toLowerCase().includes(q)
-            }).map(app => (
+            ) : paginatedApps.map(app => (
               <tr key={app.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
                   <button onClick={() => setSelectedWorker(app.worker)} className="flex items-center gap-2 hover:text-blue-600 text-left">
@@ -349,6 +356,8 @@ export default function Applications() {
           </tbody>
         </table>
       </div>
+
+      <Pagination data={filteredApps} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
 
       {selectedWorker && (
         <WorkerDrawer
