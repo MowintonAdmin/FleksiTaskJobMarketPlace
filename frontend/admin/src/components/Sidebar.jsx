@@ -71,8 +71,8 @@ export default function Sidebar({ open, onClose }) {
       } catch {}
 
       try {
-        const { data } = await api.get('/admin/applications', { params: { status: 'pending' } })
-        if (!cancelledRef.current) setPendingAppsCount(Array.isArray(data) ? data.length : 0)
+        const { data } = await api.get('/admin/applications', { params: { status: 'pending', page: 1, page_size: 1 } })
+        if (!cancelledRef.current) setPendingAppsCount(Array.isArray(data) ? data.length : (data?.total ?? 0))
       } catch {}
 
       try {
