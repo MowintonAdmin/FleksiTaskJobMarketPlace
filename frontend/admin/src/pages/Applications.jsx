@@ -210,6 +210,7 @@ export default function Applications() {
   const [messageWorker, setMessageWorker] = useState(null)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -225,6 +226,13 @@ export default function Applications() {
         setTotal(Array.isArray(appsRes.data) ? data.length : (appsRes.data?.total ?? data.length))
       })
       .catch(() => toast.error('Failed to load applications'))
+    // Fetch total pending count separately for the red badge (page_size=1 → just the total)
+    api.get('/admin/applications?status=pending&page=1&page_size=1')
+      .then(res => {
+        const t = Array.isArray(res.data) ? res.data.length : (res.data?.total ?? 0)
+        setPendingCount(t)
+      })
+      .catch(() => {})
     api.get('/admin/tasks?page=1&page_size=100')
       .then(tasksRes => setTasks(tasksRes.data.tasks || []))
       .catch(() => {})
@@ -263,7 +271,13 @@ export default function Applications() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
-          Applications <span className="text-gray-400 font-normal text-lg">({apps.length})</span>
+          Applications{' '}
+          <span className="text-gray-400 font-normal text-lg">({total})</span>
+          {pendingCount > 0 && (
+            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-red-500 text-white text-xs font-bold">
+              {pendingCount} pending
+            </span>
+          )}
         </h1>
         <RefreshButton onClick={load} loading={loading} />
       </div>
