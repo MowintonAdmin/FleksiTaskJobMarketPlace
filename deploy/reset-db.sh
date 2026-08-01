@@ -10,6 +10,7 @@
 #   bash deploy/reset-db.sh
 #   bash deploy/reset-db.sh --admin-email you@yourdomain.com --admin-password 'Secret123!'
 #   bash deploy/reset-db.sh --yes    # skip the interactive confirmation
+#   ADMIN_EMAIL=you@yourdomain.com ADMIN_PASSWORD='Secret123!' bash deploy/reset-db.sh --yes
 #
 # The media_data volume (uploaded files) is NOT touched by this script.
 # ============================================================
@@ -24,20 +25,36 @@ POSTGRES_CONTAINER="flekxitask-postgres"
 BACKEND_CONTAINER="flekxitask-backend"
 
 SKIP_CONFIRM=false
-ADMIN_EMAIL=""
-ADMIN_PASSWORD=""
+# Env vars are an alternative to --admin-email/--admin-password, so passwords
+# with special characters don't have to survive shell quoting on the CLI.
+ADMIN_EMAIL="${ADMIN_EMAIL:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help)
+      sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
     --yes) SKIP_CONFIRM=true; shift ;;
     --admin-email) ADMIN_EMAIL="$2"; shift 2 ;;
     --admin-password) ADMIN_PASSWORD="$2"; shift 2 ;;
-    *) echo "Unknown option: $1"; exit 1 ;;
+    *) echo "Unknown option: $1 (see --help)"; exit 1 ;;
   esac
 done
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: $ENV_FILE not found. Run this from the repo root on the VPS."
+  exit 1
+fi
+
+# Strip Windows CRLF line endings in case the file was ever edited/transferred
+# from a Windows machine — a trailing \r silently corrupts sourced values.
+sed -i 's/\r$//' "$ENV_FILE"
+
+if ! docker info &>/dev/null; then
+  echo "ERROR: can't talk to Docker (permission denied or daemon not running)."
+  echo "  Try running with sudo, or add your user to the 'docker' group."
   exit 1
 fi
 
@@ -83,6 +100,8 @@ echo "============================================================"
 echo "  DANGER: this will PERMANENTLY DELETE ALL DATA in the"
 echo "  '$POSTGRES_DB' database on this server, then rebuild an"
 echo "  empty schema from migrations."
+echo ""
+echo "  Target: POSTGRES_DB=$POSTGRES_DB  WEB_HOST=${WEB_HOST:-?}  API_HOST=${API_HOST:-?}"
 echo "============================================================"
 
 if [ "$SKIP_CONFIRM" = false ]; then
