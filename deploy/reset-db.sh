@@ -15,6 +15,9 @@
 # ============================================================
 set -euo pipefail
 
+# Run from the repo root regardless of the caller's cwd (script lives in deploy/).
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
 ENV_FILE="deploy/.env.prod"
 BACKUP_DIR="deploy/backups"
 POSTGRES_CONTAINER="flekxitask-postgres"
@@ -38,10 +41,36 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+# Validate the env file is well-formed KEY=VALUE before sourcing it — a
+# malformed line would otherwise be executed as a shell command and abort
+# the script with a cryptic "command not found"/"No such file or directory".
+BAD_LINES=$(grep -nvE '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" || true)
+if [ -n "$BAD_LINES" ]; then
+  echo "ERROR: $ENV_FILE has malformed line(s) (not '#comment', blank, or KEY=VALUE):"
+  echo "$BAD_LINES"
+  echo "Fix these lines (check for stray spaces instead of '=', hyphens in keys, or wrapped/split URLs) and re-run."
+  exit 1
+fi
+
+DUP_KEYS=$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" | sed 's/=$//' | sort | uniq -d)
+if [ -n "$DUP_KEYS" ]; then
+  echo "ERROR: $ENV_FILE defines the same key more than once (only the last value would be used):"
+  echo "$DUP_KEYS"
+  echo "Remove the duplicate line(s) and re-run."
+  exit 1
+fi
+
 set -a; source "$ENV_FILE"; set +a
 POSTGRES_DB="${POSTGRES_DB:-flekxitask}"
 POSTGRES_USER="${POSTGRES_USER:-fleksi}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-8000}"
+
+if [ -z "$POSTGRES_PASSWORD" ]; then
+  echo "ERROR: POSTGRES_PASSWORD is not set in $ENV_FILE."
+  echo "  Add it (same value used when the Postgres container/volume was created), then re-run."
+  exit 1
+fi
 
 for c in "$POSTGRES_CONTAINER" "$BACKEND_CONTAINER"; do
   if ! docker ps --format '{{.Names}}' | grep -qx "$c"; then
