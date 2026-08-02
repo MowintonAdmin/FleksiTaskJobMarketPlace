@@ -38,7 +38,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --yes) SKIP_CONFIRM=true; shift ;;
     --admin-email) ADMIN_EMAIL="$2"; shift 2 ;;
+    --admin-email=*) ADMIN_EMAIL="${1#*=}"; shift ;;
     --admin-password) ADMIN_PASSWORD="$2"; shift 2 ;;
+    --admin-password=*) ADMIN_PASSWORD="${1#*=}"; shift ;;
     *) echo "Unknown option: $1 (see --help)"; exit 1 ;;
   esac
 done
@@ -48,36 +50,47 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Strip Windows CRLF line endings in case the file was ever edited/transferred
-# from a Windows machine — a trailing \r silently corrupts sourced values.
-sed -i 's/\r$//' "$ENV_FILE"
-
 if ! docker info &>/dev/null; then
   echo "ERROR: can't talk to Docker (permission denied or daemon not running)."
   echo "  Try running with sudo, or add your user to the 'docker' group."
   exit 1
 fi
 
-# Validate the env file is well-formed KEY=VALUE before sourcing it — a
-# malformed line would otherwise be executed as a shell command and abort
-# the script with a cryptic "command not found"/"No such file or directory".
-BAD_LINES=$(grep -nvE '^[[:space:]]*(#.*)?$|^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" || true)
-if [ -n "$BAD_LINES" ]; then
-  echo "ERROR: $ENV_FILE has malformed line(s) (not '#comment', blank, or KEY=VALUE):"
-  echo "$BAD_LINES"
-  echo "Fix these lines (check for stray spaces instead of '=', hyphens in keys, or wrapped/split URLs) and re-run."
-  exit 1
-fi
+# Read $ENV_FILE as plain KEY=VALUE data instead of `source`-ing it, so a
+# malformed/wrapped/comment line can never be executed as a shell command
+# (which is what caused the old "No such file or directory" crashes). Any
+# line that isn't blank, a comment (# or //), or KEY=VALUE is just skipped
+# with a warning instead of aborting the whole script.
+declare -A ENV_VARS
+LINE_NO=0
+while IFS= read -r RAW_LINE || [ -n "$RAW_LINE" ]; do
+  LINE_NO=$((LINE_NO + 1))
+  LINE="${RAW_LINE%$'\r'}"                     # tolerate CRLF from Windows edits
+  TRIMMED="${LINE#"${LINE%%[![:space:]]*}"}"   # strip leading whitespace
+  [ -z "$TRIMMED" ] && continue
+  case "$TRIMMED" in
+    '#'*|'//'*) continue ;;                    # comment line, either style
+  esac
+  if [[ "$TRIMMED" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+    KEY="${BASH_REMATCH[1]}"
+    VALUE="${BASH_REMATCH[2]}"
+    # strip a single layer of surrounding quotes, if present
+    if [[ "$VALUE" == \"*\" && "$VALUE" == *\" ]] || [[ "$VALUE" == \'*\' && "$VALUE" == *\' ]]; then
+      VALUE="${VALUE:1:-1}"
+    fi
+    if [ -n "${ENV_VARS[$KEY]+x}" ]; then
+      echo "WARNING: $ENV_FILE line $LINE_NO redefines $KEY (previous value overridden)." >&2
+    fi
+    ENV_VARS["$KEY"]="$VALUE"
+  else
+    echo "WARNING: $ENV_FILE line $LINE_NO is not a comment or KEY=VALUE, skipping: $TRIMMED" >&2
+  fi
+done < "$ENV_FILE"
 
-DUP_KEYS=$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$ENV_FILE" | sed 's/=$//' | sort | uniq -d)
-if [ -n "$DUP_KEYS" ]; then
-  echo "ERROR: $ENV_FILE defines the same key more than once (only the last value would be used):"
-  echo "$DUP_KEYS"
-  echo "Remove the duplicate line(s) and re-run."
-  exit 1
-fi
+for KEY in "${!ENV_VARS[@]}"; do
+  export "$KEY=${ENV_VARS[$KEY]}"
+done
 
-set -a; source "$ENV_FILE"; set +a
 POSTGRES_DB="${POSTGRES_DB:-flekxitask}"
 POSTGRES_USER="${POSTGRES_USER:-fleksi}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
