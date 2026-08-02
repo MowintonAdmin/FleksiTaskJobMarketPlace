@@ -97,7 +97,14 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-8000}"
 
 if [ -z "$POSTGRES_PASSWORD" ]; then
-  echo "ERROR: POSTGRES_PASSWORD is not set in $ENV_FILE."
+  echo "ERROR: POSTGRES_PASSWORD is not set (or blank) in $ENV_FILE."
+  if [ -n "${ENV_VARS[POSTGRES_PASSWORD]+x}" ]; then
+    echo "  The key exists but has no value — fill in the password after the '='."
+  else
+    echo "  No POSTGRES_PASSWORD key was found. Keys detected in $ENV_FILE (check for a typo,"
+    echo "  case mismatch like 'postgres_password', or a stray space around '='):"
+    printf '%s\n' "${!ENV_VARS[@]}" | sort | sed 's/^/    /'
+  fi
   echo "  Add it (same value used when the Postgres container/volume was created), then re-run."
   exit 1
 fi
