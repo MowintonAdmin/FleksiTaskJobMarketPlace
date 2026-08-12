@@ -391,7 +391,7 @@ async def admin_list_applications(
     applications = result.scalars().all()
 
     if not applications:
-        return []
+        return {"items": [], "total": total}
 
     # Batch-load all related tasks and workers to avoid N+1 queries
     task_ids = list(set(app.task_id for app in applications))
@@ -1608,15 +1608,29 @@ async def admin_approve_session(session_id: uuid.UUID, payload: SessionApprovalA
         if not prior_txn:
             db.add(_Txn(user_id=session.worker_id, type=_TT.CREDIT, amount=new_amount,
                 description=f"Earnings approved for task: {task.title}", reference_id=str(session.id)))
-        if task.status != TaskStatus.COMPLETED: task.status = TaskStatus.COMPLETED
 
         session.rating = round(payload.rating, 1)
         session.feedback = payload.feedback or None
+        session.status = SessionStatus.SETTLED
+        db.add(session)
+        await db.flush()
+
+        # Count DISTINCT workers with approved (SETTLED) sessions for this task
+        approved_workers_res = await db.execute(
+            select(func.count(func.distinct(TaskSession.worker_id))).where(
+                TaskSession.task_id == task.id,
+                TaskSession.status == SessionStatus.SETTLED,
+            )
+        )
+        approved_workers_count = approved_workers_res.scalar_one()
+        if task.max_applicants and approved_workers_count >= task.max_applicants:
+            task.status = TaskStatus.COMPLETED
+            db.add(task)
 
         reason = f" Notes: {payload.notes}" if payload.notes else ""
         db.add(_Msg(sender_id=current_user.id, recipient_id=session.worker_id,
             body=f"✅ Your task \"{task.title}\" has been approved! RM {new_amount:.2f} has been credited to your wallet.{reason}"))
-        session.status = SessionStatus.SETTLED; db.add(session); await db.flush(); await db.refresh(session)
+        await db.flush(); await db.refresh(session)
         return {"status": "approved", "session_id": str(session.id), "amount_credited": new_amount, "rating": session.rating, "feedback": session.feedback}
     elif action == "reject":
         task_result = await db.execute(select(Task).where(Task.id == session.task_id))

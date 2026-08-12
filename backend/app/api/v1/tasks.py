@@ -128,6 +128,20 @@ async def update_task(
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
+
+    # If task was marked COMPLETED but max_applicants is now greater than approved workers, auto-reopen to OPEN
+    from app.models.task_session import TaskSession, SessionStatus
+    if task.status == TaskStatus.COMPLETED and task.max_applicants:
+        approved_res = await db.execute(
+            select(func.count(func.distinct(TaskSession.worker_id))).where(
+                TaskSession.task_id == task.id,
+                TaskSession.status == SessionStatus.SETTLED,
+            )
+        )
+        approved_count = approved_res.scalar_one()
+        if approved_count < task.max_applicants:
+            task.status = TaskStatus.OPEN
+
     db.add(task)
     await db.flush()
     await db.refresh(task)

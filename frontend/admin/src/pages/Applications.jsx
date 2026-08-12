@@ -212,31 +212,34 @@ export default function Applications() {
   const [total, setTotal] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams()
     if (filterTask) params.set('task_id', filterTask)
     if (filterStatus) params.set('status', filterStatus)
     params.set('page', page)
     params.set('page_size', ITEMS_PER_PAGE)
-    api.get(`/admin/applications?${params}`)
-      .then(appsRes => {
-        const data = Array.isArray(appsRes.data) ? appsRes.data : (appsRes.data?.items || [])
-        setApps(data)
-        setTotal(Array.isArray(appsRes.data) ? data.length : (appsRes.data?.total ?? data.length))
-      })
-      .catch(() => toast.error('Failed to load applications'))
-    // Fetch total pending count separately for the red badge (page_size=1 → just the total)
-    api.get('/admin/applications?status=pending&page=1&page_size=1')
-      .then(res => {
-        const t = Array.isArray(res.data) ? res.data.length : (res.data?.total ?? 0)
-        setPendingCount(t)
-      })
-      .catch(() => {})
-    api.get('/admin/tasks?page=1&page_size=100')
-      .then(tasksRes => setTasks(tasksRes.data.tasks || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+
+    try {
+      const [appsRes, pendingRes, tasksRes] = await Promise.all([
+        api.get(`/admin/applications?${params}`),
+        api.get('/admin/applications?status=pending&page=1&page_size=1'),
+        api.get('/admin/tasks?page=1&page_size=100'),
+      ])
+
+      const data = Array.isArray(appsRes.data) ? appsRes.data : (appsRes.data?.items || [])
+      setApps(data)
+      setTotal(Array.isArray(appsRes.data) ? data.length : (appsRes.data?.total ?? data.length))
+
+      const pendTotal = Array.isArray(pendingRes.data) ? pendingRes.data.length : (pendingRes.data?.total ?? 0)
+      setPendingCount(pendTotal)
+
+      setTasks(tasksRes.data?.tasks || [])
+    } catch {
+      toast.error('Failed to load applications')
+    } finally {
+      setLoading(false)
+    }
   }, [filterTask, filterStatus, page])
 
   useEffect(() => { load() }, [load])

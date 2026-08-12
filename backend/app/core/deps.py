@@ -32,7 +32,15 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    from sqlalchemy import cast, String
+    user_id_str = str(user_id)
+    try:
+        uuid_obj = uuid.UUID(user_id_str)
+        condition = (User.id == uuid_obj) | (cast(User.id, String) == user_id_str)
+    except ValueError:
+        condition = (cast(User.id, String) == user_id_str)
+
+    result = await db.execute(select(User).where(condition))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 
@@ -14,6 +14,6 @@ class AuditLog(Base):
     action = Column(String(50), nullable=False, index=True)
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(String(100), nullable=True)
-    details = Column(JSONB, nullable=True)
+    details = Column(JSON, nullable=True)
     ip_address = Column(String(45), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)

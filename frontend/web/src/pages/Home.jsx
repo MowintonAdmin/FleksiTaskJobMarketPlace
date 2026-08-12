@@ -23,7 +23,7 @@ export default function Home() {
     // Auto-refresh tasks every 15 seconds so new tasks from admin appear
     // without needing a manual page refresh.
     const intervalId = setInterval(() => {
-      dispatch(fetchTasks({ ...filtersRef.current }))
+      dispatch(fetchTasks({ ...filtersRef.current, isSilent: true }))
     }, 5000)
 
     return () => clearInterval(intervalId)
