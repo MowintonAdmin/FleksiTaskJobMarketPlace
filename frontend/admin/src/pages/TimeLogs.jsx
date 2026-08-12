@@ -281,7 +281,7 @@ export default function TimeLogs() {
           />
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[850px] text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
                 <tr>
                   <th className="px-5 py-3 text-left">Worker</th>

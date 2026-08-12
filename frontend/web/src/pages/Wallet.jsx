@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useAutoRefresh } from '../utils/useAutoRefresh'
 import { walletApi } from '../api/wallet'
 import { toast } from 'react-toastify'
+import usePausablePolling from '../hooks/usePausablePolling'
 
 const MY_BANKS = [
   { name: 'Maybank', digits: [12, 12] },
@@ -46,6 +47,14 @@ function validateBankFields(bank_name, account_number, account_holder_name) {
   return null
 }
 
+function validateTngFields(phone_number) {
+  if (!phone_number || !phone_number.trim()) return 'Phone number is required for Touch\'n Go eWallet.'
+  const digits = phone_number.replace(/[\s-]/g, '')
+  if (!/^\d+$/.test(digits)) return 'Phone number must contain digits only.'
+  if (digits.length < 10 || digits.length > 12) return 'Touch\'n Go phone numbers must be 10–12 digits.'
+  return null
+}
+
 const TXN_STYLES = {
   CREDIT: { icon: '💰', color: 'text-green-600', sign: '+' },
   WITHDRAWAL_PENDING: { icon: '⏳', color: 'text-yellow-600', sign: '-' },
@@ -76,7 +85,8 @@ function BankAccountModal({ existing, onClose, onSaved }) {
       const validationError = validateBankFields(form.bank_name, form.account_number, form.account_holder_name)
       if (validationError) { setError(validationError); return }
     } else {
-      if (!form.phone_number.trim()) { setError('Phone number is required for Touch\'n Go eWallet'); return }
+      const validationError = validateTngFields(form.phone_number)
+      if (validationError) { setError(validationError); return }
     }
     setSaving(true)
     setError('')
@@ -93,7 +103,17 @@ function BankAccountModal({ existing, onClose, onSaved }) {
       onSaved()
       onClose()
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed to save payment account')
+      const detail = e.response?.data?.detail
+      if (typeof detail === 'string') {
+        setError(detail)
+      } else if (Array.isArray(detail)) {
+        const msg = detail.map(d => (d.msg ? d.msg.replace('Value error, ', '') : String(d))).join(', ')
+        setError(msg)
+      } else if (detail && typeof detail === 'object') {
+        setError(detail.msg || 'Invalid input data')
+      } else {
+        setError('Failed to save payment account')
+      }
     } finally {
       setSaving(false)
     }
@@ -168,8 +188,9 @@ function BankAccountModal({ existing, onClose, onSaved }) {
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Phone Number</label>
               <input value={form.phone_number} onChange={e => setForm(f => ({ ...f, phone_number: e.target.value }))}
-                placeholder="e.g. 0123456789"
+                placeholder="e.g. 0112345678"
                 inputMode="tel"
+                maxLength={12}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
               <p className="text-xs text-gray-400 mt-1">The phone number linked to your Touch'n Go eWallet account</p>
             </div>
@@ -208,7 +229,14 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
       onSuccess()
       onClose()
     } catch (e) {
-      setError(e.response?.data?.detail || 'Request failed')
+      const detail = e.response?.data?.detail
+      if (typeof detail === 'string') {
+        setError(detail)
+      } else if (Array.isArray(detail)) {
+        setError(detail.map(d => (d.msg ? d.msg.replace('Value error, ', '') : String(d))).join(', '))
+      } else {
+        setError('Request failed')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -262,22 +290,19 @@ function WithdrawModal({ maxAmount, bankAccount, onClose, onSuccess }) {
 }
 
 /* ── Main Wallet Page ────────────────────────────────────────────────────── */
-const PAGE_SIZE = 25
+const PAGE_SIZE = 6
 
 function WalletPagination({ data, page, onPage }) {
   const totalPages = Math.ceil(data.length / PAGE_SIZE)
   if (totalPages <= 1) return null
   return (
-    <div className="flex items-center justify-between gap-4 pt-2">
-      <p className="text-xs text-gray-400">{Math.min((page - 1) * PAGE_SIZE + 1, data.length)}–{Math.min(page * PAGE_SIZE, data.length)} of {data.length}</p>
-      <div className="flex items-center gap-1.5">
-        <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1 text-xs border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-          let p = totalPages <= 5 ? i + 1 : (page <= 3 ? i + 1 : (page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i))
-          return <button key={p} onClick={() => onPage(p)} className={`w-7 h-7 text-xs rounded-lg ${page === p ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{p}</button>
-        })}
-        <button onClick={() => onPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="px-3 py-1 text-xs border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next →</button>
-      </div>
+    <div className="flex items-center justify-center gap-2 pt-4">
+      <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors">← Prev</button>
+      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+        let p = totalPages <= 7 ? i + 1 : (page <= 4 ? i + 1 : (page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i))
+        return <button key={p} onClick={() => onPage(p)} className={`w-9 h-9 text-xs rounded-xl font-bold transition-all ${page === p ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>{p}</button>
+      })}
+      <button onClick={() => onPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors">Next →</button>
     </div>
   )
 }
@@ -294,7 +319,8 @@ export default function Wallet() {
   const [txnPage, setTxnPage] = useState(1)
   const [wdPage, setWdPage] = useState(1)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const [w, txns, bank, wds] = await Promise.all([
         walletApi.getWallet(),
@@ -307,16 +333,17 @@ export default function Wallet() {
       setBankAccount(bank.data)
       setWithdrawals(wds.data)
     } catch {
-      toast.error('Failed to load wallet')
+      if (!isBackground) toast.error('Failed to load wallet')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
+  // Silent auto-refresh every 5s — pauses when user is interacting
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   if (loading) {
     return (

@@ -7,27 +7,29 @@ import TaskCard from '../components/TaskCard'
 import FilterBar from '../components/FilterBar'
 import { walletApi } from '../api/wallet'
 
+import usePausablePolling from '../hooks/usePausablePolling'
+
 export default function Home() {
   const dispatch = useDispatch()
   const { items, loading, error, total, page, totalPages, filters } = useSelector((s) => s.tasks)
   const { accessToken } = useSelector((s) => s.auth)
   const [wallet, setWallet] = useState(null)
-  const filtersRef = useRef(filters)
+  const paramsRef = useRef({ filters, page })
 
-  // Keep filters ref in sync
-  useEffect(() => { filtersRef.current = filters }, [filters])
+  // Keep params ref in sync
+  useEffect(() => { paramsRef.current = { filters, page } }, [filters, page])
 
   useEffect(() => {
-    dispatch(fetchTasks({}))
+    dispatch(fetchTasks({ ...filters, page }))
+  }, [dispatch, filters, page])
 
-    // Auto-refresh tasks every 15 seconds so new tasks from admin appear
-    // without needing a manual page refresh.
-    const intervalId = setInterval(() => {
-      dispatch(fetchTasks({ ...filtersRef.current, isSilent: true }))
-    }, 5000)
+  // Silent auto-refresh every 5s — retains current page and filters without screen flickering
+  const pollBg = useRef()
+  pollBg.current = () => {
+    dispatch(fetchTasks({ ...paramsRef.current.filters, page: paramsRef.current.page, isSilent: true }))
+  }
 
-    return () => clearInterval(intervalId)
-  }, [dispatch])
+  usePausablePolling(() => pollBg.current?.(), 5000)
 
   useEffect(() => {
     if (accessToken) {
@@ -122,23 +124,43 @@ export default function Home() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination (15 tasks per page) */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center items-center gap-2 mt-8">
           <button
             onClick={() => handlePage(page - 1)}
             disabled={page === 1}
-            className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40"
+            className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
           >
             ← Prev
           </button>
-          <span className="flex items-center text-sm text-gray-600 px-3">
-            Page {page} of {totalPages}
-          </span>
+          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+            let pageNum
+            if (totalPages <= 7) {
+              pageNum = i + 1
+            } else if (page <= 4) {
+              pageNum = i + 1
+            } else if (page >= totalPages - 3) {
+              pageNum = totalPages - 6 + i
+            } else {
+              pageNum = page - 3 + i
+            }
+            return (
+              <button
+                key={pageNum}
+                onClick={() => handlePage(pageNum)}
+                className={`w-9 h-9 text-xs rounded-xl font-bold transition-all ${
+                  page === pageNum ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
           <button
             onClick={() => handlePage(page + 1)}
             disabled={page === totalPages}
-            className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-40"
+            className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
           >
             Next →
           </button>

@@ -25,7 +25,7 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 @router.get("", response_model=TaskListResponse)
 async def list_tasks(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     location: str | None = Query(None),
     category: str | None = Query(None),
     min_pay: float | None = Query(None),
@@ -41,7 +41,7 @@ async def list_tasks(
     if location:
         filters.append(Task.location.ilike(f"%{location}%"))
     if category:
-        filters.append(Task.category == category)
+        filters.append(Task.category.ilike(f"%{category}%"))
     if min_pay is not None:
         filters.append(Task.pay_rate_per_minute >= min_pay / 60.0)
     if max_pay is not None:
@@ -71,6 +71,47 @@ async def list_tasks(
         page_size=page_size,
         total_pages=math.ceil(total / page_size),
     )
+
+
+def format_category_tag(tag: str) -> str:
+    cleaned = tag.strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) <= 3 and cleaned.isupper():
+        return cleaned.upper()
+    words = cleaned.split(" ")
+    res = []
+    for w in words:
+        if not w:
+            continue
+        if len(w) <= 3 and w.isupper():
+            res.append(w)
+        else:
+            res.append(w.capitalize())
+    return " ".join(res)
+
+
+@router.get("/categories", response_model=list[str])
+async def get_task_categories(db: AsyncSession = Depends(get_db)):
+    """Get all unique categories from currently open tasks, normalized & deduplicated case-insensitively."""
+    now = datetime.now(timezone.utc)
+    stmt = select(Task.category).where(
+        Task.status == TaskStatus.OPEN,
+        or_(Task.starts_at == None, Task.starts_at >= now)
+    )
+    res = await db.execute(stmt)
+    raw_categories = res.scalars().all()
+    cat_dict = {}
+    for cat in raw_categories:
+        if not cat:
+            continue
+        for part in str(cat).replace("，", ",").split(","):
+            cleaned = format_category_tag(part)
+            if cleaned:
+                key = cleaned.lower()
+                if key not in cat_dict:
+                    cat_dict[key] = cleaned
+    return sorted(list(cat_dict.values()))
 
 
 @router.get("/{task_id}", response_model=TaskResponse)

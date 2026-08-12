@@ -1,7 +1,7 @@
 import api from './client'
 
 export const tasksApi = {
-  list: async ({ page = 1, pageSize = 20, location, category, minPay, maxPay } = {}) => {
+  list: async ({ page = 1, pageSize = 15, location, category, minPay, maxPay } = {}) => {
     const params = new URLSearchParams({ page, page_size: pageSize })
     if (location) params.set('location', location)
     if (category) params.set('category', category)
@@ -12,6 +12,10 @@ export const tasksApi = {
   },
   getById: async (id) => {
     const { data } = await api.get(`/tasks/${id}`)
+    return data
+  },
+  getCategories: async () => {
+    const { data } = await api.get('/tasks/categories')
     return data
   },
   create: async (payload) => {

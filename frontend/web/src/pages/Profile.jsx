@@ -31,6 +31,7 @@ function ChangePasswordModal({ onClose }) {
   const [loading, setLoading] = useState(false)
   const [showOld, setShowOld] = useState(false)
   const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -80,7 +81,10 @@ function ChangePasswordModal({ onClose }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Confirm New Password</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input" required />
+            <div className="relative">
+              <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="input pr-10" required />
+              <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">{showConfirm ? '🙈' : '👁️'}</button>
+            </div>
             {confirmPassword && confirmPassword !== newPassword && <p className="text-red-500 text-xs mt-1">Passwords do not match</p>}
           </div>
           <div className="flex gap-3 pt-2">

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import usePausablePolling from '../hooks/usePausablePolling'
 import api from '../api/client'
 import { toast } from 'react-toastify'
@@ -51,23 +51,24 @@ export default function ActiveWorkers() {
   const [confirmTarget, setConfirmTarget] = useState(null)
   const [stopping, setStopping] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const { data } = await api.get('/admin/workers/active')
       setWorkers(data)
       setLastRefresh(new Date())
     } catch {
-      toast.error('Failed to load active workers')
+      if (!isBackground) toast.error('Failed to load active workers')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30 seconds, pauses while admin is interacting
-  usePausablePolling(load, 30000)
+  // Silent auto-refresh every 5 seconds, pauses while admin is interacting
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   const handleForceStop = async () => {
     if (!confirmTarget) return

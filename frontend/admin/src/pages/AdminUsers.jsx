@@ -16,6 +16,7 @@ export default function AdminUsers() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [newFullName, setNewFullName] = useState('')
   const [newCompanyTag, setNewCompanyTag] = useState('')
   const [creating, setCreating] = useState(false)
@@ -29,6 +30,7 @@ export default function AdminUsers() {
 
   const [resettingAdmin, setResettingAdmin] = useState(null)
   const [resetPassword, setResetPassword] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetting, setResetting] = useState(false)
 
   const [deletingAdmin, setDeletingAdmin] = useState(null)
@@ -196,7 +198,7 @@ export default function AdminUsers() {
 
       {/* Admin list table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[750px] text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
               <th className="px-5 py-3 text-left">Admin</th>
@@ -312,8 +314,13 @@ export default function AdminUsers() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password *</label>
-                <input required type="password" minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
+                <div className="relative">
+                  <input required type={showNewPassword ? 'text' : 'password'} minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none pr-10" />
+                  <button type="button" onClick={() => setShowNewPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+                    {showNewPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -382,9 +389,14 @@ export default function AdminUsers() {
               <p className="text-sm text-gray-500">Resetting password for: <strong>{resettingAdmin.email}</strong></p>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">New Password *</label>
-                <input required type="password" minLength={6} value={resetPassword} onChange={e => setResetPassword(e.target.value)}
-                  placeholder="Min. 6 characters"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                <div className="relative">
+                  <input required type={showResetPassword ? 'text' : 'password'} minLength={6} value={resetPassword} onChange={e => setResetPassword(e.target.value)}
+                    placeholder="Min. 6 characters"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none pr-10" />
+                  <button type="button" onClick={() => setShowResetPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+                    {showResetPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setResettingAdmin(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

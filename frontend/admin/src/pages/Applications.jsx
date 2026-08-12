@@ -4,6 +4,7 @@ import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
 import Pagination from '../components/Pagination'
+import usePausablePolling from '../hooks/usePausablePolling'
 
 const ITEMS_PER_PAGE = 50
 
@@ -212,8 +213,8 @@ export default function Applications() {
   const [total, setTotal] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     const params = new URLSearchParams()
     if (filterTask) params.set('task_id', filterTask)
     if (filterStatus) params.set('status', filterStatus)
@@ -236,13 +237,15 @@ export default function Applications() {
 
       setTasks(tasksRes.data?.tasks || [])
     } catch {
-      toast.error('Failed to load applications')
+      if (!isBackground) toast.error('Failed to load applications')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [filterTask, filterStatus, page])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   // Reset to page 1 when search/filters change
   useEffect(() => { setPage(1) }, [search, filterTask, filterStatus])
@@ -313,7 +316,7 @@ export default function Applications() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full min-w-[750px] text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
               <th className="px-4 py-3 text-left">Worker</th>

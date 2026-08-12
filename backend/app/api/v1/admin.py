@@ -467,7 +467,7 @@ async def admin_unverified_users(
     for u in users:
         sessions_result = await db.execute(select(TaskSession).where(TaskSession.worker_id == u.id))
         sessions = sessions_result.scalars().all()
-        completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
+        completed = [s for s in sessions if str(s.status).lower() in ["completed", "settled"]]
         out.append({
             "id": str(u.id), "email": u.email, "full_name": u.full_name,
             "profile_photo_url": u.profile_photo_url, "phone": u.phone, "location": u.location,
@@ -542,7 +542,7 @@ async def admin_get_user(
 
     sessions_result = await db.execute(select(TaskSession).where(TaskSession.worker_id == user_id))
     sessions = sessions_result.scalars().all()
-    completed = [s for s in sessions if s.status == SessionStatus.COMPLETED]
+    completed = [s for s in sessions if str(s.status).lower() in ["completed", "settled"]]
     total_earnings = sum(s.earnings or 0 for s in completed)
     user_data = UserWithStats.model_validate(user)
     user_data.stats = WorkerStats(total_sessions=len(sessions), completed_sessions=len(completed), total_earnings=round(total_earnings, 2))

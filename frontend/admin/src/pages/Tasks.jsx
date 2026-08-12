@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
+import Pagination from '../components/Pagination'
 import TagBadge from '../utils/tagColors'
 
 // Media files are served via nginx at /media/{path} (proxied to backend).
@@ -29,12 +30,106 @@ const PROJECT_STATUS_STYLE = {
   cancelled: 'bg-red-100 text-red-500',
 }
 
+function formatCategoryTag(tag) {
+  if (!tag) return ''
+  const trimmed = String(tag).trim()
+  if (!trimmed) return ''
+  if (trimmed.length <= 3 && trimmed === trimmed.toUpperCase()) {
+    return trimmed.toUpperCase()
+  }
+  return trimmed
+    .split(' ')
+    .map(w => {
+      if (!w) return ''
+      if (w.length <= 3 && w === w.toUpperCase()) return w
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+    })
+    .join(' ')
+}
+
+function parseCategoryTags(str) {
+  if (!str) return []
+  let rawList = []
+  if (Array.isArray(str)) {
+    rawList = str
+  } else {
+    try {
+      const parsed = JSON.parse(str)
+      if (Array.isArray(parsed)) rawList = parsed
+    } catch {}
+  }
+  if (rawList.length === 0 && str) {
+    rawList = String(str).replace(/，/g, ',').split(',')
+  }
+
+  const tagMap = new Map()
+  rawList.forEach(raw => {
+    const formatted = formatCategoryTag(raw)
+    if (formatted && !tagMap.has(formatted.toLowerCase())) {
+      tagMap.set(formatted.toLowerCase(), formatted)
+    }
+  })
+  return Array.from(tagMap.values())
+}
+
+function CategoryTagInput({ value, onChange, placeholder = "Type & press Enter..." }) {
+  const [inputValue, setInputValue] = useState('')
+  const tags = useMemo(() => parseCategoryTags(value), [value])
+
+  const addTag = (tagText) => {
+    const cleaned = tagText.trim()
+    if (!cleaned) return
+    const existing = parseCategoryTags(value)
+    if (!existing.some(t => t.toLowerCase() === cleaned.toLowerCase())) {
+      const updated = [...existing, cleaned]
+      onChange(updated.join(', '))
+    }
+    setInputValue('')
+  }
+
+  const removeTag = (indexToRemove) => {
+    const existing = parseCategoryTags(value)
+    const updated = existing.filter((_, idx) => idx !== indexToRemove)
+    onChange(updated.join(', '))
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault() // ONLY Enter key triggers tag creation and prevents modal submit!
+      if (inputValue.trim()) {
+        addTag(inputValue)
+      }
+    } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+      removeTag(tags.length - 1)
+    }
+  }
+
+  return (
+    <div className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-blue-500 bg-white flex flex-wrap items-center gap-1.5 min-h-[38px]">
+      {tags.map((tag, idx) => (
+        <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
+          🏷️ {tag}
+          <button type="button" onClick={() => removeTag(idx)} className="hover:text-red-500 font-bold text-xs ml-0.5">✕</button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={inputValue}
+        onChange={e => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={tags.length === 0 ? placeholder : "+ Add Tag"}
+        className="flex-1 min-w-[90px] bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 py-0.5"
+      />
+    </div>
+  )
+}
+
 const EMPTY_TASK_FORM = {
   title: '',
   description: '',
   requirements: '',
   location: '',
-  category: 'Cleaning',
+  category: '',
   pay_rate_per_hour: '',
   estimated_duration_hours: '',
   max_applicants: 1,
@@ -93,10 +188,7 @@ function ProjectModal({ project, onClose, onSaved }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <option value="">— None —</option>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
+              <CategoryTagInput value={category} onChange={setCategory} placeholder="Type & press Enter..." />
             </div>
           </div>
           <div>
@@ -137,44 +229,58 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
     location: task.location,
     category: task.category,
     pay_rate_per_hour: (task.pay_rate_per_minute * 60).toFixed(2),
-    estimated_duration_hours: Math.round(task.estimated_duration_minutes / 60) || '',
-    max_applicants: task.max_applicants,
-    starts_at: task.starts_at ? task.starts_at.slice(0, 16) : '',
-  } : { ...EMPTY_TASK_FORM })
+    estimated_duration_hours: (task.estimated_duration_minutes / 60).toString(),
+    max_applicants: task.max_applicants ?? 1,
+    starts_at: task.starts_at ? new Date(task.starts_at).toISOString().slice(0, 16) : '',
+  } : EMPTY_TASK_FORM)
+
+  const [saving, setSaving] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(task?.photo_url ? mediaUrl(task.photo_url) : null)
-  const [removePhoto, setRemovePhoto] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
   const fileRef = useRef()
 
-  const handleRemovePhoto = () => {
-    setPhotoFile(null); setPhotoPreview(null); setRemovePhoto(true)
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   const handlePhotoChange = (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('Photo is too large. Maximum size is 5MB.'); e.target.value = ''; return }
-    setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)); setRemovePhoto(false)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Photo must be under 5MB')
+      return
+    }
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  const handleRemovePhoto = () => {
+    setPhotoFile(null)
+    setPhotoPreview(null)
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (form.starts_at && new Date(form.starts_at) < new Date()) { alert('Start date cannot be in the past.'); return }
+    setFormError(null)
+    const payRate = parseFloat(form.pay_rate_per_hour)
+    const durationHours = parseFloat(form.estimated_duration_hours)
+    if (!payRate || payRate <= 0) { setFormError('Pay rate per hour must be greater than 0.'); return }
+    if (!durationHours || durationHours <= 0) { setFormError('Duration must be greater than 0.'); return }
+
     setSaving(true)
+
     try {
       const payload = {
-        ...form,
-        pay_rate_per_minute: parseFloat(form.pay_rate_per_hour) / 60,
-        estimated_duration_minutes: Math.round(parseFloat(form.estimated_duration_hours) * 60),
-        max_applicants: parseInt(form.max_applicants),
-        starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
+        title: form.title,
+        description: form.description,
         requirements: form.requirements || null,
-        project_id: projectId,
+        location: form.location,
+        pay_rate_per_minute: payRate / 60,
+        estimated_duration_minutes: Math.round(durationHours * 60),
+        category: form.category,
+        max_applicants: parseInt(form.max_applicants) || 1,
+        starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : null,
+        project_id: projectId || task?.project_id || null,
       }
 
       let saved
@@ -186,14 +292,12 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
         saved = data
       }
 
-      if (photoFile) {
+      if (photoFile && saved?.id) {
         const fd = new FormData()
-        fd.append('photo', photoFile)
-        const { data } = await api.post(`/tasks/${saved.id}/photo`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-        saved = data
-      } else if (removePhoto && task) {
-        const { data } = await api.put(`/tasks/${saved.id}`, { photo_url: null })
-        saved = data
+        fd.append('file', photoFile)
+        await api.post(`/tasks/${saved.id}/photo`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      } else if (!photoPreview && task?.photo_url && saved?.id) {
+        await api.delete(`/tasks/${saved.id}/photo`)
       }
 
       toast.success(task ? 'Task updated!' : 'Task created!')
@@ -257,9 +361,7 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Category *</label>
-              <select value={form.category} onChange={e => set('category', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
+              <CategoryTagInput value={form.category} onChange={val => set('category', val)} placeholder="Type & press Enter..." />
             </div>
           </div>
           {/* Pay + Duration + Workers */}
@@ -416,43 +518,45 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
         </div>
       )}
       {displayed.map(task => (
-        <div key={task.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
-          {/* Checkbox for bulk selection */}
-          <input
-            type="checkbox"
-            checked={selectedIds.has(task.id)}
-            onChange={() => onToggleSelect(task.id)}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
-          />
-          <div className="shrink-0">
-            {task.photo_url ? (
-              <img src={mediaUrl(task.photo_url)} alt="" className="w-10 h-10 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
-            ) : null}
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg" style={{ display: task.photo_url ? 'none' : 'flex' }}>📋</div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-900 truncate">{task.title}</p>
-            <p className="text-xs text-gray-500 mt-0.5">📍 {task.location} · {task.category} · RM {(parseFloat(task.pay_rate_per_minute) * 60).toFixed(2)}/hr</p>
-            <div className="mt-1 flex items-center gap-2">
-              {task.company_tag && (
-                <TagBadge tag={task.company_tag} size="xs" />
-              )}
-              {task.project_tag && (
-                <TagBadge tag={task.project_tag} size="xs" />
-              )}
+        <div key={task.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Checkbox for bulk selection */}
+            <input
+              type="checkbox"
+              checked={selectedIds.has(task.id)}
+              onChange={() => onToggleSelect(task.id)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+            />
+            <div className="shrink-0">
+              {task.photo_url ? (
+                <img src={mediaUrl(task.photo_url)} alt="" className="w-10 h-10 rounded-lg object-cover" onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling.style.display='flex' }} />
+              ) : null}
+              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg" style={{ display: task.photo_url ? 'none' : 'flex' }}>📋</div>
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                {task.status.replace('_', ' ').toUpperCase()}
-              </span>
-              {task.starts_at && (
-                <span className={`text-xs ${new Date(task.starts_at) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                  🗓 {new Date(task.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 truncate">{task.title}</p>
+              <p className="text-xs text-gray-500 mt-0.5 break-words">📍 {task.location} · {task.category} · RM {(parseFloat(task.pay_rate_per_minute) * 60).toFixed(2)}/hr</p>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                {task.company_tag && (
+                  <TagBadge tag={task.company_tag} size="xs" />
+                )}
+                {task.project_tag && (
+                  <TagBadge tag={task.project_tag} size="xs" />
+                )}
+              </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[task.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {task.status.replace('_', ' ').toUpperCase()}
                 </span>
-              )}
+                {task.starts_at && (
+                  <span className={`text-xs ${new Date(task.starts_at) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                    🗓 {new Date(task.starts_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="shrink-0 flex items-center justify-end gap-2 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-gray-100">
             <select
               value={task.status}
               disabled={false}
@@ -618,6 +722,11 @@ export default function Tasks() {
     }
   }
 
+  const PROJECTS_PER_PAGE = 20
+  const [projectPage, setProjectPage] = useState(1)
+
+  useEffect(() => { setProjectPage(1) }, [projectSearch])
+
   // Filter projects by search
   const filteredProjects = projectSearch
     ? projects.filter(p => 
@@ -627,6 +736,11 @@ export default function Tasks() {
         (p.location && p.location.toLowerCase().includes(projectSearch.toLowerCase()))
       )
     : projects
+
+  const paginatedProjects = useMemo(() =>
+    filteredProjects.slice((projectPage - 1) * PROJECTS_PER_PAGE, projectPage * PROJECTS_PER_PAGE),
+    [filteredProjects, projectPage]
+  )
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -672,47 +786,50 @@ export default function Tasks() {
               <p className="text-sm text-gray-400 mt-1">{projectSearch ? 'Try a different search term.' : 'Create your first project to start organizing tasks.'}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProjects.map(p => (
-                <div key={p.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group cursor-pointer" onClick={() => handleSelectProject(p)}>
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-bold text-gray-900 text-lg">{p.name}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PROJECT_STATUS_STYLE[p.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {p.status.toUpperCase()}
-                      </span>
-                    </div>
-                    {p.description && <p className="text-sm text-gray-500 mb-3 line-clamp-2">{p.description}</p>}
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
-                      <span>📋 {p.task_count} tasks</span>
-                      {p.category && <span>🏷 {p.category}</span>}
-                      {p.location && <span>📍 {p.location}</span>}
-                      {p.company_tag && (
-                        <TagBadge tag={p.company_tag} size="xs" />
-                      )}
-                      {p.project_tag && (
-                        <TagBadge tag={p.project_tag} size="xs" color="purple" />
-                      )}
-                    </div>
-                    {p.due_date && (
-                      <div className="mt-2">
-                        <span className="text-[10px] text-gray-400">
-                          🗓 Due: {new Date(p.due_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {paginatedProjects.map(p => (
+                  <div key={p.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden group cursor-pointer" onClick={() => handleSelectProject(p)}>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="font-bold text-gray-900 text-lg">{p.name}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PROJECT_STATUS_STYLE[p.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {p.status.toUpperCase()}
                         </span>
                       </div>
-                    )}
+                      {p.description && <p className="text-sm text-gray-500 mb-3 line-clamp-2">{p.description}</p>}
+                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                        <span>📋 {p.task_count} tasks</span>
+                        {p.category && <span>🏷 {p.category}</span>}
+                        {p.location && <span>📍 {p.location}</span>}
+                        {p.company_tag && (
+                          <TagBadge tag={p.company_tag} size="xs" />
+                        )}
+                        {p.project_tag && (
+                          <TagBadge tag={p.project_tag} size="xs" color="purple" />
+                        )}
+                      </div>
+                      {p.due_date && (
+                        <div className="mt-2">
+                          <span className="text-[10px] text-gray-400">
+                            🗓 Due: {new Date(p.due_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t border-gray-100 flex opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); setEditProject(p); setShowProjectModal(true) }} className="flex-1 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-r border-gray-100">
+                        ✏️ Edit
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteProject(p) }} className="flex-1 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors">
+                        🗑 Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="border-t border-gray-100 flex opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); setEditProject(p); setShowProjectModal(true) }} className="flex-1 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-r border-gray-100">
-                      ✏️ Edit
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); setDeleteProject(p) }} className="flex-1 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors">
-                      🗑 Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <Pagination data={filteredProjects} page={projectPage} onPage={setProjectPage} pageSize={PROJECTS_PER_PAGE} />
+            </>
           )}
         </>
       )}
@@ -749,13 +866,7 @@ export default function Tasks() {
             savingStatus={savingStatus}
           />
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Prev</button>
-              <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next →</button>
-            </div>
-          )}
+          <Pagination totalPages={totalPages} page={page} onPage={setPage} />
         </>
       )}
 
