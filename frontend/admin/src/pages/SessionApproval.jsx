@@ -135,7 +135,11 @@ export default function SessionApproval() {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Checked in</p>
-                    <p className="font-medium text-gray-900 text-xs">{new Date(s.checked_in_at).toLocaleString()}</p>
+                    <p className="font-medium text-gray-900 text-xs">
+                      {s.checked_in_at
+                        ? new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(s.checked_in_at) ? s.checked_in_at : s.checked_in_at + 'Z').toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })
+                        : '—'}
+                    </p>
                   </div>
                 </div>
                 {s.task_status === 'cancelled' && (

@@ -530,7 +530,8 @@ async def admin_get_user(
     current_user: User = Depends(require_admin),
 ):
     """Get a user's profile with session performance stats."""
-    result = await db.execute(select(User).where(User.id == user_id))
+    u_uuid = user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id))
+    result = await db.execute(select(User).where(User.id == u_uuid))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -1037,7 +1038,8 @@ async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15
     tasks = result.scalars().all()
     task_responses = []
     for task in tasks:
-        count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
+        t_uuid = task.id if isinstance(task.id, uuid.UUID) else uuid.UUID(str(task.id))
+        count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == t_uuid))
         task_data = TaskResponse.model_validate(task)
         task_data.application_count = count_result.scalar_one()
         task_responses.append(task_data)
@@ -1456,18 +1458,40 @@ def _parse_db_url(database_url: str) -> dict:
 async def database_backup(_: User = Depends(require_super_admin)):
     """Backup entire database. Super admin only."""
     from app.config import get_settings as _get_settings
-    settings = _get_settings(); db_parts = _parse_db_url(settings.DATABASE_URL)
+    settings = _get_settings()
+    db_url = settings.DATABASE_URL.lower()
+    filename = f"fleksitask_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.sql"
+
+    # SQLite Backup Handling
+    if "sqlite" in db_url:
+        import sqlite3
+        db_path = settings.DATABASE_URL.split("///")[-1]
+        if not os.path.exists(db_path):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Database file {db_path} not found")
+        try:
+            conn = sqlite3.connect(db_path)
+            sql_dump = "\n".join(conn.iterdump())
+            conn.close()
+            return StreamingResponse(
+                iter([sql_dump.encode("utf-8")]),
+                media_type="application/sql",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            )
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"SQLite backup failed: {str(e)}")
+
+    # PostgreSQL Backup Handling
+    db_parts = _parse_db_url(settings.DATABASE_URL)
     env = {**os.environ, "PGPASSWORD": db_parts["password"]}
     args = ["pg_dump", "-h", db_parts["host"], "-p", db_parts["port"], "-U", db_parts["user"], "--clean", "--if-exists", "--no-owner", "--no-privileges", db_parts["dbname"]]
     try:
         proc = subprocess.run(args, capture_output=True, env=env, timeout=300)
     except FileNotFoundError:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="pg_dump not found")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="pg_dump not found on host server")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="pg_dump timed out")
     if proc.returncode != 0:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"pg_dump failed: {proc.stderr.decode(errors='replace')[:500]}")
-    filename = f"fleksitask_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.sql"
     return StreamingResponse(iter([proc.stdout]), media_type="application/octet-stream", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
@@ -1479,11 +1503,36 @@ async def database_restore(file: UploadFile = File(...), _: User = Depends(requi
     content = await file.read()
     if len(content) < 10:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File appears to be empty")
-    preview = content[:200].decode(errors="replace").lstrip()
-    if not (preview.startswith("--") or preview.startswith("SET") or preview.startswith("/*")):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File does not appear to be a valid pg_dump SQL file")
+
     from app.config import get_settings as _get_settings
-    settings = _get_settings(); db_parts = _parse_db_url(settings.DATABASE_URL)
+    settings = _get_settings()
+    db_url = settings.DATABASE_URL.lower()
+
+    # SQLite Restore Handling
+    if "sqlite" in db_url:
+        import sqlite3
+        db_path = settings.DATABASE_URL.split("///")[-1]
+        sql_script = content.decode("utf-8", errors="replace")
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+            # Drop all existing user tables so sql script executes cleanly without 'table already exists' errors
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+            existing_tables = cursor.fetchall()
+            for row in existing_tables:
+                cursor.execute(f'DROP TABLE IF EXISTS "{row[0]}";')
+            # Execute full restore script
+            cursor.executescript(sql_script)
+            cursor.execute("PRAGMA foreign_keys = ON;")
+            conn.commit()
+            conn.close()
+            return {"message": "Database restored successfully", "filename": file.filename, "size_bytes": len(content)}
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"SQLite restore failed: {str(e)}")
+
+    # PostgreSQL Restore Handling
+    db_parts = _parse_db_url(settings.DATABASE_URL)
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".sql")
     try:
         os.write(tmp_fd, content); os.close(tmp_fd)

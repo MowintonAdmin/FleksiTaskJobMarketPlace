@@ -17,8 +17,8 @@ async def create_or_update_admin(
     reset_password: bool,
 ) -> str:
     normalized_email = email.strip().lower()
-    normalized_full_name = full_name.strip() or "Platform Admin"
-
+    normalized_full_name = full_name.strip() or "Admin"
+    
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.email == normalized_email))
         user = result.scalar_one_or_none()
@@ -38,8 +38,7 @@ async def create_or_update_admin(
         else:
             if reset_password or not user.hashed_password:
                 user.hashed_password = hash_password(password)
-            if not user.full_name:
-                user.full_name = normalized_full_name
+            user.full_name = "Admin"
             user.is_admin = True
             user.is_super_admin = True
             user.is_active = True

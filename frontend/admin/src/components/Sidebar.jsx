@@ -274,6 +274,9 @@ export default function Sidebar({ open, onClose }) {
                         {showConfirmPass ? '🙈' : '👁️'}
                       </button>
                     </div>
+                    {confirmPass && confirmPass !== newPass && (
+                      <p className="text-red-500 text-xs mt-1 font-medium">Passwords do not match</p>
+                    )}
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
                     <button type="button" onClick={() => setShowChangePassword(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

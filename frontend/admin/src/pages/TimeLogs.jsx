@@ -11,7 +11,16 @@ function elapsed(minutes) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+function parseUTC(str) {
+  if (!str) return null
+  return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
+}
+
+const fmt = (iso) => {
+  if (!iso) return '—'
+  const d = parseUTC(iso)
+  return d && !isNaN(d.getTime()) ? d.toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+}
 const fmtInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : ''
 const formatStatusLabel = (status) =>
   String(status || '')
@@ -148,7 +157,7 @@ function TaskCostPanel({ costs, loading }) {
 }
 
 /* ── Pagination ────────────────────────────────────────────────────────── */
-const PAGE_SIZE = 50
+const PAGE_SIZE = 25
 
 function Pagination({ page, totalPages, onPage }) {
   if (totalPages <= 1) return null

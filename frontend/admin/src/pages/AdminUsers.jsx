@@ -3,6 +3,9 @@ import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import TagBadge from '../utils/tagColors'
+import Pagination from '../components/Pagination'
+
+const ITEMS_PER_PAGE = 25
 
 export default function AdminUsers() {
   const { user } = useSelector((s) => s.auth)
@@ -11,6 +14,7 @@ export default function AdminUsers() {
   const [admins, setAdmins] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   // Create admin modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -219,7 +223,7 @@ export default function AdminUsers() {
               ))
             ) : admins.length === 0 ? (
               <tr><td colSpan={isSuperAdmin ? 7 : 6} className="text-center py-12 text-gray-400">No admin users found</td></tr>
-            ) : admins.map(u => (
+            ) : admins.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE).map(u => (
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -286,6 +290,8 @@ export default function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      <Pagination data={admins} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
 
       {/* Create Admin Modal */}
       {showCreateModal && isSuperAdmin && (

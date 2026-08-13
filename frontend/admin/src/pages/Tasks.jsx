@@ -262,10 +262,16 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setFormError(null)
+
+    if (!form.title.trim()) { setFormError('Title is required.'); return }
+    if (!form.description.trim()) { setFormError('Description is required.'); return }
+    if (!form.location.trim()) { setFormError('Location is required (please scroll down to fill).'); return }
+    if (!form.category.trim()) { setFormError('Category is required (please scroll down to fill).'); return }
+    
     const payRate = parseFloat(form.pay_rate_per_hour)
     const durationHours = parseFloat(form.estimated_duration_hours)
-    if (!payRate || payRate <= 0) { setFormError('Pay rate per hour must be greater than 0.'); return }
-    if (!durationHours || durationHours <= 0) { setFormError('Duration must be greater than 0.'); return }
+    if (!payRate || payRate <= 0) { setFormError('Pay rate per hour must be greater than 0 (please scroll down to fill).'); return }
+    if (!durationHours || durationHours <= 0) { setFormError('Duration in hours must be greater than 0 (please scroll down to fill).'); return }
 
     setSaving(true)
 
@@ -294,7 +300,7 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
 
       if (photoFile && saved?.id) {
         const fd = new FormData()
-        fd.append('file', photoFile)
+        fd.append('photo', photoFile)
         await api.post(`/tasks/${saved.id}/photo`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       } else if (!photoPreview && task?.photo_url && saved?.id) {
         await api.delete(`/tasks/${saved.id}/photo`)
@@ -304,7 +310,13 @@ function TaskModal({ task, projectId, onClose, onSaved }) {
       onSaved(saved)
     } catch (err) {
       const detail = err.response?.data?.detail
-      const msg = Array.isArray(detail) ? detail.map(d => d.msg || JSON.stringify(d)).join(', ') : (detail || err.message || 'Failed to save task')
+      const msg = Array.isArray(detail)
+        ? detail.map(d => {
+            const field = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : ''
+            const label = field ? field.replace('_', ' ').toUpperCase() : ''
+            return label ? `${label}: ${d.msg}` : d.msg || JSON.stringify(d)
+          }).join(' | ')
+        : (detail || err.message || 'Failed to save task')
       setFormError(msg)
       toast.error(msg)
     } finally {

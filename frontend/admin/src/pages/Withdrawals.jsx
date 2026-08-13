@@ -7,7 +7,7 @@ import Pagination from '../components/Pagination'
 import RefreshButton from '../components/RefreshButton'
 import usePausablePolling from '../hooks/usePausablePolling'
 
-const ITEMS_PER_PAGE = 50
+const ITEMS_PER_PAGE = 25
 
 const STATUS_COLORS = {
   PENDING: 'bg-yellow-100 text-yellow-700',

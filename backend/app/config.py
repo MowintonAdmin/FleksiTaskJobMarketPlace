@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Admin bootstrap
     BOOTSTRAP_ADMIN_EMAIL: str | None = None
     BOOTSTRAP_ADMIN_PASSWORD: str | None = None
-    BOOTSTRAP_ADMIN_FULL_NAME: str = "Platform Admin"
+    BOOTSTRAP_ADMIN_FULL_NAME: str = "Admin"
 
     # File Storage
     MEDIA_DIR: str = "media"

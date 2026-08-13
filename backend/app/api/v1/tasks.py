@@ -362,6 +362,8 @@ async def upload_task_photo(
 
     try:
         content = await photo.read()
+        from app.core.file_validation import validate_image_magic_bytes
+        validate_image_magic_bytes(content, photo.filename)
         if len(content) > _settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -386,7 +388,8 @@ async def upload_task_photo(
     await db.flush()
     await db.refresh(task)
 
-    count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == task.id))
+    t_uuid = task.id if isinstance(task.id, uuid.UUID) else uuid.UUID(str(task.id))
+    count_result = await db.execute(select(func.count()).select_from(Application).where(Application.task_id == t_uuid))
     task_data = TaskResponse.model_validate(task)
     task_data.application_count = count_result.scalar_one()
     return task_data

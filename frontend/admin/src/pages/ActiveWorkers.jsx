@@ -5,6 +5,11 @@ import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
 
+function parseUTC(str) {
+  if (!str) return null
+  return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
+}
+
 function elapsed(minutes) {
   const h = Math.floor(minutes / 60)
   const m = Math.floor(minutes % 60)
@@ -178,7 +183,7 @@ export default function ActiveWorkers() {
 
               {/* Check-in time */}
               <p className="text-xs text-gray-400 text-center mb-3">
-                Checked in at {new Date(w.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Checked in at {parseUTC(w.checked_in_at)?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '—'}
               </p>
 
               {/* Force Stop */}

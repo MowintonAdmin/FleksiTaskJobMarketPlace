@@ -5,7 +5,7 @@ import SearchFilterBar from '../components/SearchFilterBar'
 import Pagination from '../components/Pagination'
 
 
-const ITEMS_PER_PAGE = 50
+const ITEMS_PER_PAGE = 25
 
 const formatStatusLabel = (status) =>
   String(status || '')

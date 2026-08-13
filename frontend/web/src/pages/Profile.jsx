@@ -230,7 +230,16 @@ export default function Profile() {
     })
   }, [user])
 
-  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }))
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    if (name === 'phone') {
+      // Allow only numbers, leading +, hyphens, and spaces
+      const filtered = value.replace(/[^0-9+\s-]/g, '')
+      setForm((p) => ({ ...p, phone: filtered }))
+      return
+    }
+    setForm((p) => ({ ...p, [name]: value }))
+  }
 
   const addSkill = (skill) => {
     const s = skill.trim()
@@ -251,6 +260,29 @@ export default function Profile() {
 
   const handleSave = async (e) => {
     e.preventDefault()
+    
+    // Validate Phone Number
+    if (form.phone) {
+      const phoneDigits = form.phone.replace(/[^0-9]/g, '')
+      if (/[a-zA-Z]/.test(form.phone) || !/^[+]?[0-9\s-]+$/.test(form.phone.trim())) {
+        toast.error('Phone Number must contain numbers only (e.g. 0123456789)')
+        return
+      }
+      if (phoneDigits.length < 9 || phoneDigits.length > 13) {
+        toast.error('Phone Number must be between 9 and 13 digits (e.g. 0123456789)')
+        return
+      }
+    }
+
+    // Validate NRIC / Passport
+    if (form.nric_passport) {
+      const icClean = form.nric_passport.replace(/[\s-]/g, '')
+      if (icClean.length < 7) {
+        toast.error('NRIC / Passport No. must be at least 7 characters (e.g. 12-digit NRIC 990101-01-5555 or Passport No.)')
+        return
+      }
+    }
+
     setSaving(true)
     try {
       const updated = await authApi.updateMe(form)
@@ -319,6 +351,22 @@ export default function Profile() {
         `Please complete the following before submitting: ${missing.join(', ')}`,
         { autoClose: 10000 }
       )
+      return
+    }
+
+    const phoneDigits = (form.phone || '').replace(/[^0-9]/g, '')
+    if (/[a-zA-Z]/.test(form.phone || '') || !/^[+]?[0-9\s-]+$/.test((form.phone || '').trim())) {
+      toast.error('Phone Number must contain numbers only (e.g. 0123456789)')
+      return
+    }
+    if (phoneDigits.length < 9 || phoneDigits.length > 13) {
+      toast.error('Phone Number must be between 9 and 13 digits (e.g. 0123456789)')
+      return
+    }
+
+    const icClean = (form.nric_passport || '').replace(/[\s-]/g, '')
+    if (icClean.length < 7) {
+      toast.error('NRIC / Passport No. must be at least 7 characters (e.g. 12-digit NRIC 990101-01-5555 or Passport No.)')
       return
     }
 

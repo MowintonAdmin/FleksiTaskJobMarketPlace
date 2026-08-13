@@ -6,7 +6,7 @@ import RefreshButton from '../components/RefreshButton'
 import Pagination from '../components/Pagination'
 import usePausablePolling from '../hooks/usePausablePolling'
 
-const ITEMS_PER_PAGE = 50
+const ITEMS_PER_PAGE = 25
 
 
 const STATUS_COLORS = {

@@ -137,8 +137,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
       const updated = await messagesApi.deleteMessage(messageId)
       setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, body: updated.body, reaction: null } : m))
       onNewMessage?.()
-    } catch {
-      // silent
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to delete message')
     }
   }
 
@@ -146,7 +146,9 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     try {
       const updated = await messagesApi.reactToMessage(messageId, emoji)
       setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: updated.reaction } : m))
-    } catch {}
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to react to message')
+    }
     setShowReactions(null)
   }
 
@@ -154,7 +156,9 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
     try {
       const updated = await messagesApi.reactToMessage(messageId, null)
       setMessages((prev) => prev.map((m) => m.id === updated.id ? { ...m, reaction: null } : m))
-    } catch {}
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to remove reaction')
+    }
     setShowReactions(null)
   }
 
@@ -165,8 +169,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
       const msgs = await messagesApi.getConversation(conversation.user_id)
       setMessages(msgs)
       msgIdsRef.current = new Set(msgs.map((m) => m.id))
-    } catch {
-      // silent
+    } catch (err) {
+      toast.error('Failed to load conversation')
     } finally {
       setLoading(false)
     }
@@ -216,8 +220,8 @@ function ChatPanel({ conversation, currentUserId, onBack, onNewMessage }) {
       setMessages((prev) => [...prev, msg])
       setBody('')
       onNewMessage?.()
-    } catch {
-      // silent
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to send message. Please check your connection.')
     } finally {
       setSending(false)
     }
