@@ -22,10 +22,20 @@ async def auto_close_overdue_projects():
     from app.models.task_session import TaskSession, SessionStatus
     from app.models.message import Message
     from app.database import AsyncSessionLocal
+    from app.core.redis_client import get_redis
     from datetime import datetime, timezone
 
     while True:
         try:
+            # uvicorn runs multiple workers, each with its own copy of this loop;
+            # use a short-lived Redis lock so only one worker processes a given cycle.
+            redis = await get_redis()
+            if redis is not None:
+                acquired = await redis.set("lock:auto_close_overdue_projects", "1", nx=True, ex=55)
+                if not acquired:
+                    await asyncio.sleep(60)
+                    continue
+
             async with AsyncSessionLocal() as db:
                 now = datetime.now(timezone.utc)
                 # Find all active projects that are past their due date
