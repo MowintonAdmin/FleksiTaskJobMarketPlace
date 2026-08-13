@@ -5,22 +5,25 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _redis_available = False
+_redis_tested = False
 _redis_client = None
 
 
 async def get_redis():
     """Get Redis client - returns None if Redis is unavailable."""
-    global _redis_client, _redis_available
-    if _redis_available:
-        return _redis_client
+    global _redis_client, _redis_available, _redis_tested
+    if _redis_tested:
+        return _redis_client if _redis_available else None
+
+    _redis_tested = True
     try:
         import redis.asyncio as aioredis
         _redis_client = aioredis.from_url(
             settings.REDIS_URL,
             encoding="utf-8",
             decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
         )
         await _redis_client.ping()
         _redis_available = True

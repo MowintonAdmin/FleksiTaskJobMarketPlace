@@ -1,9 +1,14 @@
-﻿import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import usePausablePolling from '../hooks/usePausablePolling'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import RefreshButton from '../components/RefreshButton'
+
+function parseUTC(str) {
+  if (!str) return null
+  return new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + 'Z')
+}
 
 function elapsed(minutes) {
   const h = Math.floor(minutes / 60)
@@ -51,23 +56,24 @@ export default function ActiveWorkers() {
   const [confirmTarget, setConfirmTarget] = useState(null)
   const [stopping, setStopping] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const { data } = await api.get('/admin/workers/active')
       setWorkers(data)
       setLastRefresh(new Date())
     } catch {
-      toast.error('Failed to load active workers')
+      if (!isBackground) toast.error('Failed to load active workers')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30 seconds, pauses while admin is interacting
-  usePausablePolling(load, 30000)
+  // Silent auto-refresh every 5 seconds, pauses while admin is interacting
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   const handleForceStop = async () => {
     if (!confirmTarget) return
@@ -177,7 +183,7 @@ export default function ActiveWorkers() {
 
               {/* Check-in time */}
               <p className="text-xs text-gray-400 text-center mb-3">
-                Checked in at {new Date(w.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Checked in at {parseUTC(w.checked_in_at)?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '—'}
               </p>
 
               {/* Force Stop */}

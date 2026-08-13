@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_, func
+from sqlalchemy import select, or_, and_, func, cast, String
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -96,16 +96,34 @@ async def list_conversations(
     unread_map: dict[uuid.UUID, int] = {row.sender_id: row.cnt for row in unread_result}
 
     # Fetch partner user rows
-    partner_ids = list(seen.keys())
-    users_result = await db.execute(select(User).where(User.id.in_(partner_ids)))
-    user_map: dict[uuid.UUID, User] = {u.id: u for u in users_result.scalars().all()}
+    clean_partner_ids = []
+    for pid in seen.keys():
+        if isinstance(pid, uuid.UUID):
+            clean_partner_ids.append(pid)
+        else:
+            try:
+                clean_partner_ids.append(uuid.UUID(str(pid)))
+            except:
+                pass
+
+    if clean_partner_ids:
+        users_result = await db.execute(select(User).where(User.id.in_(clean_partner_ids)))
+        user_map = {u.id: u for u in users_result.scalars().all()}
+    else:
+        user_map = {}
 
     out: list[ConversationSummary] = []
     for partner_id, last_msg in seen.items():
         partner = user_map.get(partner_id)
+        if not partner and isinstance(partner_id, str):
+            try:
+                partner = user_map.get(uuid.UUID(partner_id))
+            except:
+                pass
+        default_name = (partner.full_name or partner.email) if partner else "Admin Support"
         out.append(ConversationSummary(
-            user_id=partner_id,
-            user_name=partner.full_name if partner else "Unknown",
+            user_id=partner_id if isinstance(partner_id, uuid.UUID) else uuid.UUID(str(partner_id)),
+            user_name=default_name,
             user_photo=partner.profile_photo_url if partner else None,
             last_message=last_msg.body,
             last_message_at=last_msg.created_at,
@@ -124,11 +142,22 @@ async def send_message(
 ):
     if not payload.body.strip():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message body cannot be empty")
-    recipient = await db.execute(select(User).where(User.id == payload.recipient_id))
-    if not recipient.scalar_one_or_none():
+    
+    recip_uuid = payload.recipient_id if isinstance(payload.recipient_id, uuid.UUID) else uuid.UUID(str(payload.recipient_id))
+    recipient_res = await db.execute(select(User).where(User.id == recip_uuid))
+    recipient = recipient_res.scalar_one_or_none()
+
+    # Fallback to an active Admin user if recipient_id was a system notification ID or non-user ID
+    if not recipient:
+        admin_res = await db.execute(select(User).where(User.is_admin == True).order_by(User.is_super_admin.desc(), User.created_at.asc()))
+        recipient = admin_res.scalars().first()
+        if recipient:
+            recip_uuid = recipient.id
+
+    if not recipient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient not found")
 
-    msg = Message(sender_id=current_user.id, recipient_id=payload.recipient_id, body=payload.body.strip())
+    msg = Message(sender_id=current_user.id, recipient_id=recip_uuid, body=payload.body.strip())
     db.add(msg)
     await db.flush()
     await db.refresh(msg)
@@ -144,11 +173,14 @@ async def get_conversation(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all messages between current user and a specific user."""
+    user_uuid = user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id))
+    current_uuid = current_user.id if isinstance(current_user.id, uuid.UUID) else uuid.UUID(str(current_user.id))
+
     result = await db.execute(
         select(Message).where(
             or_(
-                and_(Message.sender_id == current_user.id, Message.recipient_id == user_id),
-                and_(Message.sender_id == user_id, Message.recipient_id == current_user.id),
+                and_(Message.sender_id == current_uuid, Message.recipient_id == user_uuid),
+                and_(Message.sender_id == user_uuid, Message.recipient_id == current_uuid),
             )
         ).order_by(Message.created_at.asc())
     )
@@ -156,16 +188,28 @@ async def get_conversation(
 
     # Mark as read
     for msg in messages:
-        if msg.recipient_id == current_user.id and not msg.is_read:
+        if msg.recipient_id == current_uuid and not msg.is_read:
             msg.is_read = True
     await db.flush()
 
+    sender_uuids = []
+    for msg in messages:
+        sid = msg.sender_id
+        sid_uuid = sid if isinstance(sid, uuid.UUID) else uuid.UUID(str(sid))
+        if sid_uuid not in sender_uuids:
+            sender_uuids.append(sid_uuid)
+
+    if sender_uuids:
+        senders_result = await db.execute(select(User).where(User.id.in_(sender_uuids)))
+        senders_map = {u.id: u for u in senders_result.scalars().all()}
+    else:
+        senders_map = {}
+
     out = []
     for msg in messages:
-        sender_result = await db.execute(select(User).where(User.id == msg.sender_id))
-        sender = sender_result.scalar_one_or_none()
+        sender = senders_map.get(msg.sender_id)
         resp = MessageResponse.model_validate(msg)
-        resp.sender_name = sender.full_name if sender else "Unknown"
+        resp.sender_name = (sender.full_name or sender.email) if sender else "Admin Support"
         out.append(resp)
     return out
 
@@ -215,45 +259,47 @@ async def react_to_message(
     db: AsyncSession = Depends(get_db),
 ):
     """React to a message (add/change/remove emoji reaction)."""
-    result = await db.execute(select(Message).where(Message.id == message_id))
+    msg_uuid = message_id if isinstance(message_id, uuid.UUID) else uuid.UUID(str(message_id))
+    cur_str = str(current_user.id)
+
+    result = await db.execute(select(Message).where(Message.id == msg_uuid))
     message = result.scalar_one_or_none()
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
 
-    # Only sender or recipient can react
-    if message.sender_id != current_user.id and message.recipient_id != current_user.id:
+    s_str = str(message.sender_id)
+    r_str = str(message.recipient_id)
+
+    # Allow reaction if current user is sender, recipient, or an admin
+    if cur_str != s_str and cur_str != r_str and not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorised to react to this message")
 
     message.reaction = payload.reaction if payload.reaction else None
     await db.flush()
     await db.refresh(message)
 
-    # Send push notification to the other participant about the reaction
-    if message.reaction:
-        if current_user.id == message.sender_id:
-            # Reactor is the sender → notify recipient
-            recipient = await db.execute(select(User).where(User.id == message.recipient_id))
-            target_user = recipient.scalar_one_or_none()
-        else:
-            # Reactor is the recipient → notify sender
-            sender = await db.execute(select(User).where(User.id == message.sender_id))
-            target_user = sender.scalar_one_or_none()
-
-        if target_user and target_user.fcm_token:
-            await send_push_notification(
-                fcm_token=target_user.fcm_token,
-                title="Reaction Received",
-                body=f"{current_user.full_name} reacted {message.reaction} to your message",
-                data={
-                    "type": "message_reaction",
-                    "conversation_with": str(current_user.id),
-                    "message_id": str(message.id),
-                },
-            )
+    target_id = message.recipient_id if str(message.sender_id) == cur_str else message.sender_id
+    if target_id:
+        try:
+            target_uuid = target_id if isinstance(target_id, uuid.UUID) else uuid.UUID(str(target_id))
+            target_res = await db.execute(select(User).where(User.id == target_uuid))
+            target_user = target_res.scalar_one_or_none()
+            if target_user and target_user.fcm_token:
+                await send_push_notification(
+                    fcm_token=target_user.fcm_token,
+                    title="Reaction Received",
+                    body=f"{current_user.full_name} reacted {message.reaction} to your message",
+                    data={
+                        "type": "message_reaction",
+                        "conversation_with": str(current_user.id),
+                        "message_id": str(message.id),
+                    },
+                )
+        except Exception:
+            pass
 
     resp = MessageResponse.model_validate(message)
-    if message.sender:
-        resp.sender_name = message.sender.full_name
+    resp.sender_name = current_user.full_name
     return resp
 
 

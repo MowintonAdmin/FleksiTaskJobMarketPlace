@@ -32,8 +32,8 @@ export default function UserVerification() {
   const [rejectCustom, setRejectCustom] = useState('')
   const [viewModal, setViewModal] = useState(null) // user object being viewed in detail
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const { data } = await api.get('/admin/users/unverified')
       setUsers(data)
@@ -42,18 +42,19 @@ export default function UserVerification() {
       const status = err.response?.status
       if (status === 403) {
         setAccessDenied(true)
-      } else {
+      } else if (!isBackground) {
         toast.error('Failed to load unverified users')
       }
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30 seconds, pauses while admin is interacting
-  usePausablePolling(load, 30000)
+  // Silent auto-refresh every 5 seconds, pauses while admin is interacting
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   const handleApprove = async (userId) => {
     setProcessingId(userId)

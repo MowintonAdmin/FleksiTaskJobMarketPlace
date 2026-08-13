@@ -114,30 +114,23 @@ async def upsert_bank_account(
     account = result.scalar_one_or_none()
     if account:
         account.payment_type = payload.payment_type
-        account.bank_name = payload.bank_name if payload.payment_type == "bank_transfer" else None
-        account.account_number = payload.account_number if payload.payment_type == "bank_transfer" else None
-        account.account_holder_name = payload.account_holder_name if payload.payment_type == "bank_transfer" else None
+        account.bank_name = payload.bank_name if payload.payment_type == "bank_transfer" else "Touch 'n Go eWallet"
+        account.account_number = payload.account_number if payload.payment_type == "bank_transfer" else (payload.phone_number or "")
+        account.account_holder_name = payload.account_holder_name if payload.payment_type == "bank_transfer" else (payload.phone_number or "TNG User")
         account.phone_number = payload.phone_number if payload.payment_type == "tng_ewallet" else None
     else:
         account = BankAccount(
             user_id=current_user.id,
             payment_type=payload.payment_type,
-            bank_name=payload.bank_name if payload.payment_type == "bank_transfer" else None,
-            account_number=payload.account_number if payload.payment_type == "bank_transfer" else None,
-            account_holder_name=payload.account_holder_name if payload.payment_type == "bank_transfer" else None,
+            bank_name=payload.bank_name if payload.payment_type == "bank_transfer" else "Touch 'n Go eWallet",
+            account_number=payload.account_number if payload.payment_type == "bank_transfer" else (payload.phone_number or ""),
+            account_holder_name=payload.account_holder_name if payload.payment_type == "bank_transfer" else (payload.phone_number or "TNG User"),
             phone_number=payload.phone_number if payload.payment_type == "tng_ewallet" else None,
         )
         db.add(account)
     await db.flush()
-    return BankAccountResponse(
-        id=account.id,
-        payment_type=account.payment_type,
-        bank_name=account.bank_name,
-        account_number=account.account_number,
-        account_holder_name=account.account_holder_name,
-        phone_number=account.phone_number,
-        created_at=account.created_at,
-    )
+    await db.refresh(account)
+    return BankAccountResponse.model_validate(account)
 
 
 # ── Withdrawals ───────────────────────────────────────────────────────────────
@@ -190,9 +183,9 @@ async def request_withdrawal(
         user_id=current_user.id,
         amount=payload.amount,
         payment_type=bank.payment_type,
-        bank_name=bank.bank_name,
-        account_number=bank.account_number,
-        account_holder_name=bank.account_holder_name,
+        bank_name=bank.bank_name if bank.bank_name else "Touch 'n Go eWallet",
+        account_number=bank.account_number if bank.account_number else (bank.phone_number or ""),
+        account_holder_name=bank.account_holder_name if bank.account_holder_name else (bank.phone_number or "TNG User"),
         phone_number=bank.phone_number,
     )
     db.add(withdrawal)

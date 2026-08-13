@@ -5,6 +5,8 @@ import { applicationsApi, taskSessionsApi } from '../api/tasks'
 import usePolling from '../hooks/usePolling'
 import api from '../api/client'
 
+import usePausablePolling from '../hooks/usePausablePolling'
+
 const STATUS_STYLES = {
   pending: 'bg-yellow-100 text-yellow-700',
   approved: 'bg-green-100 text-green-700',
@@ -17,8 +19,12 @@ export default function MyApplications() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
 
-  const fetchApplications = useCallback(async () => {
+  const APPS_PER_PAGE = 5
+
+  const fetchApplications = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const [data, sessData] = await Promise.all([
         applicationsApi.getMyApplications(),
@@ -28,22 +34,28 @@ export default function MyApplications() {
       setSessions(sessData)
       setError(null)
     } catch {
-      if (loading) setError('Failed to load applications')
+      if (!isBackground) setError('Failed to load applications')
+    } finally {
+      if (!isBackground) setLoading(false)
     }
-  }, [loading])
+  }, [])
 
   useEffect(() => {
-    fetchApplications().finally(() => setLoading(false))
+    fetchApplications(false)
   }, [fetchApplications])
 
-  // Auto-refresh every 5s
-  usePolling(fetchApplications, 5000)
+  // Silent auto-refresh every 5s — pauses when user is interacting
+  const pollBg = useCallback(() => fetchApplications(true), [fetchApplications])
+  usePausablePolling(pollBg, 5000)
 
   if (loading) return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-3">
       {[1,2,3].map(i => <div key={i} className="card animate-pulse h-24" />)}
     </div>
   )
+
+  const totalPages = Math.ceil(applications.length / APPS_PER_PAGE)
+  const displayedApps = applications.slice((page - 1) * APPS_PER_PAGE, page * APPS_PER_PAGE)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -59,7 +71,7 @@ export default function MyApplications() {
         </div>
       ) : (
         <div className="space-y-3">
-          {applications.map((app) => (
+          {displayedApps.map((app) => (
             <div key={app.id} className="card">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -140,6 +152,49 @@ export default function MyApplications() {
               )}
             </div>
           ))}
+
+          {/* Pagination (5 items per page) */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 pt-4">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              >
+                ← Prev
+              </button>
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                let pNum
+                if (totalPages <= 7) {
+                  pNum = i + 1
+                } else if (page <= 4) {
+                  pNum = i + 1
+                } else if (page >= totalPages - 3) {
+                  pNum = totalPages - 6 + i
+                } else {
+                  pNum = page - 3 + i
+                }
+                return (
+                  <button
+                    key={pNum}
+                    onClick={() => setPage(pNum)}
+                    className={`w-9 h-9 text-xs rounded-xl font-bold transition-all ${
+                      page === pNum ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

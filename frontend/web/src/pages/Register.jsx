@@ -28,6 +28,7 @@ export default function Register() {
   })
   const [formError, setFormError] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -182,15 +183,26 @@ export default function Register() {
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Confirm Password <span className="text-red-500">*</span>
               </label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={form.confirm_password}
-                onChange={(e) => set('confirm_password', e.target.value)}
-                className={`input ${form.confirm_password && form.confirm_password !== form.password ? 'border-red-400 focus:ring-red-300' : ''}`}
-                placeholder="Re-enter your password"
-                required
-                autoComplete="new-password"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={form.confirm_password}
+                  onChange={(e) => set('confirm_password', e.target.value)}
+                  className={`input pr-10 ${form.confirm_password && form.confirm_password !== form.password ? 'border-red-400 focus:ring-red-300' : ''}`}
+                  placeholder="Re-enter your password"
+                  required
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                  tabIndex={-1}
+                  aria-label="Toggle confirm password visibility"
+                >
+                  {showConfirmPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
               {form.confirm_password && form.confirm_password !== form.password && (
                 <p className="text-red-500 text-xs mt-1">Passwords do not match</p>
               )}

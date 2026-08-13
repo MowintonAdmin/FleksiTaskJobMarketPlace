@@ -63,6 +63,36 @@ class UserUpdate(BaseModel):
     nric_passport: str | None = None
     bank_qr_code_url: str | None = None
 
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        cleaned = v.strip()
+        if not cleaned:
+            return None
+        digits_only = cleaned.replace("+", "").replace("-", "").replace(" ", "")
+        if not digits_only.isdigit():
+            raise ValueError("Phone number must contain numbers only (e.g. 0123456789)")
+        if len(digits_only) < 9 or len(digits_only) > 13:
+            raise ValueError("Phone number must be between 9 and 13 digits (e.g. 0123456789)")
+        return cleaned
+
+    @field_validator("nric_passport")
+    @classmethod
+    def validate_nric_passport(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        cleaned = v.strip()
+        if not cleaned:
+            return None
+        stripped = cleaned.replace("-", "").replace(" ", "")
+        if len(stripped) < 7:
+            raise ValueError("NRIC / Passport No. must be at least 7 characters (e.g. 12-digit Malaysian NRIC 990101-01-5555 or Passport No.)")
+        if len(stripped) > 20:
+            raise ValueError("NRIC / Passport No. cannot exceed 20 characters")
+        return cleaned
+
 
 class UserResponse(UserBase):
     id: uuid.UUID

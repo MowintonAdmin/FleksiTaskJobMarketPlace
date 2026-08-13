@@ -38,7 +38,12 @@ const taskSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTasks.pending, (state) => { state.loading = true; state.error = null })
+      .addCase(fetchTasks.pending, (state, action) => {
+        if (!action.meta.arg?.isSilent) {
+          state.loading = true
+        }
+        state.error = null
+      })
       .addCase(fetchTasks.fulfilled, (state, action) => {
         state.loading = false
         state.items = action.payload.tasks

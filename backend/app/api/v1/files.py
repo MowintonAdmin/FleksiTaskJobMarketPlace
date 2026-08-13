@@ -49,12 +49,16 @@ async def serve_file(
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
+    from pathlib import Path
     settings = get_settings()
-    # Strip any leading slashes and prevent path traversal
-    path = path.lstrip("/")
-    if ".." in path:
-        raise HTTPException(status_code=400, detail="Invalid path")
-    file_path = os.path.join(settings.MEDIA_DIR, path)
-    if not os.path.isfile(file_path):
+    base_dir = Path(settings.MEDIA_DIR).resolve()
+    clean_path = path.lstrip("/")
+    target_file = (Path(settings.MEDIA_DIR) / clean_path).resolve()
+
+    if not target_file.is_relative_to(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid path traversal attempt")
+
+    if not target_file.exists() or not target_file.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+
+    return FileResponse(str(target_file))

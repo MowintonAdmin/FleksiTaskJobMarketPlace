@@ -3,6 +3,9 @@ import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import TagBadge from '../utils/tagColors'
+import Pagination from '../components/Pagination'
+
+const ITEMS_PER_PAGE = 25
 
 export default function AdminUsers() {
   const { user } = useSelector((s) => s.auth)
@@ -11,11 +14,13 @@ export default function AdminUsers() {
   const [admins, setAdmins] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
   // Create admin modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [newFullName, setNewFullName] = useState('')
   const [newCompanyTag, setNewCompanyTag] = useState('')
   const [creating, setCreating] = useState(false)
@@ -29,6 +34,7 @@ export default function AdminUsers() {
 
   const [resettingAdmin, setResettingAdmin] = useState(null)
   const [resetPassword, setResetPassword] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetting, setResetting] = useState(false)
 
   const [deletingAdmin, setDeletingAdmin] = useState(null)
@@ -196,7 +202,7 @@ export default function AdminUsers() {
 
       {/* Admin list table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[750px] text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
               <th className="px-5 py-3 text-left">Admin</th>
@@ -217,7 +223,7 @@ export default function AdminUsers() {
               ))
             ) : admins.length === 0 ? (
               <tr><td colSpan={isSuperAdmin ? 7 : 6} className="text-center py-12 text-gray-400">No admin users found</td></tr>
-            ) : admins.map(u => (
+            ) : admins.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE).map(u => (
               <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -285,6 +291,8 @@ export default function AdminUsers() {
         </table>
       </div>
 
+      <Pagination data={admins} page={page} onPage={setPage} pageSize={ITEMS_PER_PAGE} />
+
       {/* Create Admin Modal */}
       {showCreateModal && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -312,8 +320,13 @@ export default function AdminUsers() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Password *</label>
-                <input required type="password" minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" />
+                <div className="relative">
+                  <input required type={showNewPassword ? 'text' : 'password'} minLength={6} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none pr-10" />
+                  <button type="button" onClick={() => setShowNewPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+                    {showNewPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -382,9 +395,14 @@ export default function AdminUsers() {
               <p className="text-sm text-gray-500">Resetting password for: <strong>{resettingAdmin.email}</strong></p>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">New Password *</label>
-                <input required type="password" minLength={6} value={resetPassword} onChange={e => setResetPassword(e.target.value)}
-                  placeholder="Min. 6 characters"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                <div className="relative">
+                  <input required type={showResetPassword ? 'text' : 'password'} minLength={6} value={resetPassword} onChange={e => setResetPassword(e.target.value)}
+                    placeholder="Min. 6 characters"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none pr-10" />
+                  <button type="button" onClick={() => setShowResetPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+                    {showResetPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setResettingAdmin(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

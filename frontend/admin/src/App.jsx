@@ -21,19 +21,16 @@ import DatabaseBackup from './pages/DatabaseBackup'
 import SessionApproval from './pages/SessionApproval'
 import UserVerification from './pages/UserVerification'
 
-// Deduplicate toasts: prevent multiple identical toasts from stacking.
-// Uses the toast message text as the toastId so duplicate messages
-// simply update the same toast instead of creating a new one.
-const _origError = toast.error
-toast.error = (msg, opts) => {
-  const id = (opts && opts.toastId) || String(msg)
-  return _origError(msg, { ...opts, toastId: id })
+// Single toast behavior: always dismiss existing toasts when a new notification is triggered,
+// maintaining at most ONE notification visible on screen at any time.
+const wrapSingleToast = (fn) => (msg, opts) => {
+  toast.dismiss()
+  return fn(msg, opts)
 }
-const _origSuccess = toast.success
-toast.success = (msg, opts) => {
-  const id = (opts && opts.toastId) || String(msg)
-  return _origSuccess(msg, { ...opts, toastId: id })
-}
+toast.error = wrapSingleToast(toast.error)
+toast.success = wrapSingleToast(toast.success)
+toast.info = wrapSingleToast(toast.info)
+toast.warn = wrapSingleToast(toast.warn)
 
 function AdminRoute({ children }) {
   const { token, user } = useSelector((s) => s.auth)
@@ -91,13 +88,48 @@ export default function App() {
     if (token) dispatch(fetchAdminUser())
   }, [token, dispatch])
 
+  // DevTools & F12 Protection Hook
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      e.preventDefault()
+    }
+
+    const handleKeyDown = (e) => {
+      // Intercept F12
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault()
+        e.stopPropagation()
+        return false
+      }
+      // Intercept Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U, Ctrl+S
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.shiftKey
+          ? ['I', 'i', 'J', 'j', 'C', 'c', 'K', 'k'].includes(e.key)
+          : ['U', 'u', 'S', 's'].includes(e.key))
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        return false
+      }
+    }
+
+    document.addEventListener('contextmenu', handleContextMenu)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<AdminLogin />} />
         <Route path="/*" element={<AdminRoute><AdminShell /></AdminRoute>} />
       </Routes>
-      <ToastContainer position="top-right" autoClose={3000} limit={3} />
+      <ToastContainer position="top-right" autoClose={3000} limit={1} />
     </Router>
   )
 }
