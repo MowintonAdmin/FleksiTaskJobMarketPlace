@@ -196,6 +196,8 @@ async def check_out(
             )
         try:
             content = await proof_photo.read()
+            from app.core.file_validation import validate_image_magic_bytes
+            validate_image_magic_bytes(content, proof_photo.filename)
             if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

@@ -25,12 +25,18 @@ function elapsed(minutes) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
+import usePausablePolling from '../hooks/usePausablePolling'
+
 export default function History() {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
 
-  const load = useCallback(async () => {
+  const HISTORY_PER_PAGE = 5
+
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const [h, s] = await Promise.all([
         api.get('/task-sessions/history'),
@@ -39,19 +45,17 @@ export default function History() {
       setHistory(h.data)
       setStats(s.data)
     } catch {
-      toast.error('Failed to load history')
+      if (!isBackground) toast.error('Failed to load history')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(load)
-
-  // Auto-refresh every 10s to sync with session approval
-  usePolling(load, 10000)
+  // Silent auto-refresh every 5s — pauses when user is interacting
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   if (loading) {
     return (
@@ -64,6 +68,8 @@ export default function History() {
   }
 
   const monthName = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+  const totalPages = Math.ceil(history.length / HISTORY_PER_PAGE)
+  const displayedHistory = history.slice((page - 1) * HISTORY_PER_PAGE, page * HISTORY_PER_PAGE)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
@@ -136,7 +142,7 @@ export default function History() {
           </div>
         ) : (
           <div className="space-y-3">
-            {history.map(s => (
+            {displayedHistory.map(s => (
               <div key={s.session_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className="flex">
                   {/* Task thumbnail */}
@@ -182,6 +188,49 @@ export default function History() {
                 )}
               </div>
             ))}
+
+            {/* Pagination (5 items per page) */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 pt-4">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  ← Prev
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let pNum
+                  if (totalPages <= 7) {
+                    pNum = i + 1
+                  } else if (page <= 4) {
+                    pNum = i + 1
+                  } else if (page >= totalPages - 3) {
+                    pNum = totalPages - 6 + i
+                  } else {
+                    pNum = page - 3 + i
+                  }
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => setPage(pNum)}
+                      className={`w-9 h-9 text-xs rounded-xl font-bold transition-all ${
+                        page === pNum ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  )
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3.5 py-2 text-xs font-semibold border border-gray-300 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

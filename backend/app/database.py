@@ -10,10 +10,13 @@ settings = get_settings()
 
 
 def _build_engine_kwargs() -> dict:
-    kwargs = {"echo": settings.DEBUG}
+    kwargs = {"echo": False}
     if settings.DATABASE_URL.startswith("sqlite"):
         kwargs.update({
-            "connect_args": {"check_same_thread": False},
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": 15,
+            },
             "poolclass": NullPool,
         })
     else:
@@ -44,21 +47,35 @@ async def init_db() -> None:
     """Create all tables (idempotent – skips existing tables/types)."""
     import app.models  # noqa: F401 – ensure all models are registered
 
+    # Configure SQLite WAL mode for high-concurrency non-blocking reads/writes
+    if settings.DATABASE_URL.startswith("sqlite"):
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(sa.text("PRAGMA journal_mode=WAL;"))
+                await conn.execute(sa.text("PRAGMA busy_timeout=5000;"))
+                await conn.execute(sa.text("PRAGMA synchronous=NORMAL;"))
+            logger.info("init_db: SQLite WAL mode enabled successfully")
+        except Exception as e:
+            logger.warning("init_db: failed to set SQLite WAL mode (%s)", e)
+
     # Run the column-type migration in its own connection so that if it fails
     # (e.g. column is already VARCHAR, or table doesn't exist yet) the error
     # does NOT abort the create_all transaction that follows.
     try:
         async with engine.begin() as conn:
-            await conn.execute(sa.text(
-                "ALTER TABLE task_sessions "
-                "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
-            ))
-            # Normalize legacy uppercase enum values (e.g. 'ACTIVE' → 'active')
-            await conn.execute(sa.text(
-                "UPDATE task_sessions SET status = LOWER(status) "
-                "WHERE status != LOWER(status)"
-            ))
-        logger.info("init_db: status column migrated to VARCHAR(20) and values normalized")
+            if settings.DATABASE_URL.startswith("sqlite"):
+                await conn.execute(sa.text("ALTER TABLE projects ADD COLUMN due_date DATETIME"))
+            else:
+                await conn.execute(sa.text(
+                    "ALTER TABLE task_sessions "
+                    "ALTER COLUMN status TYPE VARCHAR(20) USING status::text"
+                ))
+                # Normalize legacy uppercase enum values (e.g. 'ACTIVE' → 'active')
+                await conn.execute(sa.text(
+                    "UPDATE task_sessions SET status = LOWER(status) "
+                    "WHERE status != LOWER(status)"
+                ))
+        logger.info("init_db: column migrations completed")
     except Exception as e:
         logger.info("init_db: ALTER TABLE skipped (%s)", e)
 

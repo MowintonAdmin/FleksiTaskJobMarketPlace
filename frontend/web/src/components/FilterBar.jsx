@@ -1,12 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useDispatch } from 'react-redux'
 import { fetchTasks, setFilters } from '../store/taskSlice'
+import { tasksApi } from '../api/tasks'
+import usePausablePolling from '../hooks/usePausablePolling'
 
-const CATEGORIES = ['Cleaning', 'Cooking', 'Delivery', 'Events', 'Gardening', 'Moving', 'Repair', 'Security', 'Other']
+function parseCategoryTags(str) {
+  if (!str) return []
+  if (Array.isArray(str)) return str.filter(Boolean)
+  try {
+    const parsed = JSON.parse(str)
+    if (Array.isArray(parsed)) return parsed.filter(Boolean)
+  } catch {}
+  return String(str)
+    .replace(/，/g, ',')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+}
 
 export default function FilterBar({ filters }) {
   const dispatch = useDispatch()
   const [local, setLocal] = useState(filters)
+  const [availableCategories, setAvailableCategories] = useState([])
+
+  useEffect(() => {
+    setLocal(filters)
+  }, [filters])
+
+  // Dynamically fetch unique categories from currently open tasks via dedicated backend API
+  const refreshCategories = useCallback(() => {
+    tasksApi.getCategories()
+      .then(cats => {
+        const sorted = cats || []
+        setAvailableCategories(prev => (JSON.stringify(prev) === JSON.stringify(sorted) ? prev : sorted))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    refreshCategories()
+  }, [refreshCategories])
+
+  // Silent auto-refresh categories dropdown every 5s (pauses while user is interacting)
+  usePausablePolling(refreshCategories, 5000)
 
   const handleChange = (e) => {
     setLocal((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -45,9 +81,18 @@ export default function FilterBar({ filters }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-          <select name="category" value={local.category} onChange={handleChange} className="input">
+          <select
+            name="category"
+            value={local.category}
+            onChange={handleChange}
+            className="input cursor-pointer"
+          >
             <option value="">All Categories</option>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {availableCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
         </div>
         <div>

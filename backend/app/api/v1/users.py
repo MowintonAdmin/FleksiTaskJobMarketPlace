@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate, FCMTokenUpdate
 from app.core.deps import get_current_user
 from app.core.security import hash_password, verify_password
+from app.core.file_validation import validate_image_magic_bytes
 from app.config import get_settings
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -122,6 +123,7 @@ async def upload_profile_photo(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
 
     content = await file.read()
+    validate_image_magic_bytes(content, file.filename)
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
@@ -154,6 +156,7 @@ async def upload_bank_qr(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
 
     content = await file.read()
+    validate_image_magic_bytes(content, file.filename)
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
@@ -186,6 +189,7 @@ async def upload_id_photo_front(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
 
     content = await file.read()
+    validate_image_magic_bytes(content, file.filename)
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
@@ -216,6 +220,7 @@ async def upload_selfie(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and WebP images are allowed")
 
     content = await file.read()
+    validate_image_magic_bytes(content, file.filename)
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if len(content) > max_bytes:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")

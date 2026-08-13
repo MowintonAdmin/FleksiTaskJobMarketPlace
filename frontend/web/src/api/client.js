@@ -12,12 +12,12 @@ const configuredApiHost = normalizeApiHost(getPublicConfig('VITE_API_BASE_URL', 
 let apiHost = configuredApiHost
 if (!apiHost) {
   if (import.meta.env.DEV) {
-    apiHost = 'http://localhost:8000'
+    apiHost = 'http://127.0.0.1:8000'
   } else {
     apiHost = typeof window !== 'undefined' ? window.location.origin : ''
     // Worker runs on ports 3000 or 3001, API on 8000
     if (apiHost && typeof window !== 'undefined' && ['3000', '3001'].includes(window.location.port)) {
-      apiHost = 'http://localhost:8000'
+      apiHost = 'http://127.0.0.1:8000'
     }
   }
 }

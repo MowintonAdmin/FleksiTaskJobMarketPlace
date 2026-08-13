@@ -117,6 +117,9 @@ export default function Sidebar({ open, onClose }) {
   const [confirmPass, setConfirmPass] = useState('')
   const [changingPass, setChangingPass] = useState(false)
   const [passwordChanged, setPasswordChanged] = useState(false)
+  const [showOldPass, setShowOldPass] = useState(false)
+  const [showNewPass, setShowNewPass] = useState(false)
+  const [showConfirmPass, setShowConfirmPass] = useState(false)
 
   const handleChangePassword = () => {
     setShowDropdown(false)
@@ -125,6 +128,9 @@ export default function Sidebar({ open, onClose }) {
     setOldPassword('')
     setNewPass('')
     setConfirmPass('')
+    setShowOldPass(false)
+    setShowNewPass(false)
+    setShowConfirmPass(false)
   }
 
   const handleSubmitPasswordChange = async (e) => {
@@ -241,18 +247,36 @@ export default function Sidebar({ open, onClose }) {
                 <form onSubmit={handleSubmitPasswordChange} className="px-6 py-5 space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Current Password</label>
-                    <input required type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                    <div className="relative">
+                      <input required type={showOldPass ? 'text' : 'password'} value={oldPassword} onChange={e => setOldPassword(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none pr-10" />
+                      <button type="button" onClick={() => setShowOldPass(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm" aria-label="Toggle password visibility">
+                        {showOldPass ? '🙈' : '👁️'}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">New Password</label>
-                    <input required type="password" minLength={6} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min. 6 characters"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                    <div className="relative">
+                      <input required type={showNewPass ? 'text' : 'password'} minLength={6} value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min. 6 characters"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none pr-10" />
+                      <button type="button" onClick={() => setShowNewPass(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm" aria-label="Toggle password visibility">
+                        {showNewPass ? '🙈' : '👁️'}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Confirm New Password</label>
-                    <input required type="password" minLength={6} value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                    <div className="relative">
+                      <input required type={showConfirmPass ? 'text' : 'password'} minLength={6} value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none pr-10" />
+                      <button type="button" onClick={() => setShowConfirmPass(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm" aria-label="Toggle password visibility">
+                        {showConfirmPass ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                    {confirmPass && confirmPass !== newPass && (
+                      <p className="text-red-500 text-xs mt-1 font-medium">Passwords do not match</p>
+                    )}
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
                     <button type="button" onClick={() => setShowChangePassword(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

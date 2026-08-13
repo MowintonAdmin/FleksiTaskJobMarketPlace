@@ -3,6 +3,7 @@ import { toast } from 'react-toastify'
 import api from '../api/client'
 
 import RefreshButton from '../components/RefreshButton'
+import usePausablePolling from '../hooks/usePausablePolling'
 
 export default function SessionApproval() {
   const [sessions, setSessions] = useState([])
@@ -14,22 +15,23 @@ export default function SessionApproval() {
   const [feedbacks, setFeedbacks] = useState({})
   const [ratingErrors, setRatingErrors] = useState({})
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true)
     try {
       const { data } = await api.get('/admin/sessions/pending-approval')
       setSessions(data)
     } catch {
-      toast.error('Failed to load pending sessions')
+      if (!isBackground) toast.error('Failed to load pending sessions')
     } finally {
-      setLoading(false)
+      if (!isBackground) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(false) }, [load])
 
-  // Auto-refresh every 30s — pauses while admin is active
-  // Real-time updates via WebSocket
+  // Silent auto-refresh every 5s — no screen flickering
+  const pollBg = useCallback(() => load(true), [load])
+  usePausablePolling(pollBg, 5000)
 
   const handleApprove = async (sessionId) => {
     const rating = ratings[sessionId]
@@ -133,7 +135,11 @@ export default function SessionApproval() {
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500">Checked in</p>
-                    <p className="font-medium text-gray-900 text-xs">{new Date(s.checked_in_at).toLocaleString()}</p>
+                    <p className="font-medium text-gray-900 text-xs">
+                      {s.checked_in_at
+                        ? new Date(/[Zz]|[+-]\d{2}:\d{2}$/.test(s.checked_in_at) ? s.checked_in_at : s.checked_in_at + 'Z').toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })
+                        : '—'}
+                    </p>
                   </div>
                 </div>
                 {s.task_status === 'cancelled' && (

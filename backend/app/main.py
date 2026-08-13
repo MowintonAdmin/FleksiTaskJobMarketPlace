@@ -140,14 +140,16 @@ async def serve_media_files(path: str):
     from fastapi.responses import FileResponse
     
     clean_path = path.lstrip("/")
-    if ".." in clean_path:
-        raise HTTPException(status_code=400, detail="Invalid path")
+    base_dir = media_path.resolve()
+    target_file = (media_path / clean_path).resolve()
+
+    if not target_file.is_relative_to(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid path traversal attempt")
     
-    file_path = media_path / clean_path
-    if not file_path.exists() or not file_path.is_file():
+    if not target_file.exists() or not target_file.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     
-    return FileResponse(str(file_path))
+    return FileResponse(str(target_file))
 
 
 @app.get("/health")

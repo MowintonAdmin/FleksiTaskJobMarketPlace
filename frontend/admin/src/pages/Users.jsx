@@ -5,7 +5,7 @@ import SearchFilterBar from '../components/SearchFilterBar'
 import Pagination from '../components/Pagination'
 
 
-const ITEMS_PER_PAGE = 50
+const ITEMS_PER_PAGE = 25
 
 const formatStatusLabel = (status) =>
   String(status || '')
@@ -329,14 +329,14 @@ export default function Users() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full min-w-[700px] text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
             <tr>
-              <th className="px-5 py-3 text-left w-[30%]">Worker</th>
-              <th className="px-5 py-3 text-left w-[25%]">Email</th>
-              <th className="px-5 py-3 text-left w-[20%]">Location</th>
-              <th className="px-5 py-3 text-center w-[10%]">Role</th>
-              <th className="px-5 py-3 text-center w-[15%]">Actions</th>
+              <th className="px-5 py-3 text-left">Worker</th>
+              <th className="px-5 py-3 text-left">Email</th>
+              <th className="px-5 py-3 text-left">Location</th>
+              <th className="px-5 py-3 text-center">Role</th>
+              <th className="px-5 py-3 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">

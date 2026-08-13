@@ -34,10 +34,10 @@ function getRuntimeApiHost() {
 const configuredApiHost = normalizeApiHost(import.meta.env.VITE_API_BASE_URL?.trim())
 let apiHost = configuredApiHost
 if (!apiHost) {
-  apiHost = getRuntimeApiHost()
-  // Dev fallback: when running locally on port 3001, API is on 8000
-  if (apiHost && !configuredApiHost && window.location.port === '3001') {
-    apiHost = 'http://localhost:8000'
+  if (import.meta.env.DEV) {
+    apiHost = 'http://127.0.0.1:8000'
+  } else {
+    apiHost = getRuntimeApiHost()
   }
 }
 const apiBaseUrl = `${apiHost}/api/v1`
@@ -69,6 +69,10 @@ api.interceptors.response.use(
           storage.removeItem('refresh_token')
           window.location.href = '/login'
         }
+      } else {
+        storage.removeItem('access_token')
+        storage.removeItem('refresh_token')
+        window.location.href = '/login'
       }
     }
     return Promise.reject(error)
