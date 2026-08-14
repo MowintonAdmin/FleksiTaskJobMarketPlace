@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import SearchFilterBar from '../components/SearchFilterBar'
+import DateFilter, { filterRecordsByDate } from '../components/DateFilter'
 import RefreshButton from '../components/RefreshButton'
 import Pagination from '../components/Pagination'
 import TagBadge from '../utils/tagColors'
@@ -492,10 +493,12 @@ function DeleteProjectConfirm({ project, onClose, onConfirm }) {
 
 // ── Task Table ─────────────────────────────────────────────────────────────
 
-function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggleSelect, selectedIds, onDeleteSelected, onDeleteAll, onStatusChange, savingStatus }) {
-  const displayed = search
+function TaskTable({ tasks, loading, search, startDate, endDate, onEdit, onCancel, onDelete, onToggleSelect, selectedIds, onDeleteSelected, onDeleteAll, onStatusChange, savingStatus }) {
+  let displayed = search
     ? tasks.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.location.toLowerCase().includes(search.toLowerCase()))
     : tasks
+
+  displayed = filterRecordsByDate(displayed, { startDate, endDate }, 'starts_at')
 
   if (loading) {
     return (
@@ -514,7 +517,7 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
   }
 
   if (displayed.length === 0) {
-    return <div className="bg-white rounded-xl p-12 text-center"><p className="text-5xl mb-3">📋</p><p className="font-semibold text-gray-600">No tasks found</p></div>
+    return <div className="bg-white rounded-xl p-12 text-center"><p className="text-5xl mb-3">📋</p><p className="font-semibold text-gray-600">No tasks found for selected dates</p></div>
   }
 
   return (
@@ -578,8 +581,10 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
             >
               {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ').toUpperCase()}</option>)}
             </select>
-            <button onClick={() => onEdit(task)} title="Edit" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 text-base">✏️</button>
-            <button onClick={() => onCancel(task)} title="Cancel" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-base">🚫</button>
+            <button onClick={() => onEdit(task)} title="Edit Task" className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 text-base">✏️</button>
+            {task.status !== 'cancelled' && (
+              <button onClick={() => onCancel(task)} title="Cancel Task" className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-base">🚫</button>
+            )}
             <button onClick={() => onDelete(task)} title="Delete permanently" className="p-1.5 rounded-lg hover:bg-red-100 text-red-700 text-base">🗑</button>
           </div>
         </div>
@@ -588,18 +593,15 @@ function TaskTable({ tasks, loading, search, onEdit, onCancel, onDelete, onToggl
   )
 }
 
-// ── Main Tasks Page ────────────────────────────────────────────────────────
+/* ─── Main Tasks Page Component ──────────────────────────────────────────── */
 
 export default function Tasks() {
-  const [view, setView] = useState('projects') // 'projects' | 'tasks'
-  const [selectedProject, setSelectedProject] = useState(null)
-
-  // Projects state
+  const [view, setView] = useState('projects')
   const [projects, setProjects] = useState([])
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [projectSearch, setProjectSearch] = useState('')
+  const [selectedProject, setSelectedProject] = useState(null)
 
-  // Tasks state
   const [tasks, setTasks] = useState([])
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [search, setSearch] = useState('')
@@ -608,18 +610,22 @@ export default function Tasks() {
   const [totalPages, setTotalPages] = useState(1)
   const [totalTasks, setTotalTasks] = useState(0)
 
-  // Modal state
+  // Date Filter States
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [editProject, setEditProject] = useState(null)
   const [deleteProject, setDeleteProject] = useState(null)
+
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [cancelTask, setCancelTask] = useState(null)
-  const [deleteTaskTarget, setDeleteTaskTarget] = useState(null) // single task or array for bulk
+  const [deleteTaskTarget, setDeleteTaskTarget] = useState(null)
   const [deleteTaskCount, setDeleteTaskCount] = useState(0)
   const [savingStatus, setSavingStatus] = useState(null)
-  
-  // Bulk selection
+
   const [selectedIds, setSelectedIds] = useState(new Set())
 
   const loadProjects = async () => {
@@ -739,8 +745,8 @@ export default function Tasks() {
 
   useEffect(() => { setProjectPage(1) }, [projectSearch])
 
-  // Filter projects by search
-  const filteredProjects = projectSearch
+  // Filter projects by search & date range
+  let filteredProjects = projectSearch
     ? projects.filter(p => 
         p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
         (p.description && p.description.toLowerCase().includes(projectSearch.toLowerCase())) ||
@@ -748,6 +754,8 @@ export default function Tasks() {
         (p.location && p.location.toLowerCase().includes(projectSearch.toLowerCase()))
       )
     : projects
+
+  filteredProjects = filterRecordsByDate(filteredProjects, { startDate, endDate }, 'created_at')
 
   const paginatedProjects = useMemo(() =>
     filteredProjects.slice((projectPage - 1) * PROJECTS_PER_PAGE, projectPage * PROJECTS_PER_PAGE),
@@ -767,11 +775,22 @@ export default function Tasks() {
           <h1 className="text-2xl font-bold text-gray-900">
             {view === 'projects' ? 'Projects / Tasks' : selectedProject?.name || 'Tasks'}
             <span className="text-gray-400 font-normal text-lg ml-2">
-              ({view === 'projects' ? projects.length : totalTasks})
+              ({view === 'projects' ? filteredProjects.length : totalTasks})
             </span>
           </h1>
         </div>
         <RefreshButton onClick={view === 'projects' ? loadProjects : () => loadTasks(page)} loading={view === 'projects' ? loadingProjects : loadingTasks} />
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs flex items-center justify-between flex-wrap gap-3">
+        <DateFilter
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          endDate={endDate}
+          onEndDateChange={setEndDate}
+          onPageReset={() => { setPage(1); setProjectPage(1) }}
+        />
       </div>
 
       {/* ── Projects View ──────────────────────────────────────────────────── */}
@@ -794,8 +813,7 @@ export default function Tasks() {
           ) : filteredProjects.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center">
               <p className="text-5xl mb-3">📁</p>
-              <p className="font-semibold text-gray-600">{projectSearch ? 'No projects match your search' : 'No projects yet'}</p>
-              <p className="text-sm text-gray-400 mt-1">{projectSearch ? 'Try a different search term.' : 'Create your first project to start organizing tasks.'}</p>
+              <p className="font-semibold text-gray-600">No projects match your date & search filter</p>
             </div>
           ) : (
             <>
@@ -814,20 +832,7 @@ export default function Tasks() {
                         <span>📋 {p.task_count} tasks</span>
                         {p.category && <span>🏷 {p.category}</span>}
                         {p.location && <span>📍 {p.location}</span>}
-                        {p.company_tag && (
-                          <TagBadge tag={p.company_tag} size="xs" />
-                        )}
-                        {p.project_tag && (
-                          <TagBadge tag={p.project_tag} size="xs" color="purple" />
-                        )}
                       </div>
-                      {p.due_date && (
-                        <div className="mt-2">
-                          <span className="text-[10px] text-gray-400">
-                            🗓 Due: {new Date(p.due_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                          </span>
-                        </div>
-                      )}
                     </div>
                     <div className="border-t border-gray-100 flex opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); setEditProject(p); setShowProjectModal(true) }} className="flex-1 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-r border-gray-100">
@@ -867,6 +872,9 @@ export default function Tasks() {
             tasks={tasks}
             loading={loadingTasks}
             search={search}
+            selectedMonth={selectedMonth}
+            startDate={startDate}
+            endDate={endDate}
             onEdit={(t) => { setEditTask(t); setShowTaskModal(true) }}
             onCancel={setCancelTask}
             onDelete={handleDeleteTask}

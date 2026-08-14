@@ -359,7 +359,7 @@ async def admin_list_applications(
     task_id: uuid.UUID | None = Query(None),
     app_status: str | None = Query(None, alias="status"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -587,6 +587,37 @@ async def admin_get_user_sessions(
             "elapsed_minutes": elapsed, "earnings": s.earnings, "status": s.status,
             "proof_notes": s.proof_notes, "proof_photo_url": s.proof_photo_url, "source": src})
     return out
+
+
+@router.delete("/users/{user_id}")
+async def admin_delete_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Delete a worker user account. Super admin ONLY."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.is_admin or user.is_super_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Use /admin/users/admins/{id} endpoint to delete admin users")
+
+    # Soft-delete worker profile & deactivate account cleanly
+    user.full_name = "[Deleted Worker]"
+    user.email = f"deleted_worker_{user_id}@deleted.local"
+    user.phone = None
+    user.nric_passport = None
+    user.hashed_password = None
+    user.is_active = False
+    user.is_verified = False
+    db.add(user)
+    await db.flush()
+    return {"message": f"Worker user account deleted successfully", "user_id": str(user.id)}
 
 
 class UserVerificationAction(BaseModel):
@@ -840,7 +871,7 @@ async def admin_time_logs(
         task = tasks_map.get(s.task_id)
         total_cost = round((task.pay_rate_per_minute * task.estimated_duration_minutes) if task else 0, 2)
         elapsed = round(task.estimated_duration_minutes, 1) if task else None
-        cost = s.earnings if s.earnings else total_cost
+        cost = s.earnings if s.earnings is not None else total_cost
         # For imported sessions, display the real activity from nature_of_work / proof_notes
         display_title = task.title if task else "Unknown"
         src_raw = None
@@ -1012,7 +1043,7 @@ async def export_tasks_csv(current_user: User = Depends(require_admin), db: Asyn
 
 
 @router.get("/tasks")
-async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15, ge=1, le=100),
+async def admin_list_tasks(page: int = Query(1, ge=1), page_size: int = Query(15, ge=1, le=1000),
     task_status: str | None = Query(None, alias="status"), search: str | None = Query(None),
     project_id: uuid.UUID | None = Query(None), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_admin)):
     filters = []
@@ -1101,7 +1132,7 @@ async def admin_all_task_costs(db: AsyncSession = Depends(get_db), current_user:
                     "pay_rate_per_minute": 0, "estimated_cost": 0, "paid_cost": round(wg["paid"], 2),
                     "live_cost": 0, "total_cost": round(wg["paid"], 2), "session_count": wg["sessions"]})
         else:
-            paid = sum(s.earnings or 0 for s in t_sessions if s.status in (SessionStatus.COMPLETED, SessionStatus.SETTLED))
+            paid = sum((s.earnings if s.earnings is not None else (t.pay_rate_per_minute * t.estimated_duration_minutes)) for s in t_sessions if str(s.status).lower() in ("completed", "settled"))
             live = 0.0
             estimated = t.pay_rate_per_minute * t.estimated_duration_minutes
             out.append({"task_id": str(t.id), "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,

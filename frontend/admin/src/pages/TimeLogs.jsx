@@ -1,8 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import DateFilter, { filterRecordsByDate } from '../components/DateFilter'
 import RefreshButton from '../components/RefreshButton'
+
+const ITEMS_PER_PAGE = 25
 
 function elapsed(minutes) {
   if (minutes == null) return '—'
@@ -78,16 +81,75 @@ function AdjustModal({ session, onClose, onSaved }) {
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">Reason (sent to worker)</label>
             <input value={reason} onChange={e => setReason(e.target.value)}
-              placeholder="e.g. Adjusted payment for incomplete work"
+              placeholder="e.g. Approved overtime allowance"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
           </div>
         </div>
 
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button onClick={save} disabled={saving}
-            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Adjust Payment'}
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+          <button onClick={save} disabled={saving} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Adjustment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Edit Time Log Modal ─────────────────────────────────────────────────── */
+function EditTimeLogModal({ session, onClose, onSaved }) {
+  const [inTime, setInTime] = useState(fmtInput(session.checked_in_at))
+  const [outTime, setOutTime] = useState(fmtInput(session.checked_out_at))
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.patch(`/admin/sessions/${session.session_id}/times`, {
+        checked_in_at: inTime ? new Date(inTime).toISOString() : null,
+        checked_out_at: outTime ? new Date(outTime).toISOString() : null,
+      })
+      toast.success('Check-in/out times updated')
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to update times')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">✏️ Edit Check-In / Check-Out Times</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+          <p className="font-semibold text-gray-800">{session.worker_name}</p>
+          <p className="text-gray-500">Task: {session.task_title}</p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Check-In Time</label>
+            <input type="datetime-local" value={inTime} onChange={e => setInTime(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Check-Out Time</label>
+            <input type="datetime-local" value={outTime} onChange={e => setOutTime(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+          <button onClick={save} disabled={saving} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Times'}
           </button>
         </div>
       </div>
@@ -203,19 +265,20 @@ export default function TimeLogs() {
   const [adjustSession, setAdjustSession] = useState(null)
   const [page, setPage] = useState(1)
 
+  // Date filter state
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1) }, [filterTask, filterStatus, search])
+  useEffect(() => { setPage(1) }, [filterTask, filterStatus, search, startDate, endDate])
 
   const loadLogs = useCallback(() => {
     setLoadingLogs(true)
-    const params = {}
-    if (filterTask) params.task_id = filterTask
-    if (filterStatus) params.status = filterStatus
-    api.get('/admin/time-logs', { params })
+    api.get('/admin/time-logs')
       .then(r => setLogs(r.data))
       .catch(() => toast.error('Failed to load time logs'))
       .finally(() => setLoadingLogs(false))
-  }, [filterTask, filterStatus])
+  }, [])
 
   const loadCosts = useCallback(() => {
     setLoadingCosts(true)
@@ -226,14 +289,52 @@ export default function TimeLogs() {
   }, [])
 
   useEffect(() => {
-    api.get('/tasks?page=1&page_size=100').then(r => setTasks(r.data.tasks || [])).catch(() => {})
+    api.get('/admin/tasks?page=1&page_size=200').then(r => setTasks(r.data?.tasks || [])).catch(() => {})
     loadCosts()
   }, [loadCosts])
 
   useEffect(() => { loadLogs() }, [loadLogs])
 
-  const totalCost = logs.reduce((s, l) => s + (l.cost ?? 0), 0)
-  const activeLogs = logs.filter(l => l.status === 'active')
+  const taskOptions = useMemo(() => {
+    const map = new Map()
+    tasks.forEach(t => {
+      if (t.id && t.title) map.set(String(t.id), t.title)
+    })
+    logs.forEach(l => {
+      if (l.task_id && l.task_title) map.set(String(l.task_id), l.task_title)
+    })
+    return [
+      { value: '', label: 'All tasks' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+    ]
+  }, [tasks, logs])
+
+  const filteredLogs = useMemo(() => {
+    let result = logs
+    if (filterTask) {
+      result = result.filter(l => String(l.task_id) === String(filterTask))
+    }
+    if (filterStatus) {
+      result = result.filter(l => l.status === filterStatus)
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(l =>
+        (l.worker_name || '').toLowerCase().includes(q) ||
+        (l.worker_email || '').toLowerCase().includes(q) ||
+        (l.task_title || '').toLowerCase().includes(q)
+      )
+    }
+    return filterRecordsByDate(result, { startDate, endDate }, 'checked_in_at')
+  }, [logs, filterTask, filterStatus, search, startDate, endDate])
+
+  const paginatedLogs = useMemo(() =>
+    filteredLogs.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
+    [filteredLogs, page]
+  )
+
+  const totalCost = filteredLogs.reduce((s, l) => s + (l.cost ?? 0), 0)
+  const activeLogs = filteredLogs.filter(l => l.status === 'active')
 
   return (
     <div className="p-6 space-y-5">
@@ -245,6 +346,17 @@ export default function TimeLogs() {
           </p>
         </div>
         <RefreshButton onClick={() => { loadLogs(); loadCosts() }} loading={loadingLogs || loadingCosts} />
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs flex items-center justify-between flex-wrap gap-3">
+        <DateFilter
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          endDate={endDate}
+          onEndDateChange={setEndDate}
+          onPageReset={() => setPage(1)}
+        />
       </div>
 
       {/* Tabs */}
@@ -271,10 +383,7 @@ export default function TimeLogs() {
               {
                 value: filterTask,
                 onChange: setFilterTask,
-                options: [
-                  { value: '', label: 'All tasks' },
-                  ...tasks.map(t => ({ value: t.id, label: t.title })),
-                ],
+                options: taskOptions,
               },
               {
                 value: filterStatus,
@@ -310,25 +419,9 @@ export default function TimeLogs() {
                       <td key={j} className="px-5 py-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
                     ))}</tr>
                   ))
-                ) : logs.filter(l => {
-                  if (!search) return true
-                  const q = search.toLowerCase()
-                  return (l.worker_name || '').toLowerCase().includes(q) ||
-                         (l.worker_email || '').toLowerCase().includes(q) ||
-                         (l.task_title || '').toLowerCase().includes(q)
-                }).length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">{search ? 'No sessions match your search' : 'No sessions found'}</td></tr>
-                ) : (() => {
-                  const filtered = logs.filter(l => {
-                    if (!search) return true
-                    const q = search.toLowerCase()
-                    return (l.worker_name || '').toLowerCase().includes(q) ||
-                           (l.worker_email || '').toLowerCase().includes(q) ||
-                           (l.task_title || '').toLowerCase().includes(q)
-                  })
-                  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-                  const displayed = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-                  return displayed.map(log => (
+                ) : filteredLogs.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">No sessions match your search or date filter</td></tr>
+                ) : paginatedLogs.map(log => (
                   <tr key={log.session_id} className={`hover:bg-gray-50 transition-colors ${log.status === 'active' ? 'bg-green-50/40' : ''}`}>
                     <td className="px-5 py-3">
                       <p className="font-medium text-gray-900">{log.worker_name}</p>
@@ -356,8 +449,7 @@ export default function TimeLogs() {
                       </button>
                     </td>
                   </tr>
-                  ))
-                })()}
+                  ))}
               </tbody>
               <tfoot className="bg-gray-50 border-t border-gray-200">
                 <tr>
@@ -370,17 +462,7 @@ export default function TimeLogs() {
               </tfoot>
             </table>
           </div>
-          {(() => {
-            const filtered = logs.filter(l => {
-              if (!search) return true
-              const q = search.toLowerCase()
-              return (l.worker_name || '').toLowerCase().includes(q) ||
-                     (l.worker_email || '').toLowerCase().includes(q) ||
-                     (l.task_title || '').toLowerCase().includes(q)
-            })
-            const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-            return <Pagination page={page} totalPages={totalPages} onPage={setPage} />
-          })()}
+          <Pagination page={page} totalPages={Math.ceil(filteredLogs.length / ITEMS_PER_PAGE)} onPage={setPage} />
         </>
       )}
 

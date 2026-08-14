@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import DateFilter, { filterRecordsByDate } from '../components/DateFilter'
 import RefreshButton from '../components/RefreshButton'
 import Pagination from '../components/Pagination'
 import usePausablePolling from '../hooks/usePausablePolling'
@@ -58,16 +59,18 @@ function MessageModal({ worker, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style={{ height: 480 }}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <p className="font-bold text-gray-900">💬 {worker.full_name}</p>
+            <p className="font-bold text-gray-900">💬 {worker.full_name || worker.email}</p>
             <p className="text-xs text-gray-400">{worker.email}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 font-bold text-lg">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
-          {messages.length === 0 && <p className="text-center text-gray-400 text-sm mt-8">No messages yet</p>}
-          {messages.map(m => (
-            <div key={m.id} className={`flex items-end gap-1 group ${m.sender_id !== worker.id ? 'justify-end' : 'justify-start'}`}>
-              {m.sender_id !== worker.id && (
+          {messages.length === 0 && <p className="text-center text-gray-400 text-sm mt-8">No messages yet. Start the conversation!</p>}
+          {messages.map(m => {
+            const isMine = m.sender_id !== worker.id
+            return (
+            <div key={m.id} className={`flex items-end gap-1 group ${isMine ? 'justify-end' : 'justify-start'}`}>
+              {isMine && (
                 <button
                   onClick={() => deleteMsg(m.id)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 p-1 shrink-0"
@@ -78,13 +81,18 @@ function MessageModal({ worker, onClose }) {
                   </svg>
                 </button>
               )}
-              <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${m.sender_id !== worker.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+              <div className={`max-w-xs px-3 py-2 rounded-xl text-sm ${isMine ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
                 {m.body}
-                <p className={`text-xs mt-1 ${m.sender_id !== worker.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                <p className={`text-xs mt-1 flex items-center gap-1 ${isMine ? 'justify-end text-blue-200' : 'text-gray-400'}`}>
                   {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {isMine && (
+                    m.is_read
+                      ? <span title="Read" className="text-blue-200 font-bold tracking-tighter">✓✓</span>
+                      : <span title="Sent" className="text-blue-300 tracking-tighter">✓</span>
+                  )}
                 </p>
               </div>
-              {m.sender_id === worker.id && (
+              {!isMine && (
                 <button
                   onClick={() => deleteMsg(m.id)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-400 p-1 shrink-0"
@@ -96,7 +104,8 @@ function MessageModal({ worker, onClose }) {
                 </button>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
         <div className="px-5 py-3 border-t border-gray-100 flex gap-2">
           <input
@@ -207,6 +216,12 @@ export default function Applications() {
   const [search, setSearch] = useState('')
   const [filterTask, setFilterTask] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+
+  // Date filter state
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   const [selectedWorker, setSelectedWorker] = useState(null)
   const [messageWorker, setMessageWorker] = useState(null)
   const [page, setPage] = useState(1)
@@ -215,17 +230,12 @@ export default function Applications() {
 
   const load = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true)
-    const params = new URLSearchParams()
-    if (filterTask) params.set('task_id', filterTask)
-    if (filterStatus) params.set('status', filterStatus)
-    params.set('page', page)
-    params.set('page_size', ITEMS_PER_PAGE)
 
     try {
       const [appsRes, pendingRes, tasksRes] = await Promise.all([
-        api.get(`/admin/applications?${params}`),
+        api.get('/admin/applications?page_size=200'),
         api.get('/admin/applications?status=pending&page=1&page_size=1'),
-        api.get('/admin/tasks?page=1&page_size=100'),
+        api.get('/admin/tasks?page=1&page_size=200'),
       ])
 
       const data = Array.isArray(appsRes.data) ? appsRes.data : (appsRes.data?.items || [])
@@ -241,24 +251,47 @@ export default function Applications() {
     } finally {
       if (!isBackground) setLoading(false)
     }
-  }, [filterTask, filterStatus, page])
+  }, [])
 
   useEffect(() => { load(false) }, [load])
   const pollBg = useCallback(() => load(true), [load])
   usePausablePolling(pollBg, 5000)
 
   // Reset to page 1 when search/filters change
-  useEffect(() => { setPage(1) }, [search, filterTask, filterStatus])
+  useEffect(() => { setPage(1) }, [search, filterTask, filterStatus, startDate, endDate])
+
+  const taskOptions = useMemo(() => {
+    const map = new Map()
+    tasks.forEach(t => {
+      if (t.id && t.title) map.set(String(t.id), t.title)
+    })
+    apps.forEach(a => {
+      if (a.task?.id && a.task?.title) map.set(String(a.task.id), a.task.title)
+    })
+    return [
+      { value: '', label: 'All tasks' },
+      ...Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+    ]
+  }, [tasks, apps])
 
   const filteredApps = useMemo(() => {
-    if (!search) return apps
-    const q = search.toLowerCase()
-    return apps.filter(a =>
-      (a.worker?.full_name || '').toLowerCase().includes(q) ||
-      (a.worker?.email || '').toLowerCase().includes(q) ||
-      (a.task?.title || '').toLowerCase().includes(q)
-    )
-  }, [apps, search])
+    let result = apps
+    if (filterTask) {
+      result = result.filter(a => String(a.task_id) === String(filterTask) || String(a.task?.id) === String(filterTask))
+    }
+    if (filterStatus) {
+      result = result.filter(a => a.status === filterStatus)
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(a =>
+        (a.worker?.full_name || '').toLowerCase().includes(q) ||
+        (a.worker?.email || '').toLowerCase().includes(q) ||
+        (a.task?.title || '').toLowerCase().includes(q)
+      )
+    }
+    return filterRecordsByDate(result, { startDate, endDate }, 'created_at')
+  }, [apps, filterTask, filterStatus, search, startDate, endDate])
 
   // Backend is already paginated — display filtered current page directly.
   const paginatedApps = filteredApps
@@ -288,6 +321,17 @@ export default function Applications() {
         <RefreshButton onClick={load} loading={loading} />
       </div>
 
+      {/* Date Range Filter */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs flex items-center justify-between flex-wrap gap-3">
+        <DateFilter
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          endDate={endDate}
+          onEndDateChange={setEndDate}
+          onPageReset={() => setPage(1)}
+        />
+      </div>
+
       <SearchFilterBar
         search={search}
         onSearchChange={setSearch}
@@ -296,10 +340,7 @@ export default function Applications() {
           {
             value: filterTask,
             onChange: setFilterTask,
-            options: [
-              { value: '', label: 'All tasks' },
-              ...tasks.map(t => ({ value: t.id, label: t.title })),
-            ],
+            options: taskOptions,
           },
           {
             value: filterStatus,

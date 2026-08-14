@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
+import DateFilter, { filterRecordsByDate } from '../components/DateFilter'
 import Pagination from '../components/Pagination'
 import RefreshButton from '../components/RefreshButton'
 import usePausablePolling from '../hooks/usePausablePolling'
@@ -392,6 +393,10 @@ export default function Withdrawals() {
   const [drawerWorker, setDrawerWorker] = useState(null)
   const [messageWorker, setMessageWorker] = useState(null)
 
+  // Date filter state
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   const load = useCallback((isBackground = false) => {
     if (!isBackground) setLoading(true)
     const params = filterStatus ? { status: filterStatus } : {}
@@ -407,16 +412,19 @@ export default function Withdrawals() {
   const pollBg = useCallback(() => load(true), [load])
   usePausablePolling(pollBg, 5000)
 
-  useEffect(() => { setPage(1) }, [search, filterStatus])
+  useEffect(() => { setPage(1) }, [search, filterStatus, startDate, endDate])
 
   const filtered = useMemo(() => {
-    if (!search) return withdrawals
-    const q = search.toLowerCase()
-    return withdrawals.filter(w =>
-      (w.worker_name || '').toLowerCase().includes(q) ||
-      (w.worker_email || '').toLowerCase().includes(q)
-    )
-  }, [withdrawals, search])
+    let result = withdrawals
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(w =>
+        (w.worker_name || '').toLowerCase().includes(q) ||
+        (w.worker_email || '').toLowerCase().includes(q)
+      )
+    }
+    return filterRecordsByDate(result, { startDate, endDate }, 'created_at')
+  }, [withdrawals, search, startDate, endDate])
 
   const paginated = useMemo(() =>
     filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
@@ -436,6 +444,18 @@ export default function Withdrawals() {
         </h1>
         <RefreshButton onClick={load} loading={loading} />
       </div>
+
+      {/* Date Range Filter */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-100 shadow-xs flex items-center justify-between flex-wrap gap-3">
+        <DateFilter
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          endDate={endDate}
+          onEndDateChange={setEndDate}
+          onPageReset={() => setPage(1)}
+        />
+      </div>
+
       <SearchFilterBar
         search={search}
         onSearchChange={setSearch}
