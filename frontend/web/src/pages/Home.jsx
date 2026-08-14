@@ -43,7 +43,7 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8 pb-28 sm:pb-20">
       {/* Wallet Banner (logged-in users only) */}
       {accessToken && wallet && (
         <Link to="/wallet" className="block bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl p-4 mb-6 text-white hover:from-primary-700 hover:to-primary-800 transition-colors shadow-md">

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -146,7 +147,7 @@ function StarRater({ sessionId, currentRating, onRated }) {
   )
 }
 
-function WorkerDrawer({ user, onClose, onMessage }) {
+function WorkerDrawer({ user, onClose, onMessage, isSuperAdmin, onDeleteWorker }) {
   const [profile, setProfile] = useState(null)
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -232,13 +233,21 @@ function WorkerDrawer({ user, onClose, onMessage }) {
             </div>
           )}
 
-          {/* Message button */}
-          {!user.is_admin && (
-            <button onClick={() => onMessage(user)}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
-              💬 Send Message
-            </button>
-          )}
+          {/* Message & Delete buttons */}
+          <div className="space-y-2">
+            {!user.is_admin && (
+              <button onClick={() => onMessage(user)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
+                💬 Send Message
+              </button>
+            )}
+            {isSuperAdmin && !user.is_admin && (
+              <button onClick={() => onDeleteWorker(user)}
+                className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5">
+                <span>🗑 Delete Worker Account</span>
+              </button>
+            )}
+          </div>
 
           {/* Session history */}
           <div>
@@ -282,6 +291,9 @@ function WorkerDrawer({ user, onClose, onMessage }) {
 
 /* ─── Main Users page ────────────────────────────────────────────────────── */
 export default function Users() {
+  const currentUser = useSelector((s) => s.auth.user)
+  const isSuperAdmin = currentUser?.is_super_admin
+
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -307,6 +319,24 @@ export default function Users() {
   // Real-time updates via WebSocket
 
   useEffect(() => { setPage(1) }, [search])
+
+  const handleDeleteWorker = async (worker) => {
+    if (!isSuperAdmin) {
+      toast.error('Only Super Admin can delete worker accounts')
+      return
+    }
+    if (!window.confirm(`Are you sure you want to delete worker "${worker.full_name || worker.email}"? This action cannot be undone.`)) {
+      return
+    }
+    try {
+      await api.delete(`/admin/users/${worker.id}`)
+      toast.success(`Worker "${worker.full_name || worker.email}" deleted successfully`)
+      setSelectedUser(null)
+      load()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to delete worker')
+    }
+  }
 
   const paginatedUsers = useMemo(() =>
     users.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE),
@@ -391,6 +421,13 @@ export default function Users() {
                         💬 Message
                       </button>
                     )}
+                    {isSuperAdmin && !u.is_admin && (
+                      <button onClick={() => handleDeleteWorker(u)}
+                        className="text-xs px-2.5 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                        title="Delete Worker (Super Admin Only)">
+                        🗑 Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -406,6 +443,8 @@ export default function Users() {
           user={selectedUser}
           onClose={() => setSelectedUser(null)}
           onMessage={u => { setSelectedUser(null); setMessageTarget(u) }}
+          isSuperAdmin={isSuperAdmin}
+          onDeleteWorker={handleDeleteWorker}
         />
       )}
       {messageTarget && (
