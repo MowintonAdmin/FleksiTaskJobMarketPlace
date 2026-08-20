@@ -6,6 +6,7 @@ import { toast } from 'react-toastify'
 import { fetchTaskById, clearSelectedTask } from '../store/taskSlice'
 import { applicationsApi } from '../api/tasks'
 import { apiHost } from '../api/client'
+import ShareModal from '../components/ShareModal'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
@@ -18,6 +19,7 @@ export default function TaskDetail() {
   const [applying, setApplying] = useState(false)
   const [coverNote, setCoverNote] = useState('')
   const [applied, setApplied] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
 
   useEffect(() => {
     dispatch(fetchTaskById(id))
@@ -63,9 +65,18 @@ export default function TaskDetail() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 pb-32 sm:pb-24">
-      <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 mb-4 flex items-center gap-1">
-        ← Back
-      </button>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+          ← Back
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowShareModal(true)}
+          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 hover:text-primary-600 hover:border-primary-200 rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors"
+        >
+          <span className="text-sm">📤</span> Share Task
+        </button>
+      </div>
 
       {task.photo_url && (
         <div className="mb-4 rounded-2xl overflow-hidden shadow">
@@ -166,6 +177,10 @@ export default function TaskDetail() {
           <p className="text-red-700 font-semibold text-sm">⛔ Applications Closed</p>
           <p className="text-red-500 text-xs mt-1">The start date for this task has passed and it is no longer accepting applications.</p>
         </div>
+      )}
+
+      {showShareModal && (
+        <ShareModal task={task} onClose={() => setShowShareModal(false)} />
       )}
     </div>
   )

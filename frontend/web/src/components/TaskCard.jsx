@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiHost } from '../api/client'
 import TagBadge from '../utils/tagColors'
+import ShareModal from './ShareModal'
 
 const mediaUrl = (path) => (path ? `${apiHost}${path}` : null)
 
@@ -54,50 +56,69 @@ function parseCategoryTags(str) {
 }
 
 export default function TaskCard({ task }) {
+  const [showShareModal, setShowShareModal] = useState(false)
   const totalPay = (task.pay_rate_per_minute * task.estimated_duration_minutes).toFixed(2)
   const categoryTags = parseCategoryTags(task.category)
 
   return (
-    <Link to={`/tasks/${task.id}`} className="card hover:shadow-md transition-shadow block">
-      {task.photo_url && (
-        <img src={mediaUrl(task.photo_url)} alt={task.title} className="w-full h-36 object-cover rounded-xl mb-3 -mt-1" />
-      )}
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[task.status]}`}>
-              {task.status
-                .split('_')
-                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ')}
-            </span>
-            {categoryTags.map((cat, idx) => (
-              <span key={idx} className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full break-words">
-                {cat}
+    <>
+      <Link to={`/tasks/${task.id}`} className="card hover:shadow-md transition-shadow block relative">
+        {task.photo_url && (
+          <img src={mediaUrl(task.photo_url)} alt={task.title} className="w-full h-36 object-cover rounded-xl mb-3 -mt-1" />
+        )}
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap mb-1">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[task.status]}`}>
+                {task.status
+                  .split('_')
+                  .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ')}
               </span>
-            ))}
+              {categoryTags.map((cat, idx) => (
+                <span key={idx} className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full break-words">
+                  {cat}
+                </span>
+              ))}
+            </div>
+            <h3 className="font-semibold text-gray-900 break-words leading-snug">{task.title}</h3>
+            <p className="text-sm text-gray-500 mt-1 flex items-start gap-1 min-w-0">
+              <span className="shrink-0">📍</span> <span className="break-words min-w-0">{task.location}</span>
+            </p>
           </div>
-          <h3 className="font-semibold text-gray-900 break-words leading-snug">{task.title}</h3>
-          <p className="text-sm text-gray-500 mt-1 flex items-start gap-1 min-w-0">
-            <span className="shrink-0">📍</span> <span className="break-words min-w-0">{task.location}</span>
-          </p>
+          <div className="text-right shrink-0 flex flex-col items-end justify-between">
+            <p className="text-base sm:text-lg font-bold text-primary-600 whitespace-nowrap">RM {totalPay}</p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setShowShareModal(true)
+              }}
+              className="mt-2.5 px-2.5 py-1 text-gray-500 hover:text-primary-600 hover:bg-primary-50 border border-gray-200 hover:border-primary-200 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
+              title="Share Task"
+            >
+              <span>📤</span> Share
+            </button>
+          </div>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-base sm:text-lg font-bold text-primary-600 whitespace-nowrap">RM {totalPay}</p>
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex-wrap">
+          <span>👥 {task.application_count} applied</span>
+          {task.starts_at && (
+            <span>🗓 {new Date(task.starts_at).toLocaleDateString()}</span>
+          )}
+          {task.company_tag && (
+            <TagBadge tag={task.company_tag} size="xs" />
+          )}
+          {task.project_tag && (
+            <TagBadge tag={task.project_tag} size="xs" />
+          )}
         </div>
-      </div>
-      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex-wrap">
-        <span>👥 {task.application_count} applied</span>
-        {task.starts_at && (
-          <span>🗓 {new Date(task.starts_at).toLocaleDateString()}</span>
-        )}
-        {task.company_tag && (
-          <TagBadge tag={task.company_tag} size="xs" />
-        )}
-        {task.project_tag && (
-          <TagBadge tag={task.project_tag} size="xs" />
-        )}
-      </div>
-    </Link>
+      </Link>
+
+      {showShareModal && (
+        <ShareModal task={task} onClose={() => setShowShareModal(false)} />
+      )}
+    </>
   )
 }

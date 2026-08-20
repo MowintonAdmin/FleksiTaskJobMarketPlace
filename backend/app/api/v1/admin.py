@@ -581,12 +581,161 @@ async def admin_get_user_sessions(
             display_title = str(s.nature_of_work)
         elif src == "IMPORTED" and s.proof_notes and "Work:" in str(s.proof_notes):
             display_title = str(s.proof_notes).split(" | ")[0].replace("Work: ", "").strip()
-        out.append({"id": str(s.id), "task_title": display_title, "task_location": task.location if task else "",
+        out.append({"id": str(s.id), "task_id": str(s.task_id), "project_id": str(task.project_id) if (task and task.project_id) else None, "task_title": display_title, "task_location": task.location if task else "",
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
             "checked_out_at": s.checked_out_at.isoformat() if s.checked_out_at else None,
             "elapsed_minutes": elapsed, "earnings": s.earnings, "status": s.status,
             "proof_notes": s.proof_notes, "proof_photo_url": s.proof_photo_url, "source": src})
     return out
+
+
+@router.get("/users/{user_id}/block-impact")
+async def admin_get_user_block_impact(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Pre-check warning details for Super Admin review before blocking a worker."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # 1. Active sessions
+    sess_res = await db.execute(
+        select(TaskSession).where(TaskSession.worker_id == user_id, TaskSession.status == "active")
+    )
+    active_sessions = []
+    for s in sess_res.scalars().all():
+        t_res = await db.execute(select(Task).where(Task.id == s.task_id))
+        t = t_res.scalar_one_or_none()
+        active_sessions.append({
+            "session_id": str(s.id),
+            "task_id": str(s.task_id),
+            "task_title": t.title if t else "Unknown",
+            "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None
+        })
+
+    # 2. Applications (Exclude tasks that the worker has already worked on / completed)
+    worked_sess_res = await db.execute(
+        select(TaskSession.task_id).where(TaskSession.worker_id == user_id)
+    )
+    worked_task_ids = set(worked_sess_res.scalars().all())
+
+    app_res = await db.execute(select(Application).where(Application.worker_id == user_id))
+    apps = app_res.scalars().all()
+    pending_apps = [a for a in apps if str(a.status).lower() in ("pending", "applicationstatus.pending")]
+    approved_unstarted_apps = [
+        a for a in apps
+        if str(a.status).lower() in ("approved", "applicationstatus.approved") and a.task_id not in worked_task_ids
+    ]
+
+    # 3. Wallet & Withdrawals
+    w_res = await db.execute(select(Wallet).where(Wallet.user_id == user_id))
+    wallet = w_res.scalar_one_or_none()
+
+    with_res = await db.execute(select(WithdrawalRequest).where(WithdrawalRequest.user_id == user_id, WithdrawalRequest.status == WithdrawalStatus.PENDING))
+    pending_withdrawals = with_res.scalars().all()
+
+    return {
+        "user_id": str(user.id),
+        "user_name": user.full_name,
+        "is_blocked": getattr(user, "is_blocked", False),
+        "active_sessions": active_sessions,
+        "pending_applications_count": len(pending_apps),
+        "approved_applications_count": len(approved_unstarted_apps),
+        "wallet_available_balance": wallet.available_balance if wallet else 0.0,
+        "wallet_pending_balance": getattr(wallet, "pending_balance", 0.0) if wallet else 0.0,
+        "pending_withdrawals_count": len(pending_withdrawals),
+        "pending_withdrawals_amount": sum(w.amount for w in pending_withdrawals)
+    }
+
+
+@router.post("/users/{user_id}/block")
+async def admin_block_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Block/Archive a worker account and execute cleanup. Super admin ONLY."""
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot block your own account")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.is_admin or user.is_super_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot block admin users")
+
+    now = datetime.now(timezone.utc)
+
+    # 1. Force checkout active sessions
+    sess_res = await db.execute(
+        select(TaskSession).where(TaskSession.worker_id == user_id, TaskSession.status == "active")
+    )
+    for s in sess_res.scalars().all():
+        s.checked_out_at = now
+        t_res = await db.execute(select(Task).where(Task.id == s.task_id))
+        t = t_res.scalar_one_or_none()
+        if s.checked_in_at:
+            v_aware = s.checked_in_at if s.checked_in_at.tzinfo else s.checked_in_at.replace(tzinfo=timezone.utc)
+            duration_mins = max(1.0, (now - v_aware).total_seconds() / 60.0)
+        else:
+            duration_mins = 1.0
+        s.elapsed_minutes = duration_mins
+        rate = t.pay_rate_per_minute if t else 0.0
+        s.earnings = round(duration_mins * rate, 2)
+        s.status = "settled"
+        db.add(s)
+
+    # Fetch updated worked task IDs (including active ones just settled)
+    worked_sess_res = await db.execute(
+        select(TaskSession.task_id).where(TaskSession.worker_id == user_id)
+    )
+    worked_task_ids = set(worked_sess_res.scalars().all())
+
+    # 2. Cancel pending & unstarted approved applications and restore task capacities
+    app_res = await db.execute(select(Application).where(Application.worker_id == user_id))
+    for app in app_res.scalars().all():
+        st_str = str(app.status).lower()
+        if "approved" in st_str:
+            # Only release spot and withdraw if worker HAS NOT worked this task session yet
+            if app.task_id not in worked_task_ids:
+                app.status = ApplicationStatus.WITHDRAWN
+                db.add(app)
+        elif "pending" in st_str:
+            app.status = ApplicationStatus.WITHDRAWN
+            db.add(app)
+
+    # 3. Update User Block Status
+    user.is_blocked = True
+    user.is_active = False
+    db.add(user)
+
+    await db.commit()
+    return {"message": "Worker account blocked successfully", "user_id": str(user.id)}
+
+
+@router.post("/users/{user_id}/unblock")
+async def admin_unblock_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Unblock/Restore a worker account. Super admin ONLY."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.is_blocked = False
+    user.is_active = True
+    db.add(user)
+
+    await db.commit()
+    return {"message": "Worker account unblocked successfully", "user_id": str(user.id)}
 
 
 @router.delete("/users/{user_id}")
@@ -759,7 +908,7 @@ async def admin_list_withdrawals(
         worker_result = await db.execute(select(User).where(User.id == w.user_id))
         worker = worker_result.scalar_one_or_none()
         out.append({"id": str(w.id), "user_id": str(w.user_id), "worker_name": worker.full_name if worker else "Unknown",
-            "worker_email": worker.email if worker else "", "amount": w.amount, "status": w.status,
+            "worker_email": worker.email if worker else "", "worker_is_blocked": getattr(worker, "is_blocked", False), "amount": w.amount, "status": w.status,
             "payment_type": w.payment_type,
             "bank_name": w.bank_name, "account_number": "*" * (len(w.account_number) - 4) + w.account_number[-4:] if w.account_number else "",
             "account_holder_name": w.account_holder_name, "phone_number": w.phone_number,
@@ -887,7 +1036,7 @@ async def admin_time_logs(
                 display_title = str(s.proof_notes).split(" | ")[0].replace("Work: ", "").strip()
         estimated_minutes = round(task.estimated_duration_minutes) if task and task.estimated_duration_minutes else None
         out.append({"session_id": str(s.id), "worker_id": str(s.worker_id), "worker_name": worker.full_name if worker else "Unknown",
-            "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "task_title": display_title,
+            "worker_email": worker.email if worker else "", "task_id": str(s.task_id), "project_id": str(task.project_id) if (task and task.project_id) else None, "task_title": display_title,
             "task_location": task.location if task else "", "pay_rate_per_minute": task.pay_rate_per_minute if task else 0,
             "estimated_duration_minutes": estimated_minutes,
             "checked_in_at": s.checked_in_at.isoformat() if s.checked_in_at else None,
@@ -1135,7 +1284,7 @@ async def admin_all_task_costs(db: AsyncSession = Depends(get_db), current_user:
             paid = sum((s.earnings if s.earnings is not None else (t.pay_rate_per_minute * t.estimated_duration_minutes)) for s in t_sessions if str(s.status).lower() in ("completed", "settled"))
             live = 0.0
             estimated = t.pay_rate_per_minute * t.estimated_duration_minutes
-            out.append({"task_id": str(t.id), "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,
+            out.append({"task_id": str(t.id), "project_id": str(t.project_id) if t.project_id else None, "task_title": t.title, "status": t.status, "pay_rate_per_minute": t.pay_rate_per_minute,
                 "estimated_cost": round(estimated, 2), "paid_cost": round(paid, 2), "live_cost": round(live, 2), "total_cost": round(paid + live, 2), "session_count": len(t_sessions)})
     return out
 

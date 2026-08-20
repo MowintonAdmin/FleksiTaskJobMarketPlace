@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -196,7 +197,17 @@ function TaskCostPanel({ costs, loading }) {
           ) : costs.map(t => (
             <tr key={t.task_id} className="hover:bg-gray-50 transition-colors">
               <td className="px-5 py-3">
-                <p className="font-medium text-gray-900 truncate max-w-[200px]">{t.task_title}</p>
+                {t.project_id ? (
+                  <Link
+                    to={`/tasks?project_id=${t.project_id}&task_id=${t.task_id || ''}`}
+                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[200px] block transition-colors"
+                    title="Click to view task in project"
+                  >
+                    {t.task_title}
+                  </Link>
+                ) : (
+                  <p className="font-medium text-gray-900 truncate max-w-[200px]">{t.task_title}</p>
+                )}
                 <p className="text-xs text-gray-400">RM {t.pay_rate_per_minute}/min · {t.session_count} session{t.session_count !== 1 ? 's' : ''}</p>
               </td>
               <td className="px-5 py-3 text-center">
@@ -428,7 +439,17 @@ export default function TimeLogs() {
                       <p className="text-xs text-gray-400">{log.worker_email}</p>
                     </td>
                     <td className="px-5 py-3 max-w-[160px]">
-                      <p className="font-medium text-gray-800 truncate">{log.task_title}</p>
+                      {log.project_id ? (
+                        <Link
+                          to={`/tasks?project_id=${log.project_id}&task_id=${log.task_id || ''}`}
+                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block transition-colors"
+                          title="Click to view task in project"
+                        >
+                          {log.task_title}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-gray-800 truncate">{log.task_title}</p>
+                      )}
                       <p className="text-xs text-gray-400">{log.task_location}</p>
                     </td>
                     <td className="px-5 py-3 text-gray-600 text-xs">{fmt(log.checked_in_at)}</td>

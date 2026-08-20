@@ -42,6 +42,14 @@ async def get_current_user(
 
     result = await db.execute(select(User).where(condition))
     user = result.scalar_one_or_none()
+    if user and getattr(user, "is_blocked", False):
+        sa_res = await db.execute(select(User).where(User.is_super_admin == True))
+        sa = sa_res.scalars().first()
+        sa_email = sa.email if sa else "admin@fleksitask.com"
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Your account has been suspended/archived. Please contact Super Admin at {sa_email} for assistance."
+        )
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
     return user

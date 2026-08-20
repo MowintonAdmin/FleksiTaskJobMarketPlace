@@ -526,6 +526,11 @@ export default function Withdrawals() {
                     <div>
                       <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors flex items-center gap-1">
                         {w.worker_name}
+                        {w.worker_is_blocked && (
+                          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium ml-1">
+                            🛑 Account Blocked
+                          </span>
+                        )}
                         <span className="text-[10px] text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">ℹ️</span>
                       </p>
                       <p className="text-xs text-gray-400">{w.worker_email}</p>

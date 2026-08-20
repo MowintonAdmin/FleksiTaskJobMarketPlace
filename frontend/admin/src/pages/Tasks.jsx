@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import api, { apiBaseUrl } from '../api/client'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -596,6 +597,7 @@ function TaskTable({ tasks, loading, search, startDate, endDate, onEdit, onCance
 /* ─── Main Tasks Page Component ──────────────────────────────────────────── */
 
 export default function Tasks() {
+  const [searchParams] = useSearchParams()
   const [view, setView] = useState('projects')
   const [projects, setProjects] = useState([])
   const [loadingProjects, setLoadingProjects] = useState(true)
@@ -653,7 +655,20 @@ export default function Tasks() {
   }
 
   useEffect(() => { loadProjects() }, [])
-  useEffect(() => { if (view === 'tasks') loadTasks(page) }, [view, page, filterStatus])
+
+  // Auto-select project when navigated via URL parameters (e.g. /tasks?project_id=xxx)
+  useEffect(() => {
+    const pId = searchParams.get('project_id')
+    if (pId && projects.length > 0) {
+      const match = projects.find(p => String(p.id) === String(pId))
+      if (match && (!selectedProject || selectedProject.id !== match.id)) {
+        setSelectedProject(match)
+        setView('tasks')
+      }
+    }
+  }, [projects, searchParams])
+
+  useEffect(() => { if (view === 'tasks' && selectedProject) loadTasks(page) }, [view, selectedProject, page, filterStatus])
 
   const handleSelectProject = (project) => {
     setSelectedProject(project)

@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
 import Pagination from '../components/Pagination'
+import BlockImpactModal from '../components/BlockImpactModal'
 
 
 const ITEMS_PER_PAGE = 25
@@ -147,7 +149,7 @@ function StarRater({ sessionId, currentRating, onRated }) {
   )
 }
 
-function WorkerDrawer({ user, onClose, onMessage, isSuperAdmin, onDeleteWorker }) {
+function WorkerDrawer({ user, onClose, onMessage }) {
   const [profile, setProfile] = useState(null)
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -233,21 +235,12 @@ function WorkerDrawer({ user, onClose, onMessage, isSuperAdmin, onDeleteWorker }
             </div>
           )}
 
-          {/* Message & Delete buttons */}
-          <div className="space-y-2">
-            {!user.is_admin && (
-              <button onClick={() => onMessage(user)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
-                💬 Send Message
-              </button>
-            )}
-            {isSuperAdmin && !user.is_admin && (
-              <button onClick={() => onDeleteWorker(user)}
-                className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5">
-                <span>🗑 Delete Worker Account</span>
-              </button>
-            )}
-          </div>
+          {!user.is_admin && (
+            <button onClick={() => onMessage(user)}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors">
+              💬 Send Message
+            </button>
+          )}
 
           {/* Session history */}
           <div>
@@ -258,7 +251,18 @@ function WorkerDrawer({ user, onClose, onMessage, isSuperAdmin, onDeleteWorker }
                 {sessions.map(s => (
                   <div key={s.id} className="bg-gray-50 rounded-xl p-3 text-sm">
                     <div className="flex justify-between items-start">
-                      <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
+                      {s.project_id ? (
+                        <Link
+                          to={`/tasks?project_id=${s.project_id}&task_id=${s.task_id || ''}`}
+                          onClick={onClose}
+                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[160px] transition-colors"
+                          title="Click to view task in project"
+                        >
+                          {s.task_title}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         s.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                       }`}>{formatStatusLabel(s.status)}</span>
@@ -300,6 +304,7 @@ export default function Users() {
   const [page, setPage] = useState(1)
   const [selectedUser, setSelectedUser] = useState(null)
   const [messageTarget, setMessageTarget] = useState(null)
+  const [blockTargetUser, setBlockTargetUser] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -404,10 +409,13 @@ export default function Users() {
                 </td>
                 <td className="px-5 py-3 text-gray-500">{u.location || '—'}</td>
                 <td className="px-5 py-3 text-center">
-                  {u.is_admin
-                    ? <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">Admin</span>
-                    : <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Worker</span>
-                  }
+                  {u.is_admin ? (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">Admin</span>
+                  ) : u.is_blocked ? (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-medium">🔴 Blocked</span>
+                  ) : (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Worker</span>
+                  )}
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex items-center justify-center gap-2">
@@ -422,10 +430,16 @@ export default function Users() {
                       </button>
                     )}
                     {isSuperAdmin && !u.is_admin && (
-                      <button onClick={() => handleDeleteWorker(u)}
-                        className="text-xs px-2.5 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                        title="Delete Worker (Super Admin Only)">
-                        🗑 Delete
+                      <button
+                        onClick={() => setBlockTargetUser(u)}
+                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium border ${
+                          u.is_blocked
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200'
+                            : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'
+                        }`}
+                        title={u.is_blocked ? 'Unblock Worker' : 'Block Worker'}
+                      >
+                        {u.is_blocked ? '✅ Unblock' : '🛑 Block'}
                       </button>
                     )}
                   </div>
@@ -444,11 +458,19 @@ export default function Users() {
           onClose={() => setSelectedUser(null)}
           onMessage={u => { setSelectedUser(null); setMessageTarget(u) }}
           isSuperAdmin={isSuperAdmin}
-          onDeleteWorker={handleDeleteWorker}
+          onReload={load}
         />
       )}
       {messageTarget && (
         <MessageModal worker={messageTarget} onClose={() => setMessageTarget(null)} />
+      )}
+      {blockTargetUser && (
+        <BlockImpactModal
+          worker={blockTargetUser}
+          onClose={() => setBlockTargetUser(null)}
+          onBlocked={() => { setBlockTargetUser(null); load() }}
+          onUnblocked={() => { setBlockTargetUser(null); load() }}
+        />
       )}
     </div>
   )

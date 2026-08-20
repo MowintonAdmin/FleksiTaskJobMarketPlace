@@ -233,11 +233,20 @@ async def login(
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
     
+    if user and getattr(user, "is_blocked", False) and user.hashed_password and verify_password(payload.password, user.hashed_password):
+        sa_res = await db.execute(select(User).where(User.is_super_admin == True))
+        sa = sa_res.scalars().first()
+        sa_email = sa.email if sa else "admin@fleksitask.com"
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Your account has been suspended/archived. Please contact Super Admin at {sa_email} for assistance."
+        )
+
     # Same generic error for all auth failures to prevent email enumeration
     auth_failed = False
     if not user or not user.hashed_password or not verify_password(payload.password, user.hashed_password):
         auth_failed = True
-    if user and not user.is_active:
+    if user and not user.is_active and not getattr(user, "is_blocked", False):
         auth_failed = True  # Also treat inactive as generic failure
     
     if auth_failed:

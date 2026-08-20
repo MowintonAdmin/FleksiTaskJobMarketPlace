@@ -105,6 +105,7 @@ class UserResponse(UserBase):
     rejection_reason: str | None = None
     verification_submitted_at: datetime | None = None
     is_active: bool
+    is_blocked: bool = False
     is_employer: bool
     is_admin: bool
     is_super_admin: bool
@@ -171,6 +172,7 @@ class UserSafeResponse(BaseModel):
     race: str | None = None
     is_verified: bool
     is_active: bool
+    is_blocked: bool = False
     is_admin: bool
     is_super_admin: bool
     company_tag: str | None = None

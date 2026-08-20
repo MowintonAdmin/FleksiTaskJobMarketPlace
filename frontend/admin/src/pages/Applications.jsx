@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import api from '../api/client'
 import { toast } from 'react-toastify'
 import SearchFilterBar from '../components/SearchFilterBar'
@@ -6,6 +8,7 @@ import DateFilter, { filterRecordsByDate } from '../components/DateFilter'
 import RefreshButton from '../components/RefreshButton'
 import Pagination from '../components/Pagination'
 import usePausablePolling from '../hooks/usePausablePolling'
+import BlockImpactModal from '../components/BlockImpactModal'
 
 const ITEMS_PER_PAGE = 25
 
@@ -188,7 +191,18 @@ function WorkerDrawer({ worker, onClose, onMessage }) {
                 {sessions.map(s => (
                   <div key={s.id} className="bg-gray-50 rounded-xl p-3 text-sm">
                     <div className="flex justify-between items-start">
-                      <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
+                      {s.project_id ? (
+                        <Link
+                          to={`/tasks?project_id=${s.project_id}&task_id=${s.task_id || ''}`}
+                          onClick={onClose}
+                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[160px] transition-colors"
+                          title="Click to view task in project"
+                        >
+                          {s.task_title}
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-gray-800 truncate max-w-[160px]">{s.task_title}</p>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                         {formatStatusLabel(s.status)}
                       </span>
@@ -388,7 +402,19 @@ export default function Applications() {
                     <span className="font-medium text-gray-900">{app.worker?.full_name ?? '—'}</span>
                   </button>
                 </td>
-                <td className="px-4 py-3 text-gray-600 break-words">{app.task?.title ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600 break-words">
+                  {app.task ? (
+                    <Link
+                      to={`/tasks?project_id=${app.task.project_id || ''}&task_id=${app.task.id || ''}`}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                      title="Click to view task in project"
+                    >
+                      {app.task.title}
+                    </Link>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="px-4 py-3 text-gray-500 italic text-xs whitespace-pre-wrap break-words">{app.cover_note ?? '—'}</td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{new Date(app.created_at).toLocaleDateString()}</td>
                 <td className="px-4 py-3 text-center">
