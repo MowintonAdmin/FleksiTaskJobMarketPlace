@@ -4,6 +4,7 @@ import api from '../api/client'
 import { toast } from 'react-toastify'
 import TagBadge from '../utils/tagColors'
 import Pagination from '../components/Pagination'
+import AdminBlockImpactModal from '../components/AdminBlockImpactModal'
 
 const ITEMS_PER_PAGE = 25
 
@@ -37,8 +38,7 @@ export default function AdminUsers() {
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [resetting, setResetting] = useState(false)
 
-  const [deletingAdmin, setDeletingAdmin] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+  const [blockTargetAdmin, setBlockTargetAdmin] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -245,41 +245,53 @@ export default function AdminUsers() {
                 <td className="px-5 py-3">
                   <TagBadge tag={u.company_tag} size="xs" />
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-3 whitespace-nowrap">
                   {u.is_super_admin ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">👑 Super</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium whitespace-nowrap inline-flex items-center gap-1">👑 Super</span>
+                  ) : u.is_blocked ? (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-medium whitespace-nowrap inline-flex items-center gap-1">
+                      <span>🔴</span> <span>Blocked</span>
+                    </span>
                   ) : (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">Normal</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 font-medium whitespace-nowrap inline-flex items-center gap-1">Normal</span>
                   )}
                 </td>
-                <td className="px-5 py-3 text-gray-500">{u.location || '—'}</td>
-                <td className="px-5 py-3 text-center text-gray-400 text-xs">
+                <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{u.location || '—'}</td>
+                <td className="px-5 py-3 text-center text-gray-400 text-xs whitespace-nowrap">
                   {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
                 </td>
                 {isSuperAdmin && (
-                  <td className="px-5 py-3 text-center">
+                  <td className="px-5 py-3 text-center whitespace-nowrap">
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => openEditModal(u)}
                         title="Edit"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
                       >
                         ✏️
                       </button>
                       <button
                         onClick={() => openResetModal(u)}
                         title="Reset Password"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors whitespace-nowrap"
                       >
                         🔑
                       </button>
-                      {u.id !== user?.id && (
+                      {u.id !== user?.id && !u.is_super_admin && (
                         <button
-                          onClick={() => openDeleteConfirm(u)}
-                          title="Delete"
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          onClick={() => setBlockTargetAdmin(u)}
+                          title={u.is_blocked ? "Unblock Admin" : "Block Admin"}
+                          className={`text-xs px-2.5 py-1 rounded-lg transition-colors font-medium border whitespace-nowrap inline-flex items-center gap-1 ${
+                            u.is_blocked
+                              ? 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200'
+                              : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'
+                          }`}
                         >
-                          🗑️
+                          {u.is_blocked ? (
+                            <><span>✅</span> <span>Unblock</span></>
+                          ) : (
+                            <><span>🛑</span> <span>Block</span></>
+                          )}
                         </button>
                       )}
                     </div>
@@ -416,27 +428,14 @@ export default function AdminUsers() {
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
-      {deletingAdmin && isSuperAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="px-6 py-5 text-center space-y-3">
-              <p className="text-4xl">⚠️</p>
-              <h2 className="text-lg font-bold text-gray-900">Delete Admin?</h2>
-              <p className="text-sm text-gray-500">
-                Are you sure you want to delete <strong>{deletingAdmin.email}</strong>?
-                This action <span className="text-red-500 font-semibold">cannot be undone</span>.
-              </p>
-            </div>
-            <div className="flex gap-3 px-6 pb-5">
-              <button onClick={() => setDeletingAdmin(null)} className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
-              <button onClick={handleDeleteAdmin} disabled={deleting}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50">
-                {deleting ? 'Deleting…' : '🗑️ Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Admin Block Impact Pre-Check Modal */}
+      {blockTargetAdmin && isSuperAdmin && (
+        <AdminBlockImpactModal
+          adminUser={blockTargetAdmin}
+          onClose={() => setBlockTargetAdmin(null)}
+          onBlocked={() => { setBlockTargetAdmin(null); load() }}
+          onUnblocked={() => { setBlockTargetAdmin(null); load() }}
+        />
       )}
     </div>
   )

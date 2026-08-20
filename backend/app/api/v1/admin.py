@@ -488,9 +488,9 @@ async def admin_list_admins(
 ):
     """List admin users."""
     if current_user.is_super_admin:
-        q = select(User).where(User.is_admin == True, User.is_active == True).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True).order_by(User.created_at.desc())
     else:
-        q = select(User).where(User.is_admin == True, User.is_active == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
+        q = select(User).where(User.is_admin == True, User.company_tag == current_user.company_tag).order_by(User.created_at.desc())
     result = await db.execute(q)
     admins = result.scalars().all()
     if search:
@@ -736,6 +736,119 @@ async def admin_unblock_user(
 
     await db.commit()
     return {"message": "Worker account unblocked successfully", "user_id": str(user.id)}
+
+
+@router.get("/users/admins/{admin_id}/block-impact")
+async def admin_get_admin_user_block_impact(
+    admin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Pre-check warning details for Super Admin review before blocking an Admin account."""
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin_user = result.scalar_one_or_none()
+    if not admin_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+
+    # 1. Projects created by this admin
+    proj_res = await db.execute(select(Project).where(Project.created_by_id == admin_id))
+    projects = proj_res.scalars().all()
+    project_ids = [p.id for p in projects]
+    active_projects = [p for p in projects if str(p.status).lower() in ("active", "projectstatus.active")]
+    closed_projects = [p for p in projects if str(p.status).lower() in ("closed", "projectstatus.closed")]
+
+    # 2. Tasks under these projects
+    if project_ids:
+        task_res = await db.execute(select(Task).where(Task.project_id.in_(project_ids)))
+        tasks = task_res.scalars().all()
+    else:
+        tasks = []
+
+    task_ids = [t.id for t in tasks]
+    open_tasks = [t for t in tasks if str(t.status).lower() in ("open", "in_progress", "taskstatus.open", "taskstatus.in_progress")]
+    completed_tasks = [t for t in tasks if str(t.status).lower() in ("completed", "cancelled", "taskstatus.completed", "taskstatus.cancelled")]
+
+    # 3. Active sessions running under this admin's tasks
+    if task_ids:
+        sess_res = await db.execute(
+            select(TaskSession).where(TaskSession.task_id.in_(task_ids), TaskSession.status == "active")
+        )
+        active_sessions_count = len(sess_res.scalars().all())
+    else:
+        active_sessions_count = 0
+
+    # 4. Pending applications waiting for this admin's tasks
+    if task_ids:
+        app_res = await db.execute(
+            select(Application).where(Application.task_id.in_(task_ids))
+        )
+        apps = app_res.scalars().all()
+        pending_apps_count = len([a for a in apps if str(a.status).lower() in ("pending", "applicationstatus.pending")])
+    else:
+        pending_apps_count = 0
+
+    return {
+        "admin_id": str(admin_user.id),
+        "admin_name": admin_user.full_name,
+        "admin_email": admin_user.email,
+        "company_tag": admin_user.company_tag,
+        "is_super_admin": admin_user.is_super_admin,
+        "is_blocked": getattr(admin_user, "is_blocked", False),
+        "total_projects_count": len(projects),
+        "active_projects_count": len(active_projects),
+        "closed_projects_count": len(closed_projects),
+        "total_tasks_count": len(tasks),
+        "open_tasks_count": len(open_tasks),
+        "completed_tasks_count": len(completed_tasks),
+        "active_sessions_count": active_sessions_count,
+        "pending_applications_count": pending_apps_count,
+    }
+
+
+@router.post("/users/admins/{admin_id}/block")
+async def admin_block_admin_user(
+    admin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Block/Archive an admin user account. Super Admin ONLY."""
+    if admin_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot block your own account")
+
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin_user = result.scalar_one_or_none()
+    if not admin_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+
+    if admin_user.is_super_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot block Super Admin accounts")
+
+    admin_user.is_blocked = True
+    admin_user.is_active = False
+    db.add(admin_user)
+
+    await db.commit()
+    return {"message": f"Admin account '{admin_user.full_name}' blocked successfully", "admin_id": str(admin_user.id)}
+
+
+@router.post("/users/admins/{admin_id}/unblock")
+async def admin_unblock_admin_user(
+    admin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Unblock/Restore an admin user account. Super Admin ONLY."""
+    result = await db.execute(select(User).where(User.id == admin_id, User.is_admin == True))
+    admin_user = result.scalar_one_or_none()
+    if not admin_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin user not found")
+
+    admin_user.is_blocked = False
+    admin_user.is_active = True
+    db.add(admin_user)
+
+    await db.commit()
+    return {"message": f"Admin account '{admin_user.full_name}' unblocked successfully", "admin_id": str(admin_user.id)}
 
 
 @router.delete("/users/{user_id}")

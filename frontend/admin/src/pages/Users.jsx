@@ -352,7 +352,7 @@ export default function Users() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
-          Workers <span className="text-gray-400 font-normal text-lg">({users.length})</span>
+          Worker Profiles <span className="text-gray-400 font-normal text-lg">({users.length})</span>
         </h1>
       </div>
 
@@ -364,8 +364,8 @@ export default function Users() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full min-w-[700px] text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100">
+        <table className="w-full text-sm min-w-[850px]">
+          <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100 whitespace-nowrap">
             <tr>
               <th className="px-5 py-3 text-left">Worker</th>
               <th className="px-5 py-3 text-left">Email</th>
@@ -397,49 +397,55 @@ export default function Users() {
                     <span className="font-medium text-gray-900 truncate">{u.full_name || '—'}</span>
                   </button>
                 </td>
-                <td className="px-5 py-3 text-gray-500 truncate">
+                <td className="px-5 py-3 text-gray-500 truncate max-w-[200px]">
                   {u.source === 'IMPORTED' ? (
                     <div>
-                      <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">⚠ Not registered</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium whitespace-nowrap">⚠ Not registered</span>
                       <p className="text-xs text-gray-400 mt-1">Participant ID: {u.legacy_participant_id || '—'}</p>
                     </div>
                   ) : (
-                    <p className="text-sm">{u.email}</p>
+                    <p className="text-sm truncate">{u.email}</p>
                   )}
                 </td>
-                <td className="px-5 py-3 text-gray-500">{u.location || '—'}</td>
-                <td className="px-5 py-3 text-center">
+                <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{u.location || '—'}</td>
+                <td className="px-5 py-3 text-center whitespace-nowrap">
                   {u.is_admin ? (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">Admin</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium whitespace-nowrap inline-flex items-center gap-1">Admin</span>
                   ) : u.is_blocked ? (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-medium">🔴 Blocked</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-medium whitespace-nowrap inline-flex items-center gap-1">
+                      <span>🔴</span> <span>Blocked</span>
+                    </span>
                   ) : (
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">Worker</span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 font-medium whitespace-nowrap inline-flex items-center gap-1">Worker</span>
                   )}
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-5 py-3 whitespace-nowrap">
                   <div className="flex items-center justify-center gap-2">
                     <button onClick={() => setSelectedUser(u)}
-                      className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                      className="text-xs px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap">
                       Profile
                     </button>
                     {!u.is_admin && (
                       <button onClick={() => setMessageTarget(u)}
-                        className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors">
-                        💬 Message
+                        className="text-xs px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap inline-flex items-center gap-1">
+                        <span>💬</span> <span>Message</span>
                       </button>
                     )}
                     {isSuperAdmin && !u.is_admin && (
                       <button
                         onClick={() => setBlockTargetUser(u)}
-                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors font-medium border ${
+                        className={`text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium border whitespace-nowrap inline-flex items-center gap-1 ${
                           u.is_blocked
                             ? 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200'
                             : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'
                         }`}
                         title={u.is_blocked ? 'Unblock Worker' : 'Block Worker'}
                       >
-                        {u.is_blocked ? '✅ Unblock' : '🛑 Block'}
+                        {u.is_blocked ? (
+                          <><span>✅</span> <span>Unblock</span></>
+                        ) : (
+                          <><span>🛑</span> <span>Block</span></>
+                        )}
                       </button>
                     )}
                   </div>

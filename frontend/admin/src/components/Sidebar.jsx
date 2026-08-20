@@ -10,7 +10,7 @@ function getLinks(user) {
   const isSuperAdmin = user?.is_super_admin
   return [
     { to: '/', label: 'Dashboard', icon: '📊', adminOnly: false },
-    { to: '/users', label: 'Workers', icon: '👥', adminOnly: false },
+    { to: '/users', label: 'Worker Profiles', icon: '👥', adminOnly: false },
     { to: '/user-verification', label: 'User Verification', icon: '🆕', badge: 'pendingVerif', adminOnly: false },
     { to: '/admin-users', label: 'Admin Users', icon: '🛡️', adminOnly: false },
     { to: '/tasks', label: 'Projects / Tasks', icon: '📋', adminOnly: false },
@@ -186,7 +186,7 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {getLinks(user).map(({ to, label, icon, badge }) => (
             <NavLink
               key={to}
